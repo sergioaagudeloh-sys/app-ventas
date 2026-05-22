@@ -1,0 +1,258 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SISTEMA DE PALETAS DE COLORES — App Ventas
+   8 temas: Femeninos | Masculinos | Neutros | Oscuros
+   Aplicados via atributo data-theme en el elemento raíz <html>
+   Modo oscuro: clase 'dark' en <html>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Variables base del sistema ─────────────────────────────────────────── */
+:root {
+  /* Tema por defecto: Rosa Elegante (femenino) */
+  --color-primary: #e91e8c;
+  --color-primary-light: #f48fb1;
+  --color-primary-dark: #ad1457;
+  --color-secondary: #f8bbd9;
+  --color-accent: #ff4081;
+  --color-bg: #fff5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #fce4ec;
+  --color-text: #1a0a12;
+  --color-text-muted: #6d4c5e;
+  --color-border: #f8bbd0;
+  --color-success: #4caf50;
+  --color-warning: #ff9800;
+  --color-error: #f44336;
+  --color-info: #2196f3;
+
+  /* ─── Nuevas variables de apariencia ─────────────────────── */
+  --font-body: 'Inter', system-ui, sans-serif;
+  --radius-base: 0.75rem;        /* rounded (default) */
+  --color-action: var(--color-primary); /* Color de botones de compra */
+}
+
+/* ─── 1. ROSA ELEGANTE (Femenino) ───────────────────────────────────────── */
+[data-theme="rosa-elegante"] {
+  --color-primary: #e91e8c;
+  --color-primary-light: #f48fb1;
+  --color-primary-dark: #ad1457;
+  --color-secondary: #f8bbd9;
+  --color-accent: #ff4081;
+  --color-bg: #fff5f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #fce4ec;
+  --color-text: #1a0a12;
+  --color-text-muted: #6d4c5e;
+  --color-border: #f8bbd0;
+}
+
+/* ─── 2. LILA SUAVE (Femenino) ──────────────────────────────────────────── */
+[data-theme="lila-suave"] {
+  --color-primary: #9c27b0;
+  --color-primary-light: #ce93d8;
+  --color-primary-dark: #6a1b9a;
+  --color-secondary: #e1bee7;
+  --color-accent: #e040fb;
+  --color-bg: #fdf6ff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f3e5f5;
+  --color-text: #12001a;
+  --color-text-muted: #5e3570;
+  --color-border: #e1bee7;
+}
+
+/* ─── 3. AZUL MEDIANOCHE (Masculino) ────────────────────────────────────── */
+[data-theme="azul-medianoche"] {
+  --color-primary: #1565c0;
+  --color-primary-light: #64b5f6;
+  --color-primary-dark: #0d47a1;
+  --color-secondary: #bbdefb;
+  --color-accent: #2979ff;
+  --color-bg: #f0f4ff;
+  --color-surface: #ffffff;
+  --color-surface-2: #e3f2fd;
+  --color-text: #00091a;
+  --color-text-muted: #2c4a7c;
+  --color-border: #bbdefb;
+}
+
+/* ─── 4. VERDE OLIVA (Masculino) ────────────────────────────────────────── */
+[data-theme="verde-oliva"] {
+  --color-primary: #558b2f;
+  --color-primary-light: #aed581;
+  --color-primary-dark: #33691e;
+  --color-secondary: #dcedc8;
+  --color-accent: #76ff03;
+  --color-bg: #f4f8f0;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f8e9;
+  --color-text: #0a1200;
+  --color-text-muted: #3e5229;
+  --color-border: #c5e1a5;
+}
+
+/* ─── 5. NARANJA VIBRANTE (Neutro) ─────────────────────────────────────── */
+[data-theme="naranja-vibrante"] {
+  --color-primary: #e65100;
+  --color-primary-light: #ffcc80;
+  --color-primary-dark: #bf360c;
+  --color-secondary: #ffe0b2;
+  --color-accent: #ff6d00;
+  --color-bg: #fff8f0;
+  --color-surface: #ffffff;
+  --color-surface-2: #fff3e0;
+  --color-text: #1a0900;
+  --color-text-muted: #7c3c00;
+  --color-border: #ffcc80;
+}
+
+/* ─── 6. MORADO PREMIUM (Neutro) ────────────────────────────────────────── */
+[data-theme="morado-premium"] {
+  --color-primary: #4527a0;
+  --color-primary-light: #b39ddb;
+  --color-primary-dark: #311b92;
+  --color-secondary: #ede7f6;
+  --color-accent: #7c4dff;
+  --color-bg: #f5f3ff;
+  --color-surface: #ffffff;
+  --color-surface-2: #ede7f6;
+  --color-text: #0a0019;
+  --color-text-muted: #3a2060;
+  --color-border: #b39ddb;
+}
+
+/* ─── 7. CARBÓN OSCURO (Dark) ───────────────────────────────────────────── */
+[data-theme="carbon-oscuro"] {
+  --color-primary: #90caf9;
+  --color-primary-light: #bbdefb;
+  --color-primary-dark: #42a5f5;
+  --color-secondary: #37474f;
+  --color-accent: #40c4ff;
+  --color-bg: #121212;
+  --color-surface: #1e1e1e;
+  --color-surface-2: #2c2c2c;
+  --color-text: #e0e0e0;
+  --color-text-muted: #9e9e9e;
+  --color-border: #37474f;
+}
+
+/* ─── 8. ESMERALDA PROFUNDO (Dark) ─────────────────────────────────────── */
+[data-theme="esmeralda-profundo"] {
+  --color-primary: #69f0ae;
+  --color-primary-light: #b9f6ca;
+  --color-primary-dark: #00c853;
+  --color-secondary: #1b3a2f;
+  --color-accent: #00e676;
+  --color-bg: #0d1f18;
+  --color-surface: #132819;
+  --color-surface-2: #1a3325;
+  --color-text: #e0f2f1;
+  --color-text-muted: #80cbc4;
+  --color-border: #1b5e20;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO OSCURO — Se activa con clase 'dark' en <html>
+   Ajusta surface y backgrounds para todos los temas claros
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dark [data-theme="rosa-elegante"],
+.dark [data-theme="lila-suave"],
+.dark [data-theme="azul-medianoche"],
+.dark [data-theme="verde-oliva"],
+.dark [data-theme="naranja-vibrante"],
+.dark [data-theme="morado-premium"] {
+  --color-bg: #0f0f0f;
+  --color-surface: #1a1a1a;
+  --color-surface-2: #252525;
+  --color-text: #f0f0f0;
+  --color-text-muted: #a0a0a0;
+  --color-border: #333333;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESTILOS GLOBALES BASE
+   ═══════════════════════════════════════════════════════════════════════════ */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  /* Soporte para pantallas de alta frecuencia (120Hz/144Hz) */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar personalizado ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+/* ─── Clases utilitarias de tema (uso en Tailwind JSX) ──────────────────── */
+.bg-app {
+  background-color: var(--color-bg);
+}
+.bg-surface {
+  background-color: var(--color-surface);
+}
+.bg-surface-2 {
+  background-color: var(--color-surface-2);
+}
+.text-app {
+  color: var(--color-text);
+}
+.text-muted {
+  color: var(--color-text-muted);
+}
+.text-primary {
+  color: var(--color-primary);
+}
+.bg-primary {
+  background-color: var(--color-primary);
+}
+.border-app {
+  border-color: var(--color-border);
+}
+
+/* ─── Color de acción (botones de compra del cliente) ───────────────────── */
+.bg-action {
+  background-color: var(--color-action);
+}
+.text-action {
+  color: var(--color-action);
+}
+.shadow-action {
+  box-shadow: 0 10px 25px -5px color-mix(in srgb, var(--color-action) 30%, transparent);
+}
+.border-action {
+  border-color: var(--color-action);
+}
+
+/* ─── Desactivar animaciones ────────────────────────────────────────────── */
+.no-animations *,
+.no-animations *::before,
+.no-animations *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
