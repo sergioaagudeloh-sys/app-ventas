@@ -6,6 +6,7 @@ import { MotionConfig } from 'framer-motion'
 import AppRoutes from './routes/AppRoutes'
 import CartDrawer from './components/client/cart/CartDrawer'
 import GuidedToast from './components/ui/GuidedToast'
+import PWAInstallBanner from './components/ui/PWAInstallBanner'
 import useAppConfigStore from './store/appConfigStore'
 import useAppConfigSync from './hooks/useAppConfigSync'
 import useAuthInit from './hooks/useAuthInit'
@@ -134,6 +135,7 @@ export default function App() {
             <AppRoutes />
             <CartDrawer />
             <GuidedToast />
+            <PWAInstallBanner />
           </BrowserRouter>
         </MotionConfig>
       </QueryClientProvider>
