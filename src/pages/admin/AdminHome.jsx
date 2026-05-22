@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { LayoutDashboard, TrendingUp, DollarSign, AlertTriangle, Package, Users, ArrowRight } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, DollarSign, AlertTriangle, Package, Users, ArrowRight, ShoppingBag, CreditCard, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useOrders } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
@@ -113,7 +113,7 @@ export default function AdminHome() {
             {metricas.pedidosPendientes} <span className="text-lg text-muted font-medium">pendientes</span>
           </p>
           {metricas.pedidosPendientes > 0 && (
-            <Link to="/admin/orders" className="text-xs text-primary font-bold mt-2 flex items-center gap-1 hover:underline">
+            <Link to="/admin/pedidos" className="text-xs text-primary font-bold mt-2 flex items-center gap-1 hover:underline">
               Ir a revisarlos <ArrowRight size={12} />
             </Link>
           )}
@@ -164,30 +164,30 @@ export default function AdminHome() {
             🚀 Accesos Rápidos
           </h2>
           <div className="grid grid-cols-2 gap-4">
-            <Link to="/admin/inventory" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
+            <Link to="/admin/inventario" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
               <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                 <Package size={24} />
               </div>
               <span className="font-bold text-app">Inventario</span>
             </Link>
             
-            <Link to="/admin/orders" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
+            <Link to="/admin/pedidos" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
               <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <LayoutDashboard size={24} />
+                <ShoppingBag size={24} />
               </div>
               <span className="font-bold text-app">Pedidos</span>
             </Link>
 
-            <Link to="/admin/credits" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
+            <Link to="/admin/credito" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
               <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <DollarSign size={24} />
+                <CreditCard size={24} />
               </div>
               <span className="font-bold text-app">Créditos</span>
             </Link>
 
-            <Link to="/admin/settings" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
+            <Link to="/admin/configuracion" className="flex flex-col items-center justify-center p-6 bg-surface rounded-3xl border border-app hover:border-primary/50 transition-colors group">
               <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <LayoutDashboard size={24} /> {/* Placeholder icono */}
+                <Settings size={24} />
               </div>
               <span className="font-bold text-app">Configuración</span>
             </Link>

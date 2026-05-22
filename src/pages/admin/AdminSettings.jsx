@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -10,6 +10,7 @@ import { updateAppConfig } from '../../services/appConfigService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
 import { ADVANCED_PALETTES, getActiveColors } from '../../constants/palettes'
+import usePWAInstall from '../../hooks/usePWAInstall'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -105,6 +106,10 @@ export default function AdminSettings() {
   const config = useAppConfigStore()
   const navigate = useNavigate()
   const { logout } = useAuthStore()
+  const { rawInstallable, handleInstall } = usePWAInstall()
+  
+  const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches
   
   // States para Developer Zone
   const [loading, setLoading] = useState(false)
@@ -524,6 +529,14 @@ export default function AdminSettings() {
       iconBg: 'bg-orange-500/10',
       iconColor: 'text-orange-500',
     },
+    {
+      id: 'pwa',
+      label: 'Descargar Aplicación',
+      description: 'Instalar en este dispositivo',
+      icon: Download,
+      iconBg: 'bg-teal-500/10',
+      iconColor: 'text-teal-500',
+    },
   ]
 
   // ─── Header compartido (Menú o Sección) ────────────────────────────────────
@@ -929,13 +942,17 @@ export default function AdminSettings() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-muted mb-1.5">Tipo de Cuenta</label>
-                  <select value={formData.bankInfo.tipoCuenta}
-                    onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, tipoCuenta: e.target.value } })}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors">
-                    <option value="ahorros">Ahorros</option>
-                    <option value="corriente">Corriente</option>
-                    <option value="digital">Billetera Digital</option>
-                  </select>
+                  <div className="relative">
+                    <select value={formData.bankInfo.tipoCuenta}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, tipoCuenta: e.target.value } })}
+                      className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors appearance-none"
+                      style={{ borderRadius: 'var(--radius-base)' }}>
+                      <option value="ahorros">Ahorros</option>
+                      <option value="corriente">Corriente</option>
+                      <option value="digital">Billetera Digital</option>
+                    </select>
+                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+                  </div>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-muted mb-1.5">Número de Cuenta</label>
@@ -1155,6 +1172,56 @@ export default function AdminSettings() {
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── VISTA: DESCARGAR APLICACIÓN (PWA) ────────────────────────────────── */}
+      {activeSection === 'pwa' && (
+        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+          <div className="p-6 text-center flex flex-col items-center">
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-4 text-primary relative shadow-inner">
+              {config.appIcon ? (
+                <img src={config.appIcon} alt="App Logo" className="w-full h-full object-cover rounded-3xl" />
+              ) : (
+                <Smartphone size={40} />
+              )}
+            </div>
+            
+            <h3 className="text-lg font-bold text-app mb-2">{config.appName || 'App Ventas'}</h3>
+            <p className="text-sm text-muted max-w-sm mb-6 leading-relaxed">
+              Instala esta aplicación en tu dispositivo para disfrutar de un acceso rápido, mejor rendimiento y una experiencia de pantalla completa sin barra de navegación.
+            </p>
+
+            {!isStandalone && (rawInstallable || isIOS) ? (
+              rawInstallable ? (
+                <button
+                  onClick={handleInstall}
+                  className="w-full sm:w-auto px-8 py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                  style={{ borderRadius: 'var(--radius-base)' }}
+                >
+                  <Download size={18} />
+                  Descargar Ahora
+                </button>
+              ) : isIOS ? (
+                <div className="text-xs text-muted bg-surface-2 p-4 rounded-2xl border border-app leading-relaxed text-left max-w-md">
+                  📱 En tu iPhone/iPad: pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+                </div>
+              ) : null
+            ) : (
+              <div className="w-full p-4 rounded-2xl bg-surface-2 border border-app text-sm text-muted">
+                {isStandalone ? (
+                  <p className="font-semibold text-primary flex items-center justify-center gap-2">
+                    <CheckCircle size={18} />
+                    ¡Ya estás ejecutando la aplicación instalada!
+                  </p>
+                ) : (
+                  <p>
+                    La aplicación ya está instalada o tu navegador actual no soporta la descarga directa. Puedes agregarla manualmente desde los ajustes de tu navegador ("Agregar a la pantalla principal").
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

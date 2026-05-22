@@ -47,6 +47,7 @@ export default function usePWAInstall() {
 
   return { 
     isInstallable: isInstallable && !isDismissed, 
+    rawInstallable: isInstallable,
     handleInstall, 
     dismissPrompt 
   }

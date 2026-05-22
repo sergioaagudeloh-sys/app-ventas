@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, LogOut, Package, CreditCard, Sparkles, ChevronRight, Info, Edit2 } from 'lucide-react'
+import { User, LogOut, Package, CreditCard, Sparkles, ChevronRight, Info, Edit2, Download, CheckCircle } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useGuidedStore from '../../store/guidedStore'
+import usePWAInstall from '../../hooks/usePWAInstall'
 import { CLIENT_LOGIN_TRUST_MESSAGE } from '../../constants'
 
 const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', '🍕', '🎉', '👑', '🏀', '⚽', '🎨', '🎸', '🎮']
@@ -11,8 +12,12 @@ const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', 
 export default function ClientProfile() {
   const { user, logout, updateClient } = useAuthStore()
   const { isAssistanceMode, enableAssistance, disableAssistance, resetProgress } = useGuidedStore()
+  const { rawInstallable, handleInstall } = usePWAInstall()
   const navigate = useNavigate()
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches
 
   const handleLogout = () => {
     logout()
@@ -119,6 +124,46 @@ export default function ClientProfile() {
             <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
           </Link>
         </div>
+
+        {/* ─── DESCARGAR APLICACIÓN ─────────────────────────────────────── */}
+        {!isStandalone && (rawInstallable || isIOS) && (
+          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                <Download size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-app leading-tight">Instalar Aplicación</h3>
+                <p className="text-xs text-muted mt-1 leading-relaxed">
+                  Descarga la app en tu pantalla de inicio para un acceso rápido y una mejor experiencia.
+                </p>
+              </div>
+            </div>
+            {rawInstallable ? (
+              <button
+                onClick={handleInstall}
+                className="w-full h-11 bg-primary text-white rounded-2xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                style={{ borderRadius: 'var(--radius-base)' }}
+              >
+                <Download size={16} />
+                Descargar ahora
+              </button>
+            ) : isIOS ? (
+              <div className="text-xs text-muted bg-surface-2 p-3.5 rounded-2xl border border-app leading-relaxed">
+                📱 En tu iPhone/iPad: pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {isStandalone && (
+          <div className="bg-surface rounded-3xl p-4 border border-app shadow-sm flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center flex-shrink-0">
+              <CheckCircle size={16} />
+            </div>
+            <span className="text-xs font-bold text-app">Aplicación instalada y lista en tu dispositivo</span>
+          </div>
+        )}
 
         {/* ─── MODO ASISTENCIA (FASE 8) ────────────────────────────────── */}
         <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm">
