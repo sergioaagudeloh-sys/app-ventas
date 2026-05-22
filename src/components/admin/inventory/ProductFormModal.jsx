@@ -310,6 +310,18 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                     className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-app mb-1">Stock Mínimo (Umbral de Alerta) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.umbralAlerta}
+                    onChange={e => setFormData({...formData, umbralAlerta: e.target.value})}
+                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+                  />
+                  {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
+                </div>
               </div>
 
               {/* Variantes e Inventario */}

@@ -11,6 +11,7 @@ const useAppConfigStore = create(
     (set) => ({
       // ─── Estado ───────────────────────────────────────────────────────────
       appName: 'Mi Tienda',
+      sellerName: 'Vendedor',
       appIcon: null,
       theme: 'rosa-elegante',    // Paleta activa
       isDarkMode: false,         // Toggle light/dark

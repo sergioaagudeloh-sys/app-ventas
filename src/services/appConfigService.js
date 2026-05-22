@@ -17,6 +17,7 @@ const FILTERS_REF = doc(db, 'config', 'catalogFilters')
  */
 const DEFAULT_SETTINGS = {
   appName: 'Mi Tienda',
+  sellerName: 'Vendedor',
   appIcon: '',
   theme: 'rosa-elegante',
   whatsappAdmin: '',

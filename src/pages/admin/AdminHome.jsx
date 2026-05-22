@@ -8,9 +8,11 @@ import { useProducts } from '../../hooks/useInventory'
 import { ORDER_STATES } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
 import useAuthStore from '../../store/authStore'
+import useAppConfigStore from '../../store/appConfigStore'
 
 export default function AdminHome() {
   const { user } = useAuthStore()
+  const { sellerName } = useAppConfigStore()
   const { data: orders = [] } = useOrders()
   const { data: credits = [] } = useCredits('activo')
   const { data: products = [] } = useProducts()
@@ -64,7 +66,7 @@ export default function AdminHome() {
           <LayoutDashboard size={20} className="text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-app">Hola, {user?.nombre?.split(' ')[0]} 👋</h1>
+          <h1 className="text-2xl font-bold text-app">Hola {sellerName || 'Vendedor'}, 👋</h1>
           <p className="text-sm text-muted">Resumen de tu negocio al día de hoy.</p>
         </div>
       </div>

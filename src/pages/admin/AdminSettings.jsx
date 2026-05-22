@@ -131,6 +131,7 @@ export default function AdminSettings() {
 
   const [formData, setFormData] = useState({
     appName: '',
+    sellerName: '',
     appIcon: '',
     theme: 'modern-purple',
     whatsappAdmin: '',
@@ -161,6 +162,7 @@ export default function AdminSettings() {
     if (config.isLoaded) {
       setFormData({
         appName: config.appName || '',
+        sellerName: config.sellerName || '',
         appIcon: config.appIcon || '',
         theme: config.theme || 'modern-purple',
         whatsappAdmin: config.whatsappAdmin || '',
@@ -188,7 +190,8 @@ export default function AdminSettings() {
     }
   }, [
     config.isLoaded, 
-    config.appName, 
+    config.appName,
+    config.sellerName,
     config.appIcon, 
     config.theme, 
     config.whatsappAdmin, 
@@ -633,6 +636,16 @@ export default function AdminSettings() {
               />
             </div>
             <div>
+              <label className="block text-sm font-bold text-app mb-2">Nombre del Vendedor</label>
+              <input
+                type="text"
+                value={formData.sellerName}
+                onChange={(e) => setFormData({ ...formData, sellerName: e.target.value })}
+                placeholder="Ej. Sergio"
+                className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-bold text-app mb-2">URL del Logo</label>
               <div className="flex gap-3 items-center">
                 <div className="relative flex-1">
@@ -657,8 +670,8 @@ export default function AdminSettings() {
             <button
               onClick={async () => {
                 try {
-                  await updateAppConfig({ appIcon: formData.appIcon, appName: formData.appName })
-                  setSaveMessage({ type: 'success', text: 'Nombre y logo guardados correctamente.' })
+                  await updateAppConfig({ appIcon: formData.appIcon, appName: formData.appName, sellerName: formData.sellerName })
+                  setSaveMessage({ type: 'success', text: 'Identidad de marca guardada correctamente.' })
                   setTimeout(() => setSaveMessage(null), 3000)
                 } catch (e) {
                   setSaveMessage({ type: 'error', text: 'Error al actualizar.' })
