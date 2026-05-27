@@ -1,9 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, Package, Trash2, ShoppingCart } from 'lucide-react'
+import { Heart, Package, Trash2, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import useFavoritesStore from '../../store/favoritesStore'
-import { useProducts } from '../../hooks/useInventory'
+import { useProducts, useCategories } from '../../hooks/useInventory'
 import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
 import { formatCurrency, truncate } from '../../utils/formatters'
@@ -16,14 +16,21 @@ export default function ClientFavorites() {
   
   const { favoriteIds, toggleFavorite } = useFavoritesStore()
   const { data: activeProducts = [] } = useProducts(true)
+  const { data: categories = [] } = useCategories()
   const { addItem, setIsOpen } = useCartStore()
   
   const [selectedProduct, setSelectedProduct] = useState(null)
 
-  // Cruzamos los IDs con los productos reales
+  // Cruzamos los IDs con los productos reales y resolvemos la categoría dinámica
   const favoriteProducts = favoriteIds.map(id => {
     const p = activeProducts.find(prod => prod.id === id)
-    if (p) return p
+    if (p) {
+      const matchedCat = categories.find(c => c.id === p.categoriaId)
+      return {
+        ...p,
+        categoria: matchedCat ? matchedCat.nombre : p.categoria
+      }
+    }
     return { id, isDeleted: true }
   })
 
@@ -157,27 +164,29 @@ export default function ClientFavorites() {
                         {truncate(product.nombre, 35)}
                       </h3>
                       <p className="text-xs text-muted mb-2">{product.categoria}</p>
-                      <p className="font-black text-primary text-base mb-4">
-                        {formatCurrency(product.precioBase)}
-                      </p>
                     </div>
 
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        onClick={(e) => handleAddToCart(e, product)}
-                        disabled={isOutOfStock}
-                        className="flex-1 flex items-center justify-center gap-1.5 h-10 bg-primary text-white rounded-xl font-bold text-xs shadow-md disabled:opacity-50 disabled:bg-surface-2 disabled:text-muted transition-all active:scale-95"
-                      >
-                        <ShoppingCart size={14} />
-                        Agregar
-                      </button>
-                      <button
-                        onClick={(e) => handleRemove(e, product.id)}
-                        className="w-10 h-10 flex items-center justify-center bg-surface-2 text-muted hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors active:scale-95"
-                        aria-label="Quitar de favoritos"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                    <div className="flex items-center justify-between mt-auto">
+                      <p className="font-black text-primary text-base">
+                        {formatCurrency(product.precioBase)}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleRemove(e, product.id)}
+                          className="w-8 h-8 flex items-center justify-center bg-surface-2 text-muted hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors active:scale-90 transition-transform shrink-0"
+                          aria-label="Quitar de favoritos"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => handleAddToCart(e, product)}
+                          disabled={isOutOfStock}
+                          className="w-8 h-8 rounded-full bg-action text-white flex items-center justify-center shadow-md shadow-action active:scale-90 transition-transform shrink-0 disabled:opacity-50 disabled:bg-surface-2 disabled:text-muted"
+                          aria-label="Agregar al carrito"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>

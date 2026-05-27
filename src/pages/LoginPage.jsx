@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Store, Smartphone, Shield, Mail, Lock } from 'lucide-react'
+import { Store, Smartphone, Shield, Mail, Lock, ArrowLeft } from 'lucide-react'
 import { auth, db } from '../config/firebaseConfig'
 import useAuthStore from '../store/authStore'
 import useAppConfigStore from '../store/appConfigStore'
@@ -28,8 +28,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const { role, setAdmin, setClient } = useAuthStore()
-  const { appName, appIcon, adminRegistered, primaryColor } = useAppConfigStore()
+  const { role, setAdmin, setClient, isLoading: isAuthLoading } = useAuthStore()
+  const { appName, appIcon, adminRegistered, primaryColor, welcomeWavesEnabled, loginTrustMessage, isLoaded } = useAppConfigStore()
   const navigate = useNavigate()
 
   // Leer color primario real desde CSS en runtime
@@ -50,12 +50,16 @@ export default function LoginPage() {
 
   // ─── Redirección automática si ya está autenticado ───────────────────────
   useEffect(() => {
-    if (role === ROLES.ADMIN) {
-      navigate('/admin/inicio', { replace: true })
-    } else if (role === ROLES.CLIENT) {
-      navigate('/tienda/catalogo', { replace: true })
+    if (!isAuthLoading) {
+      if (role === ROLES.ADMIN) {
+        navigate('/admin/inicio', { replace: true })
+      } else if (role === ROLES.CLIENT) {
+        navigate('/tienda/catalogo', { replace: true })
+      }
     }
-  }, [role, navigate])
+  }, [role, isAuthLoading, navigate])
+
+  if (isAuthLoading || !isLoaded) return null
 
   // ─── Autenticación Administrador (Correo/Contraseña) ───────────────────────
   const handleAdminAuth = async (e) => {
@@ -126,6 +130,7 @@ export default function LoginPage() {
           setClient({
             nombre: userSnap.data().nombre,
             celular: cleanPhone,
+            emoji: userSnap.data().emoji || null,
           })
           navigate('/tienda/catalogo', { replace: true })
         } else {
@@ -192,27 +197,121 @@ export default function LoginPage() {
         />
       </div>
 
+      {/* Botón Ir atrás */}
+      <motion.button
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={() => navigate('/')}
+        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-app hover:border-primary/50 text-app font-semibold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-20"
+      >
+        <ArrowLeft size={16} className="text-primary" />
+        <span>Ir atrás</span>
+      </motion.button>
+
+      {/* Botón Administrador / Volver a Cliente */}
+      <motion.button
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        onClick={() => {
+          if (mode === 'client') {
+            setMode('admin')
+            setError('')
+          } else {
+            setMode('client')
+            setClientStep(1)
+            setError('')
+          }
+        }}
+        className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-app hover:border-primary/50 text-app font-semibold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-20 cursor-pointer"
+      >
+        {mode === 'client' ? (
+          <>
+            <Shield size={16} className="text-primary" />
+            <span>Ingreso Admin</span>
+          </>
+        ) : (
+          <>
+            <Smartphone size={16} className="text-primary" />
+            <span>Volver a Cliente</span>
+          </>
+        )}
+      </motion.button>
+
       {/* Header con logo y nombre de la app */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-8"
       >
-        <div className="flex items-center justify-center mb-4">
-          {appIcon ? (
-            <img
-              src={appIcon}
-              alt={`Logo de ${appName}`}
-              className="w-16 h-16 rounded-2xl object-cover shadow-lg"
+        <div className="flex items-center justify-center mb-6 relative">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, type: 'spring', bounce: 0.45 }}
+            className="relative flex items-center justify-center"
+          >
+            {/* Glow difuminado exterior */}
+            <motion.div
+              animate={{ opacity: [0.3, 0.65, 0.3], scale: [0.9, 1.05, 0.9] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute w-[280px] h-[280px] rounded-full bg-primary/20 blur-2xl"
             />
-          ) : (
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-              <Store size={28} className="text-white" aria-hidden="true" />
+
+            {/* Círculo contenedor de ondas */}
+            <div className="relative w-[280px] h-[280px] rounded-full overflow-hidden flex items-center justify-center">
+              {/* Fondo circular muy sutil */}
+              <div className="absolute inset-0 rounded-full bg-primary/5" />
+
+              {/* Ondas sonar */}
+              {(welcomeWavesEnabled !== false) && [0, 1.2, 2.4].map((delay, i) => (
+                <motion.div
+                  key={i}
+                  animate={{
+                    scale: [0.3, 1.05],
+                    opacity: [0, 0.35, 0]
+                  }}
+                  transition={{
+                    duration: 3.6,
+                    repeat: Infinity,
+                    ease: 'easeOut',
+                    delay,
+                  }}
+                  className="absolute inset-0 rounded-full bg-primary"
+                />
+              ))}
+
+              {/* Logo centrado y flotante */}
+              <div className="relative w-[180px] h-[180px] z-10">
+                {appIcon ? (
+                  <motion.img
+                    src={appIcon}
+                    alt={`Logo de ${appName}`}
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-full h-full object-contain"
+                    style={{
+                      filter: 'drop-shadow(0 10px 18px color-mix(in srgb, var(--color-primary) 45%, transparent))'
+                    }}
+                  />
+                ) : (
+                  <motion.div
+                    animate={{ y: [0, -5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                    className="w-full h-full rounded-[3rem] bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-xl"
+                  >
+                    <Store size={72} className="text-white drop-shadow-lg" />
+                  </motion.div>
+                )}
+              </div>
             </div>
-          )}
+          </motion.div>
         </div>
         <h1 className="text-3xl font-bold text-app">{appName}</h1>
-        <p className="text-muted text-sm mt-1">Bienvenido. Explora y realiza tus pedidos fácilmente.</p>
+        <p className="text-muted text-sm mt-1">
+          {mode === 'client' 
+            ? 'Bienvenido. Explora y realiza tus pedidos fácilmente.' 
+            : 'Panel de control y administración del negocio.'}
+        </p>
       </motion.div>
 
       {/* Tarjeta de login */}
@@ -222,37 +321,7 @@ export default function LoginPage() {
         transition={{ delay: 0.1 }}
         className="w-full max-w-sm bg-surface rounded-3xl shadow-xl border border-app overflow-hidden"
       >
-        {/* Selector de modo */}
-        <div className="flex p-2 gap-2 bg-surface-2 m-4 rounded-2xl" role="tablist" aria-label="Tipo de acceso">
-          <button
-            role="tab"
-            aria-selected={mode === 'client'}
-            onClick={() => { setMode('client'); setClientStep(1); setError('') }}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-              mode === 'client'
-                ? 'bg-surface text-primary shadow-sm'
-                : 'text-muted hover:text-app'
-            }`}
-            aria-label="Acceso para clientes"
-          >
-            Cliente
-          </button>
-          <button
-            role="tab"
-            aria-selected={mode === 'admin'}
-            onClick={() => { setMode('admin'); setClientStep(1); setError('') }}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${
-              mode === 'admin'
-                ? 'bg-surface text-primary shadow-sm'
-                : 'text-muted hover:text-app'
-            }`}
-            aria-label="Acceso para administrador"
-          >
-            Administrador
-          </button>
-        </div>
-
-        <div className="px-6 pb-6">
+        <div className="p-6">
           {/* ─── Formulario Cliente ───────────────────────────────────── */}
           {mode === 'client' && (
             <form
@@ -345,6 +414,7 @@ export default function LoginPage() {
                       position="bottom" 
                       inactivityTrigger={true}
                       isInactive={isInactive}
+                      forceShow={true}
                     />
                   )}
                 </div>
@@ -416,7 +486,7 @@ export default function LoginPage() {
       </motion.div>
 
       <p className="mt-6 text-xs text-muted text-center">
-        {appName} · Tu tienda de confianza
+        {appName} · {loginTrustMessage || 'Tu tienda de confianza'}
       </p>
     </div>
   )

@@ -13,6 +13,9 @@ const ClientLayout = lazy(() => import('../layouts/ClientLayout'))
 // Páginas Admin
 const AdminHome = lazy(() => import('../pages/admin/AdminHome'))
 const AdminInventory = lazy(() => import('../pages/admin/AdminInventory'))
+const AdminSales = lazy(() => import('../pages/admin/AdminSales'))
+const AdminSalesDetail = lazy(() => import('../pages/admin/AdminSalesDetail'))
+const AdminStockAlerts = lazy(() => import('../pages/admin/AdminStockAlerts'))
 const AdminOrders = lazy(() => import('../pages/admin/AdminOrders'))
 const AdminCredits = lazy(() => import('../pages/admin/AdminCredits'))
 const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'))
@@ -54,7 +57,10 @@ export default function AppRoutes() {
         >
           <Route index element={<Navigate to="inicio" replace />} />
           <Route path="inicio" element={<AdminHome />} />
+          <Route path="inicio/detalle-ventas" element={<AdminSalesDetail />} />
+          <Route path="inicio/alertas-stock" element={<AdminStockAlerts />} />
           <Route path="inventario" element={<AdminInventory />} />
+          <Route path="ventas" element={<AdminSales />} />
           <Route path="pedidos" element={<AdminOrders />} />
           <Route path="credito" element={<AdminCredits />} />
           <Route path="configuracion" element={<AdminSettings />} />

@@ -84,7 +84,7 @@ export default function ClientFilterModal({ isOpen, onClose, allProducts, onAppl
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50"
         />
 
         {/* Modal / Drawer */}
@@ -92,7 +92,7 @@ export default function ClientFilterModal({ isOpen, onClose, allProducts, onAppl
           initial={{ opacity: 0, y: '100%' }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
           className="relative w-full sm:max-w-md bg-surface sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh] border border-app"
         >
           {/* Header */}

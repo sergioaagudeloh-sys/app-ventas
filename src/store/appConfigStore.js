@@ -13,6 +13,7 @@ const useAppConfigStore = create(
       appName: 'Mi Tienda',
       sellerName: 'Vendedor',
       appIcon: null,
+      welcomeWavesEnabled: true,
       theme: 'rosa-elegante',    // Paleta activa
       isDarkMode: false,         // Toggle light/dark
       adminRegistered: false,    // Bandera para Auth Admin
@@ -21,6 +22,16 @@ const useAppConfigStore = create(
         numeroCuenta: '',
         banco: '',
         tipoCuenta: 'ahorros',   // 'ahorros' | 'corriente'
+        titular: '',
+        cedulaNit: '',
+      },
+      bankInfo2: {
+        activa: false,           // segunda cuenta habilitada
+        numeroCuenta: '',
+        banco: '',
+        tipoCuenta: 'ahorros',
+        titular: '',
+        cedulaNit: '',
       },
       // ─── Apariencia avanzada ───────────────────────────────────────────
       appFont: 'inter',
@@ -39,6 +50,7 @@ const useAppConfigStore = create(
         ]
       },
       guidedModeEnabled: true, // Toggle global de asistencia
+      loginTrustMessage: '',  // Mensaje de confianza personalizable
       isLoaded: false,
 
       // ─── Acciones ─────────────────────────────────────────────────────────
@@ -68,12 +80,17 @@ const useAppConfigStore = create(
     {
       name: 'app-config-storage',
       partialize: (state) => ({
+        appName: state.appName,
+        appIcon: state.appIcon,
+        welcomeWavesEnabled: state.welcomeWavesEnabled,
+        sellerName: state.sellerName,
         isDarkMode: state.isDarkMode,
         theme: state.theme,
         appFont: state.appFont,
         appRadius: state.appRadius,
         actionColor: state.actionColor,
         animationsEnabled: state.animationsEnabled,
+        loginTrustMessage: state.loginTrustMessage,
       }),
     }
   )

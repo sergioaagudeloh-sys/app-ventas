@@ -69,8 +69,19 @@ export async function getProductById(id) {
 }
 
 export async function createProduct(productData) {
+  const dataToSave = { ...productData }
+  delete dataToSave.id
+  delete dataToSave.createdAt
+  delete dataToSave.updatedAt
+
+  Object.keys(dataToSave).forEach(key => {
+    if (dataToSave[key] === undefined) {
+      delete dataToSave[key]
+    }
+  })
+
   const docRef = await addDoc(productsRef, {
-    ...productData,
+    ...dataToSave,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -79,8 +90,19 @@ export async function createProduct(productData) {
 
 export async function updateProduct(id, productData) {
   const docRef = doc(db, COLLECTIONS.PRODUCTS, id)
+  const dataToSave = { ...productData }
+  delete dataToSave.id
+  delete dataToSave.createdAt
+  delete dataToSave.updatedAt
+
+  Object.keys(dataToSave).forEach(key => {
+    if (dataToSave[key] === undefined) {
+      delete dataToSave[key]
+    }
+  })
+
   await updateDoc(docRef, {
-    ...productData,
+    ...dataToSave,
     updatedAt: serverTimestamp(),
   })
 }

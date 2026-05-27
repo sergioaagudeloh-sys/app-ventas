@@ -233,6 +233,50 @@ body {
   border-color: var(--color-border);
 }
 
+/* ─── Colores semánticos (error, success, warning, info) ────────────────── */
+.bg-error {
+  background-color: var(--color-error);
+}
+.text-error {
+  color: var(--color-error);
+}
+.border-error {
+  border-color: var(--color-error);
+}
+.bg-success {
+  background-color: var(--color-success);
+}
+.text-success {
+  color: var(--color-success);
+}
+.bg-warning {
+  background-color: var(--color-warning);
+}
+.text-warning {
+  color: var(--color-warning);
+}
+.border-warning {
+  border-color: var(--color-warning);
+}
+.border-warning-soft {
+  border-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+}
+.bg-warning-soft {
+  background-color: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+.border-success-soft {
+  border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+}
+.bg-success-soft {
+  background-color: color-mix(in srgb, var(--color-success) 8%, transparent);
+}
+.border-primary-soft {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.bg-primary-soft {
+  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
 /* ─── Color de acción (botones de compra del cliente) ───────────────────── */
 .bg-action {
   background-color: var(--color-action);
@@ -256,3 +300,58 @@ body {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* Ocultar barra de desplazamiento manteniendo la funcionalidad de scroll */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* ─── Date inputs & Selects: diseño premium de la app ───────────────────── */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+  color-scheme: light;
+  position: relative;
+}
+
+/* Cuando la app está en modo oscuro (temas oscuros usan bg oscuro) */
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="time"],
+[data-theme="carbon-oscuro"] input[type="date"],
+[data-theme="carbon-oscuro"] input[type="datetime-local"],
+[data-theme="esmeralda-profundo"] input[type="date"],
+[data-theme="esmeralda-profundo"] input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+/* Ocultar el ícono nativo del calendario — se reemplaza con ícono personalizado */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-clock-picker-indicator {
+  opacity: 0;
+  width: 32px;
+  height: 100%;
+  cursor: pointer;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+/* Selects nativos: ocultar flecha por defecto en todos los navegadores */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Options en selects: usar colores del tema */
+select option {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+

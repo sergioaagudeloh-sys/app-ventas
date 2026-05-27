@@ -14,6 +14,7 @@ export const ORDER_STATES = {
   PENDING: 'pendiente',
   COMPLETED: 'completado',
   CANCELLED: 'cancelado',
+  CREDIT_APPROVED: 'credito_aprobado',
 }
 
 // ─── Etiquetas UI de estados de pedidos ──────────────────────────────────────
@@ -21,6 +22,7 @@ export const ORDER_STATE_LABELS = {
   pendiente: 'Pendiente',
   completado: 'Completado',
   cancelado: 'Cancelado',
+  credito_aprobado: 'Crédito Aprobado',
 }
 
 // ─── Tipos de pedido ──────────────────────────────────────────────────────────
@@ -87,6 +89,7 @@ export const COLLECTIONS = {
   ORDERS: 'orders',
   WHOLESALE_ORDERS: 'wholesaleOrders',
   CREDITS: 'credits',
+  ADS: 'ads',
 }
 
 // ─── Soporte técnico (hardcoded según informe §12) ───────────────────────────
@@ -114,3 +117,6 @@ export const GUIDED_MESSAGES = {
 // ─── Texto de confianza en login cliente (Informe §4) ────────────────────────
 export const CLIENT_LOGIN_TRUST_MESSAGE =
   'Utilizaremos tu número únicamente para comunicarnos contigo sobre tus pedidos.'
+
+// ─── Contraseña del desarrollador para Facturación y Pruebas ──────────────────
+export const DEV_PASSWORD = '1q2w3e4r5t6y7u8i9o0p..'

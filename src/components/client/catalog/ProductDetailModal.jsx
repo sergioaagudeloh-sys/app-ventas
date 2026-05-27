@@ -123,11 +123,15 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       return
     }
 
+    const actualPrice = (product.tienePromocion && product.precioPromo < product.precioBase)
+      ? product.precioPromo
+      : product.precioBase
+
     addItem({
       productId: product.id,
       variantId: currentVariant.id,
       nombre: product.nombre,
-      precio: product.precioBase,
+      precio: actualPrice,
       talla: selectedTalla,
       color: selectedColor,
       imageUrl: product.imageUrl,
@@ -153,15 +157,16 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
           />
 
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 280 }}
             className="relative w-full max-w-lg bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
+            style={{ willChange: 'transform' }}
           >
             {/* Header con Imagen */}
             <div className="relative w-full h-64 sm:h-80 bg-surface-2 flex-shrink-0">
@@ -192,9 +197,22 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
               <h2 className="text-xl sm:text-2xl font-bold text-app leading-tight mb-2">
                 {product.nombre}
               </h2>
-              <p className="text-2xl font-black text-primary mb-6">
-                {formatCurrency(product.precioBase)}
-              </p>
+              <div className="mb-6">
+                {product.tienePromocion && product.precioPromo < product.precioBase ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-primary">
+                      {formatCurrency(product.precioPromo)}
+                    </span>
+                    <span className="text-xs text-muted line-through font-semibold">
+                      {formatCurrency(product.precioBase)}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-2xl font-black text-primary">
+                    {formatCurrency(product.precioBase)}
+                  </p>
+                )}
+              </div>
 
               {tallas.length > 0 && (
                 <div className="mb-6">
@@ -321,7 +339,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                   className="flex-1 h-14 bg-action text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-action"
                 >
                   <ShoppingBag size={20} />
-                  Agregar {formatCurrency(product.precioBase * cantidad)}
+                  Agregar {formatCurrency(((product.tienePromocion && product.precioPromo < product.precioBase) ? product.precioPromo : product.precioBase) * cantidad)}
                 </button>
               </div>
             </div>

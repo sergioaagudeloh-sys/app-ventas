@@ -6,7 +6,7 @@ import { db } from '../../../config/firebaseConfig'
 import { COLLECTIONS, WHOLESALE_STATES } from '../../../constants'
 import useAuthStore from '../../../store/authStore'
 
-export default function WholesaleRequestModal({ product, isOpen, onClose }) {
+export default function WholesaleRequestModal({ product, type, isOpen, onClose }) {
   const { user } = useAuthStore()
   const [cantidad, setCantidad] = useState('')
   const [observaciones, setObservaciones] = useState('')
@@ -27,8 +27,9 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!cantidad || Number(cantidad) < 12) {
-      alert('La cantidad mínima para venta al por mayor es de 12 unidades.')
+    const minQty = type === 'mayorista' ? 12 : 1
+    if (!cantidad || Number(cantidad) < minQty) {
+      alert(`La cantidad mínima para esta solicitud es de ${minQty} unidad(es).`)
       return
     }
 
@@ -44,6 +45,7 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
         clienteNombre: user?.nombre || 'Desconocido',
         clienteCelular: user?.celular || 'Desconocido',
         estado: WHOLESALE_STATES.PENDING,
+        tipo: type || 'mayorista',
         createdAt: serverTimestamp(),
       })
       setSuccess(true)
@@ -60,6 +62,8 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
   }
 
   if (!isOpen || !product) return null
+
+  const isWholesale = type === 'mayorista'
 
   return (
     <AnimatePresence>
@@ -96,7 +100,9 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
                   <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                     <PackagePlus size={20} />
                   </div>
-                  <h2 className="text-lg font-bold text-app">Venta al por mayor</h2>
+                  <h2 className="text-lg font-bold text-app">
+                    {isWholesale ? 'Venta al por mayor' : 'Pedir por encargo'}
+                  </h2>
                 </div>
                 <button
                   onClick={onClose}
@@ -108,7 +114,7 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
 
               <div className="mb-6 bg-surface-2 p-3 rounded-xl border border-app">
                 <p className="text-sm font-semibold text-app line-clamp-1">{product.nombre}</p>
-                {product.precioMayorista && (
+                {isWholesale && product.precioMayorista && (
                   <p className="text-xs text-primary font-bold mt-1">
                     Precio especial disponible
                   </p>
@@ -118,16 +124,16 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-app mb-1">
-                    Cantidad deseada (Mín. 12) *
+                    {isWholesale ? 'Cantidad deseada (Mín. 12) *' : 'Cantidad deseada *'}
                   </label>
                   <input
                     type="number"
-                    min="12"
+                    min={isWholesale ? "12" : "1"}
                     required
                     value={cantidad}
                     onChange={(e) => setCantidad(e.target.value)}
                     className="w-full h-12 px-4 rounded-xl bg-surface border border-app text-app focus:outline-none focus:border-primary text-center font-bold text-lg"
-                    placeholder="Ej: 50"
+                    placeholder={isWholesale ? "Ej: 50" : "Ej: 3"}
                   />
                 </div>
                 
@@ -140,7 +146,7 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
                     className="w-full p-3 rounded-xl bg-surface border border-app text-app focus:outline-none focus:border-primary text-sm resize-none"
-                    placeholder="Ej: Necesito tallas surtidas, priorizar color negro..."
+                    placeholder={isWholesale ? "Ej: Necesito tallas surtidas..." : "Ej: Color o especificaciones particulares..."}
                   />
                 </div>
 
@@ -153,7 +159,7 @@ export default function WholesaleRequestModal({ product, isOpen, onClose }) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
+                  className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer"
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

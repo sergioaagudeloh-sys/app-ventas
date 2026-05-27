@@ -8,7 +8,8 @@ import {
   where,
   serverTimestamp,
   orderBy,
-  runTransaction
+  runTransaction,
+  onSnapshot
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
@@ -72,5 +73,42 @@ export async function addPaymentToCredit(creditId, paymentData) {
       estado: nuevoEstado,
       updatedAt: serverTimestamp()
     })
+
+    // Si la deuda se liquida por completo, marcar el pedido original como COMPLETADO
+    if (nuevoSaldo === 0 && data.orderId) {
+      const orderRef = doc(db, COLLECTIONS.ORDERS, data.orderId)
+      transaction.update(orderRef, {
+        estado: 'completado',
+        updatedAt: serverTimestamp()
+      })
+    }
+  })
+}
+
+/**
+ * Se suscribe a todos los créditos en tiempo real (Para el Admin)
+ */
+export function subscribeToCredits(estado = 'activo', onUpdate) {
+  const q = query(creditsRef, where('estado', '==', estado))
+  return onSnapshot(q, (snap) => {
+    const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const sorted = credits.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
+    onUpdate(sorted)
+  })
+}
+
+/**
+ * Se suscribe a los créditos de un cliente específico en tiempo real
+ */
+export function subscribeToClientCredits(celular, onUpdate) {
+  if (!celular) {
+    onUpdate([])
+    return () => {}
+  }
+  const q = query(creditsRef, where('clienteCelular', '==', celular))
+  return onSnapshot(q, (snap) => {
+    const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const sorted = credits.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
+    onUpdate(sorted)
   })
 }

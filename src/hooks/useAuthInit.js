@@ -14,8 +14,9 @@ export default function useAuthInit() {
   const { role, setAdmin, setLoading, logout } = useAuthStore()
 
   useEffect(() => {
-    // 1. Si el LocalStorage ya hidrató un Cliente, apagamos el spinner de inmediato.
-    if (role === ROLES.CLIENT) {
+    // 1. Si el LocalStorage ya hidrató un Cliente, apagamos el spinner de inmediato
+    // salvo que estemos intentando entrar al panel de administración (esperamos a Firebase Auth).
+    if (role === ROLES.CLIENT && !window.location.pathname.startsWith('/admin')) {
       setLoading(false)
     }
 

@@ -1,15 +1,26 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ShoppingBag, Heart, Package, CreditCard, User } from 'lucide-react'
+import { ShoppingBag, Heart, Package, CreditCard, User, Tag } from 'lucide-react'
 import useAppConfigStore from '../store/appConfigStore'
 import useCartStore from '../store/cartStore'
 import useAuthStore from '../store/authStore'
 import useFavoritesStore from '../store/favoritesStore'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import useInactivityTimer from '../hooks/useInactivityTimer'
 import SmartHint from '../components/client/guided/SmartHint'
+import ClientCouponsModal from '../components/client/coupons/ClientCouponsModal'
 
-const NAV_ITEMS = [
+const NAV_ITEMS_LEFT = [
+  { path: '/tienda/catalogo', icon: ShoppingBag, label: 'Catálogo' },
+  { path: '/tienda/favoritos', icon: Heart, label: 'Favoritos' },
+]
+
+const NAV_ITEMS_RIGHT = [
+  { path: '/tienda/pedidos', icon: Package, label: 'Pedidos' },
+  { path: '/tienda/creditos', icon: CreditCard, label: 'Créditos' },
+]
+
+const ALL_NAV_ITEMS = [
   { path: '/tienda/catalogo', icon: ShoppingBag, label: 'Catálogo' },
   { path: '/tienda/favoritos', icon: Heart, label: 'Favoritos' },
   { path: '/tienda/pedidos', icon: Package, label: 'Pedidos' },
@@ -20,7 +31,7 @@ const NAV_ITEMS = [
 /**
  * Layout principal del Cliente.
  * Desktop: sidebar izquierdo fijo.
- * Mobile: barra de navegación inferior.
+ * Mobile: barra de navegación inferior con botón central circular para cupones.
  * Incluye el CartDrawer global accesible desde cualquier página.
  */
 export default function ClientLayout() {
@@ -29,6 +40,7 @@ export default function ClientLayout() {
   const { user } = useAuthStore()
   const { subscribe, unsubscribe } = useFavoritesStore()
   
+  const [isCouponsOpen, setIsCouponsOpen] = useState(false)
   const cartCount = getCount()
   const userId = user?.celular || user?.uid
 
@@ -41,7 +53,6 @@ export default function ClientLayout() {
     } else {
       unsubscribe()
     }
-    // No limpiamos aquí para no desuscribirnos si el usuario solo cambia de ruta
   }, [userId, subscribe, unsubscribe])
 
   return (
@@ -58,11 +69,11 @@ export default function ClientLayout() {
             <img
               src={appIcon}
               alt={`Logo ${appName}`}
-              className="w-9 h-9 rounded-xl object-cover"
+              className="w-[54px] h-[54px] rounded-2xl object-cover"
             />
           ) : (
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-              <ShoppingBag size={18} className="text-white" aria-hidden="true" />
+            <div className="w-[54px] h-[54px] rounded-2xl bg-primary flex items-center justify-center">
+              <ShoppingBag size={26} className="text-white" aria-hidden="true" />
             </div>
           )}
           <p className="font-bold text-sm text-app">{appName}</p>
@@ -70,7 +81,7 @@ export default function ClientLayout() {
 
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Secciones del cliente">
-          {NAV_ITEMS.map(({ path, icon: Icon, label }) => (
+          {ALL_NAV_ITEMS.map(({ path, icon: Icon, label }) => (
             <NavLink
               key={path}
               to={path}
@@ -91,6 +102,16 @@ export default function ClientLayout() {
               )}
             </NavLink>
           ))}
+
+          {/* Botón Cupones en Desktop Sidebar */}
+          <button
+            onClick={() => setIsCouponsOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-app hover:bg-surface-2 transition-all duration-300 border border-dashed border-primary/20 hover:border-primary/40 mt-4 bg-primary/5 text-primary"
+            aria-label="Ver cupones y ofertas"
+          >
+            <Tag size={18} className="text-primary" aria-hidden="true" />
+            <span className="font-bold text-primary">Ofertas Flash</span>
+          </button>
         </nav>
 
         {/* Botón carrito en sidebar */}
@@ -121,13 +142,40 @@ export default function ClientLayout() {
         </div>
       </aside>
 
-      {/* ─── HEADER MOBILE con botón carrito ────────────────────────────── */}
+      {/* ─── HEADER MOBILE ────────────────────────────── */}
       <header
-        className="flex md:hidden fixed top-0 left-0 right-0 h-14 z-40 items-center justify-between px-4 bg-surface/70 backdrop-blur-xl"
+        className="flex md:hidden fixed top-0 left-0 right-0 h-14 z-40 items-center justify-between px-4 bg-surface/70 backdrop-blur-xl border-b border-app"
         aria-label="Encabezado"
       >
-        <p className="font-bold text-sm text-app">{appName}</p>
-        <div className="relative flex items-center">
+        <div className="flex items-center gap-2">
+          {appIcon ? (
+            <img
+              src={appIcon}
+              alt={`Logo ${appName}`}
+              className="w-12 h-12 rounded-xl object-cover"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
+              <ShoppingBag size={22} className="text-white" aria-hidden="true" />
+            </div>
+          )}
+          <p className="font-bold text-sm text-app">{appName}</p>
+        </div>
+        
+        {/* Carrito e Icono Perfil en Header para Mobile */}
+        <div className="flex items-center gap-2 relative">
+          <NavLink
+            to="/tienda/perfil"
+            className={({ isActive }) =>
+              `w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 ${
+                isActive ? 'text-primary' : 'text-muted'
+              }`
+            }
+            aria-label="Ver perfil"
+          >
+            <User size={20} />
+          </NavLink>
+
           <button
             onClick={openCart}
             className={`relative w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
@@ -164,12 +212,13 @@ export default function ClientLayout() {
         <Outlet />
       </main>
 
-      {/* ─── NAVBOTTOM MOBILE ───────────────────────────────────────────── */}
+      {/* ─── NAVBOTTOM MOBILE con botón circular central destacando Cupones ─── */}
       <nav
-        className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+        className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] items-center justify-around px-2"
         aria-label="Navegación inferior cliente"
       >
-        {NAV_ITEMS.map(({ path, icon: Icon, label }) => (
+        {/* Lado izquierdo */}
+        {NAV_ITEMS_LEFT.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}
@@ -186,7 +235,116 @@ export default function ClientLayout() {
                 {isActive && (
                   <motion.div
                     layoutId="client-nav-indicator"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                    className="absolute top-[-10px] left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                  />
+                )}
+                <Icon size={20} aria-hidden="true" />
+                <span className="text-[10px] font-medium">{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+
+        {/* Botón Central Circular (Cupones / Ofertas) con animación magnética premium, sacudida de icono y barrido de brillo */}
+        <div className="flex-1 flex flex-col items-center justify-start relative group">
+          <button
+            onClick={() => setIsCouponsOpen(true)}
+            className="flex flex-col items-center justify-center -translate-y-2.5 relative"
+            aria-label="Ver ofertas y cupones"
+          >
+            {/* Ondas de pulso más notorias de fondo */}
+            <motion.div
+              animate={{
+                scale: [1, 1.3, 1.5],
+                opacity: [0.8, 0.4, 0]
+              }}
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+                ease: "easeOut"
+              }}
+              className="absolute w-16 h-16 rounded-full bg-primary/30 z-0"
+              style={{ pointerEvents: 'none' }}
+            />
+            
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1.35],
+                opacity: [0.6, 0.2, 0]
+              }}
+              transition={{
+                duration: 2.2,
+                delay: 1.1,
+                repeat: Infinity,
+                ease: "easeOut"
+              }}
+              className="absolute w-16 h-16 rounded-full bg-primary/20 z-0"
+              style={{ pointerEvents: 'none' }}
+            />
+
+            {/* Botón Circular Principal con overflow-hidden para contener el barrido de brillo */}
+            <motion.div 
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.93 }}
+              className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white z-10 overflow-hidden relative"
+            >
+              {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
+              <motion.div
+                animate={{
+                  x: ['-100%', '200%']
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  repeatDelay: 1,
+                  ease: "easeInOut"
+                }}
+                className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
+              />
+
+              {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
+              <motion.div
+                animate={{
+                  rotate: [0, -15, 12, -10, 8, -4, 0]
+                }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  repeatDelay: 3.5,
+                  ease: "easeInOut"
+                }}
+                whileHover={{ rotate: 360, scale: 1.1 }}
+                className="z-20 flex items-center justify-center"
+              >
+                <Tag size={26} aria-hidden="true" />
+              </motion.div>
+            </motion.div>
+            
+            <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-muted hover:text-primary transition-colors duration-300 z-10">
+              Ofertas
+            </span>
+          </button>
+        </div>
+
+        {/* Lado derecho */}
+        {NAV_ITEMS_RIGHT.map(({ path, icon: Icon, label }) => (
+          <NavLink
+            key={path}
+            to={path}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative outline-none focus:outline-none ${
+                isActive ? 'text-primary' : 'text-muted'
+              }`
+            }
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+            aria-label={label}
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.div
+                    layoutId="client-nav-indicator"
+                    className="absolute top-[-10px] left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
                   />
                 )}
                 <Icon size={20} aria-hidden="true" />
@@ -196,6 +354,12 @@ export default function ClientLayout() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Modal global de cupones */}
+      <ClientCouponsModal
+        isOpen={isCouponsOpen}
+        onClose={() => setIsCouponsOpen(false)}
+      />
     </div>
   )
 }

@@ -4,17 +4,36 @@ import { User, LogOut, Package, CreditCard, Sparkles, ChevronRight, Info, Edit2,
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useGuidedStore from '../../store/guidedStore'
+import useAppConfigStore from '../../store/appConfigStore'
 import usePWAInstall from '../../hooks/usePWAInstall'
-import { CLIENT_LOGIN_TRUST_MESSAGE } from '../../constants'
+import { CLIENT_LOGIN_TRUST_MESSAGE, COLLECTIONS } from '../../constants'
+import { db } from '../../config/firebaseConfig'
+import { doc, updateDoc } from 'firebase/firestore'
 
 const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', '🍕', '🎉', '👑', '🏀', '⚽', '🎨', '🎸', '🎮']
 
 export default function ClientProfile() {
   const { user, logout, updateClient } = useAuthStore()
   const { isAssistanceMode, enableAssistance, disableAssistance, resetProgress } = useGuidedStore()
+  const { guidedModeEnabled } = useAppConfigStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
   const navigate = useNavigate()
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+
+  const handleUpdateEmoji = async (newEmoji) => {
+    // Actualización local inmediata
+    updateClient({ emoji: newEmoji })
+    
+    // Persistencia en Firestore
+    if (user?.celular) {
+      try {
+        const userRef = doc(db, COLLECTIONS.USERS, user.celular)
+        await updateDoc(userRef, { emoji: newEmoji })
+      } catch (error) {
+        console.error("Error al guardar el emoji en Firestore:", error)
+      }
+    }
+  }
 
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
   const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches
@@ -69,7 +88,7 @@ export default function ClientProfile() {
                     <div className="flex justify-between items-center mb-2 px-1">
                       <p className="text-xs font-bold text-app">Elige tu avatar:</p>
                       {user?.emoji && (
-                        <button onClick={() => { updateClient({ emoji: null }); setShowEmojiPicker(false) }} className="text-[10px] font-bold text-error hover:underline">
+                        <button onClick={() => { handleUpdateEmoji(null); setShowEmojiPicker(false) }} className="text-[10px] font-bold text-error hover:underline">
                           Quitar
                         </button>
                       )}
@@ -78,7 +97,7 @@ export default function ClientProfile() {
                       {EMOJIS.map(e => (
                         <button 
                           key={e} 
-                          onClick={() => { updateClient({ emoji: e }); setShowEmojiPicker(false) }}
+                          onClick={() => { handleUpdateEmoji(e); setShowEmojiPicker(false) }}
                           className={`text-2xl hover:bg-surface-2 rounded-xl p-2 transition-colors flex items-center justify-center ${user?.emoji === e ? 'bg-primary/10 border border-primary/30' : ''}`}
                         >
                           {e}
@@ -166,38 +185,40 @@ export default function ClientProfile() {
         )}
 
         {/* ─── MODO ASISTENCIA (FASE 8) ────────────────────────────────── */}
-        <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                <Sparkles size={20} />
+        {guidedModeEnabled && (
+          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-app leading-tight">Asistencia de Compra</h3>
+                  <p className="text-xs text-muted mt-1 max-w-[200px]">
+                    Muestra mensajes emergentes para guiarte paso a paso.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-app leading-tight">Asistencia de Compra</h3>
-                <p className="text-xs text-muted mt-1 max-w-[200px]">
-                  Muestra mensajes emergentes para guiarte paso a paso.
-                </p>
-              </div>
-            </div>
 
-            {/* Toggle Switch Personalizado */}
-            <button 
-              onClick={toggleAssistance}
-              className={`w-14 h-8 rounded-full flex items-center px-1 transition-colors duration-300 flex-shrink-0 ${isAssistanceMode ? 'bg-primary' : 'bg-surface-2 border border-app'}`}
-            >
-              <motion.div 
-                layout
-                className={`w-6 h-6 rounded-full bg-white shadow-sm ${!isAssistanceMode && 'bg-muted'}`}
-                initial={false}
-                animate={{ x: isAssistanceMode ? 24 : 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
-            </button>
+              {/* Toggle Switch Personalizado */}
+              <button 
+                onClick={toggleAssistance}
+                className={`w-14 h-8 rounded-full flex items-center px-1 transition-colors duration-300 flex-shrink-0 ${isAssistanceMode ? 'bg-primary' : 'bg-surface-2 border border-app'}`}
+              >
+                <motion.div 
+                  layout
+                  className={`w-6 h-6 rounded-full bg-white shadow-sm ${!isAssistanceMode && 'bg-muted'}`}
+                  initial={false}
+                  animate={{ x: isAssistanceMode ? 24 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ─── CONFIANZA Y SALIDA ──────────────────────────────────────── */}
-        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 flex gap-3 mt-8">
+        <div className="bg-primary/5 rounded-2xl p-4 flex gap-3 mt-8">
           <Info size={20} className="text-primary flex-shrink-0 mt-0.5" />
           <p className="text-xs text-app/80 leading-relaxed font-medium">
             {CLIENT_LOGIN_TRUST_MESSAGE}

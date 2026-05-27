@@ -9,6 +9,51 @@ import useAppConfigStore from '../../../store/appConfigStore'
 const COMMON_TALLAS = ['Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '35', '36', '37', '38', '39', '40', '41', '42']
 const COMMON_COLORES = ['Negro', 'Blanco', 'Gris', 'Azul', 'Rojo', 'Verde', 'Amarillo', 'Rosa', 'Beige', 'Café', 'Morado', 'Naranja']
 
+const COLOR_MAP = {
+  'rojo': '#EF4444',
+  'azul': '#3B82F6',
+  'verde': '#10B981',
+  'amarillo': '#EAB308',
+  'naranja': '#F97316',
+  'morado': '#8B5CF6',
+  'rosa': '#EC4899',
+  'negro': '#171717',
+  'blanco': '#FFFFFF',
+  'gris': '#6B7280',
+  'cafe': '#78350F',
+  'café': '#78350F',
+  'beige': '#F5F5DC',
+  'celeste': '#38BDF8',
+  'vino': '#7F1D1D',
+  'vinotinto': '#7F1D1D',
+  'vino tinto': '#7F1D1D',
+  'dorado': '#D4AF37',
+  'plateado': '#C0C0C0',
+  'marron': '#78350F',
+  'marrón': '#78350F',
+}
+
+function getCssColor(colorName) {
+  if (!colorName) return '#ccc'
+  const normalized = colorName.toLowerCase().trim()
+  if (COLOR_MAP[normalized]) return COLOR_MAP[normalized]
+  
+  let hash = 0
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return '#' + (hash & 0x00FFFFFF).toString(16).toUpperCase().padStart(6, '0')
+}
+
+function isLightColor(colorHex) {
+  const hex = colorHex.replace('#', '')
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000
+  return brightness > 180
+}
+
 function CustomSelect({ value, onChange, options, placeholder, emptyOption = "Ninguno" }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -77,7 +122,10 @@ const initialForm = {
   umbralAlerta: 5,
   activo: true,
   variantes: [],
-  atributos: {}
+  atributos: {},
+  discountActive: false,
+  discountType: 'percentage',
+  discountValue: 0
 }
 
 export default function ProductFormModal({ isOpen, onClose, onSave, initialData = null }) {
@@ -94,7 +142,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         precioBase: initialData.precioBase?.toString() || '',
         precioMayorista: initialData.precioMayorista?.toString() || '',
         umbralAlerta: initialData.umbralAlerta?.toString() || '5',
-        atributos: initialData.atributos || {}
+        atributos: initialData.atributos || {},
+        discountActive: initialData.discountActive || false,
+        discountType: initialData.discountType || 'percentage',
+        discountValue: initialData.discountValue || 0
       })
     } else if (isOpen) {
       setFormData({ ...initialForm, variantes: [{ ...initialVariant, id: crypto.randomUUID() }] })
@@ -120,7 +171,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     setFormData(prev => ({
       ...prev,
       variantes: prev.variantes.map(v => 
-        v.id === id ? { ...v, [field]: field === 'stock' ? Number(value) : value } : v
+        v.id === id ? { ...v, [field]: field === 'stock' ? (value === '' ? '' : Number(value)) : value } : v
       )
     }))
   }
@@ -128,18 +179,30 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   const handleSubmit = (e) => {
     e.preventDefault()
     
-    let finalVariantes = formData.variantes
+    let finalVariantes = formData.variantes.map(v => ({
+      ...v,
+      stock: v.stock === '' ? 0 : Number(v.stock)
+    }))
+
     if (!catalogFilters.sizes && !catalogFilters.colors) {
-      finalVariantes = [{ ...formData.variantes[0], talla: '', color: '' }]
+      finalVariantes = [{ ...finalVariantes[0], talla: '', color: '' }]
     }
+
+    // Resolver nombre de categoría a partir del ID seleccionado
+    const selectedCategory = categories.find(c => c.id === formData.categoriaId)
+    const categoriaNombre = selectedCategory?.nombre || formData.categoria || ''
 
     // Preparar datos para validación Zod
     const dataToValidate = {
       ...formData,
+      categoria: categoriaNombre,
       precioBase: Number(formData.precioBase),
       precioMayorista: formData.precioMayorista ? Number(formData.precioMayorista) : undefined,
       umbralAlerta: Number(formData.umbralAlerta),
-      variantes: finalVariantes
+      variantes: finalVariantes,
+      discountActive: formData.discountActive,
+      discountType: formData.discountType,
+      discountValue: Number(formData.discountValue || 0)
     }
 
     const result = productSchema.safeParse(dataToValidate)
@@ -322,6 +385,69 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                   />
                   {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
                 </div>
+
+                {/* ── Sección de Descuento Directo en Inventario ── */}
+                <div className="md:col-span-2 border-t border-app pt-5 mt-2 space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-2 border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">¿Aplicar Descuento de una vez?</p>
+                      <p className="text-xs text-muted">Aplica una oferta directa al producto que se verá reflejada en el catálogo</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={formData.discountActive}
+                      onChange={(e) => setFormData({ ...formData, discountActive: e.target.checked })}
+                      className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer shrink-0"
+                    />
+                  </div>
+
+                  {formData.discountActive && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-surface-2 border border-app animate-in fade-in slide-in-from-top-3 duration-200">
+                      <div>
+                        <label className="block text-xs font-bold text-app mb-1.5">Tipo de Descuento</label>
+                        <CustomSelect
+                          value={formData.discountType}
+                          onChange={(val) => setFormData({ ...formData, discountType: val })}
+                          options={[
+                            { value: 'percentage', label: 'Porcentaje (%)' },
+                            { value: 'amount', label: 'Monto Fijo (COP $)' },
+                          ]}
+                          placeholder="Seleccione..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-app mb-1.5">Valor del Descuento</label>
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={formData.discountValue === 0 ? '' : formData.discountValue}
+                          onChange={(e) => setFormData({ ...formData, discountValue: e.target.value === '' ? 0 : Number(e.target.value) })}
+                          className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-app focus:border-primary focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Vista Previa del Cálculo en Tiempo Real */}
+                      {Number(formData.precioBase) > 0 && (
+                        <div className="md:col-span-2 p-3 bg-surface rounded-xl border border-app text-xs font-bold flex items-center justify-between">
+                          <span className="text-muted">Simulación de Precio:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="line-through text-muted font-normal">${Number(formData.precioBase).toLocaleString()}</span>
+                            <span className="text-primary text-sm font-extrabold">
+                              ${Math.max(0, (() => {
+                                const base = Number(formData.precioBase)
+                                const val = Number(formData.discountValue || 0)
+                                if (formData.discountType === 'percentage') {
+                                  return base - (base * val) / 100
+                                }
+                                return base - val
+                              })()).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Variantes e Inventario */}
@@ -397,21 +523,37 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                           {catalogFilters.colors && (
                             <div>
                               <label className="text-xs font-semibold text-app mb-2 block">Color Seleccionado: {variant.color || 'Ninguno'}</label>
-                              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                {coloresList.map(c => (
-                                  <button
-                                    key={c}
-                                    type="button"
-                                    onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)} // Permite deseleccionar
-                                    className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border-2 ${
-                                      variant.color === c
-                                        ? 'bg-primary text-white border-primary shadow-md'
-                                        : 'bg-surface text-app border-app hover:border-primary/50'
-                                    }`}
-                                  >
-                                    {c}
-                                  </button>
-                                ))}
+                              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1.5 pt-1">
+                                {coloresList.map(c => {
+                                  const hex = getCssColor(c)
+                                  const isLight = isLightColor(hex)
+                                  const isSelected = variant.color === c
+                                  return (
+                                    <button
+                                      key={c}
+                                      type="button"
+                                      onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
+                                      className={`flex-shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 border-2 flex items-center gap-1.5 shadow-sm`}
+                                      style={{
+                                        backgroundColor: hex,
+                                        color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
+                                        borderColor: isSelected 
+                                          ? 'var(--color-primary)' 
+                                          : (isLight ? 'var(--color-border)' : 'transparent'),
+                                        boxShadow: isSelected ? '0 0 10px rgba(124,58,237,0.35)' : undefined
+                                      }}
+                                    >
+                                      <span 
+                                        className="w-2 h-2 rounded-full shrink-0 border"
+                                        style={{ 
+                                          backgroundColor: isSelected ? (isLight ? 'rgba(0,0,0,0.85)' : '#ffffff') : 'transparent',
+                                          borderColor: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)'
+                                        }}
+                                      />
+                                      {c}
+                                    </button>
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
@@ -425,6 +567,12 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                               placeholder="Ej: 15"
                               value={variant.stock}
                               onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
+                              onWheel={e => e.target.blur()}
+                              onKeyDown={e => {
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                }
+                              }}
                               className="w-full sm:w-1/2 h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
                             />
                           </div>

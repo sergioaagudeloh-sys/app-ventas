@@ -1,16 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
-import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS } from '../../constants'
+import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS, DEV_PASSWORD } from '../../constants'
 import { updateAppConfig } from '../../services/appConfigService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
 import { ADVANCED_PALETTES, getActiveColors } from '../../constants/palettes'
+import { FONTS, FONT_CATEGORIES, FONTS_BY_CATEGORY } from '../../constants/fonts'
 import usePWAInstall from '../../hooks/usePWAInstall'
+import { useAds, useCreateAd, useUpdateAd, useDeleteAd } from '../../hooks/useAds'
+import { useProducts } from '../../hooks/useInventory'
+import { useBilling } from '../../hooks/useBilling'
+import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '../../hooks/useCoupons'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -100,11 +106,295 @@ const SEED_ORDERS = [
   }
 ]
 
-// ─── COMPONENTE ────────────────────────────────────────────────────────────
+// ─── CUSTOM DATE PICKER COMPONENT ────────────────────────────────────────
+const DAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa']
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function CustomDatePicker({ value, onChange, placeholder = 'Seleccionar fecha' }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
+
+  const today = new Date()
+  const selected = value ? new Date(value + 'T12:00:00') : null
+
+  const [viewYear, setViewYear] = useState(selected ? selected.getFullYear() : today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(selected ? selected.getMonth() : today.getMonth())
+
+  const display = selected
+    ? `${String(selected.getDate()).padStart(2,'0')}/${String(selected.getMonth()+1).padStart(2,'0')}/${selected.getFullYear()}`
+    : ''
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay()
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const selectDay = (d) => {
+    const mm = String(viewMonth + 1).padStart(2, '0')
+    const dd = String(d).padStart(2, '0')
+    onChange({ target: { value: `${viewYear}-${mm}-${dd}` } })
+    setOpen(false)
+  }
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }
+
+  const isSelected = (d) => selected &&
+    selected.getDate() === d && selected.getMonth() === viewMonth && selected.getFullYear() === viewYear
+  const isToday = (d) =>
+    today.getDate() === d && today.getMonth() === viewMonth && today.getFullYear() === viewYear
+
+  const calendar = (
+    <AnimatePresence>
+      {open && (
+        <>
+          {/* Overlay oscuro */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.1 }}
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.3)',
+              zIndex: 9998,
+            }}
+          />
+          {/* Contenedor centrador: flex fixed que no interfiere con las animaciones de framer-motion */}
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              pointerEvents: 'none',
+            }}
+          >
+          {/* Calendario animado */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            style={{
+              pointerEvents: 'auto',
+              width: 'min(320px, calc(100vw - 32px))',
+              background: 'var(--color-surface)',
+              borderRadius: '1.25rem',
+              border: '1px solid var(--color-border)',
+              boxShadow: '0 24px 80px -10px rgba(0,0,0,0.35)',
+              padding: '1.25rem',
+            }}
+          >
+            {/* Mes/Año + label */}
+            <div className="text-center mb-1">
+              <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">Seleccionar fecha</p>
+            </div>
+
+            {/* Navegación */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={prevMonth}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <ChevronDown size={18} className="rotate-90" />
+              </button>
+              <span className="text-base font-bold text-app">
+                {MONTHS_ES[viewMonth]} {viewYear}
+              </span>
+              <button
+                type="button"
+                onClick={nextMonth}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <ChevronDown size={18} className="-rotate-90" />
+              </button>
+            </div>
+
+            {/* Días de la semana */}
+            <div className="grid grid-cols-7 mb-2">
+              {DAYS_ES.map(d => (
+                <div key={d} className="text-center text-[11px] font-bold text-muted py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Celdas de días */}
+            <div className="grid grid-cols-7 gap-y-1">
+              {cells.map((d, i) => (
+                <div key={i} className="flex items-center justify-center">
+                  {d ? (
+                    <button
+                      type="button"
+                      onClick={() => selectDay(d)}
+                      className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all active:scale-90
+                        ${isSelected(d)
+                          ? 'text-white shadow-md'
+                          : isToday(d)
+                          ? 'font-bold ring-2'
+                          : 'text-app hover:opacity-80'
+                        }
+                      `}
+                      style={
+                        isSelected(d)
+                          ? { background: 'var(--color-primary)' }
+                          : isToday(d)
+                          ? { ringColor: 'var(--color-primary)', color: 'var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }
+                          : { background: 'transparent' }
+                      }
+                    >
+                      {d}
+                    </button>
+                  ) : <div />}
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-between items-center mt-4 pt-3 border-t border-app">
+              <button
+                type="button"
+                onClick={() => { onChange({ target: { value: '' } }); setOpen(false) }}
+                className="text-xs text-muted font-medium px-3 py-1.5 rounded-lg transition-colors active:scale-95"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                Borrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const t = new Date()
+                  const mm = String(t.getMonth()+1).padStart(2,'0')
+                  const dd = String(t.getDate()).padStart(2,'0')
+                  onChange({ target: { value: `${t.getFullYear()}-${mm}-${dd}` } })
+                  setOpen(false)
+                }}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-all active:scale-95"
+                style={{ background: 'var(--color-primary)' }}
+              >
+                Hoy
+              </button>
+            </div>
+          </motion.div>
+          </div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+
+  return (
+    <div className="relative w-full">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface border border-app text-sm font-medium flex items-center transition-colors cursor-pointer relative"
+        style={{
+          color: display ? 'var(--color-text)' : 'var(--color-text-muted)',
+          borderColor: open ? 'var(--color-primary)' : undefined
+        }}
+      >
+        {display || <span style={{ color: 'var(--color-text-muted)' }}>{placeholder}</span>}
+        <span className={`absolute right-3 transition-colors ${open ? 'text-primary' : 'text-muted'}`}>
+          <CalendarDays size={16} />
+        </span>
+      </button>
+      {ReactDOM.createPortal(calendar, document.body)}
+    </div>
+  )
+}
+
+// ─── CUSTOM SELECT COMPONENT ──────────────────────────────────────────────
+
+function CustomSelect({ value, onChange, options, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div className="relative w-full" style={{ zIndex: open ? 50 : 'auto' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors appearance-none cursor-pointer flex items-center justify-between"
+        style={{ borderColor: open ? 'var(--color-primary)' : undefined }}
+      >
+        <span className={selected ? 'text-app' : 'text-muted'}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <span className={`absolute right-3 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+          <ChevronDown size={18} />
+        </span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <>
+            {/* Overlay para cerrar al hacer click fuera */}
+            <div className="fixed inset-0" style={{ zIndex: 48 }} onClick={() => setOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              className="absolute left-0 right-0 mt-1 rounded-xl border border-app overflow-hidden shadow-xl"
+              style={{ zIndex: 49, background: 'var(--color-surface)' }}
+            >
+              {options.map((opt, i) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { onChange(opt.value); setOpen(false) }}
+                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2
+                    ${opt.value === value
+                      ? 'bg-primary text-white font-bold'
+                      : 'text-app hover:bg-surface-2'
+                    }
+                  `}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+
+
+// Componente helper para bloquear el scroll en el body cuando un modal está abierto
+function ThemeModalLock({ children }) {
+  useEffect(() => {
+    // Guardar el overflow original
+    const originalStyle = window.getComputedStyle(document.body).overflow
+    // Desactivar scroll
+    document.body.style.overflow = 'hidden'
+    return () => {
+      // Restaurar original
+      document.body.style.overflow = originalStyle
+    }
+  }, [])
+
+  return <>{children}</>
+}
 
 export default function AdminSettings() {
   const config = useAppConfigStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { logout } = useAuthStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
   
@@ -115,8 +405,27 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
 
+  // Autenticación de Desarrollador
+  const [isDevAuthenticated, setIsDevAuthenticated] = useState(false)
+  const [devPasswordInput, setDevPasswordInput] = useState('')
+  const [devPasswordError, setDevPasswordError] = useState(false)
+
   // Navegación de secciones (null = menú principal)
   const [activeSection, setActiveSection] = useState(null)
+  const { metrics: billingMetrics, isLoading: billingLoading, savePercent, isSaving: billingIsSaving } = useBilling()
+  const [commissionInput, setCommissionInput] = useState(null)
+  const [animatedValues, setAnimatedValues] = useState({ totalMes: 0, comisionMes: 0, pedidosMes: 0, comisionHistorica: 0 })
+
+  // Escuchar evento personalizado de la barra de navegación para regresar al menú de configuración principal
+  useEffect(() => {
+    const handleReset = () => {
+      setActiveSection(null)
+    }
+    window.addEventListener('reset-settings-menu', handleReset)
+    return () => {
+      window.removeEventListener('reset-settings-menu', handleReset)
+    }
+  }, [])
 
   // States para Configuración del Negocio
   const [isSaving, setIsSaving] = useState(false)
@@ -134,13 +443,182 @@ export default function AdminSettings() {
   // Estado del Modal de Tema
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false)
 
+  // ─── MODAL CONFIRMACIÓN CRÍTICA (Fase 5) ────────────────────────────────
+  const [criticalConfirmModal, setCriticalConfirmModal] = useState(null) // null | { title, desc, onConfirm }
+  const [criticalConfirmText, setCriticalConfirmText] = useState('')
+
+  // ─── PUBLICIDAD Y ANUNCIOS ──────────────────────────────────────────
+  const { data: ads = [], isLoading: isLoadingAds } = useAds()
+  const { data: products = [] } = useProducts()
+  const createMutation = useCreateAd()
+  const updateMutation = useUpdateAd()
+  const deleteMutation = useDeleteAd()
+
+  const [showAdForm, setShowAdForm] = useState(false)
+  const [editingAdId, setEditingAdId] = useState(null)
+  const [adToDelete, setAdToDelete] = useState(null)
+  const [adFormData, setAdFormData] = useState({
+    type: 'inventory',
+    active: true,
+    productId: '',
+    discountType: 'percentage',
+    discountValue: 0,
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+    customTitle: '',
+    customBanner: '',
+    glowEffect: false,
+    title: '',
+    description: '',
+    image: '',
+    banner: '',
+    colors: { bg: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))', text: '#ffffff' },
+    ctaText: 'Ver promoción',
+    ctaAction: 'modal',
+    ctaValue: '',
+    category: '',
+    isTemporalProduct: false,
+    price: 0,
+    promoPrice: 0,
+  })
+
+  const handleSaveAd = () => {
+    if (adFormData.type === 'inventory' && !adFormData.productId) {
+      alert('Por favor selecciona un producto')
+      return
+    }
+    if (adFormData.type === 'custom' && !adFormData.title) {
+      alert('Por favor ingresa un título')
+      return
+    }
+
+    // Validar máximo 5 anuncios activos
+    if (adFormData.active) {
+      const activeCount = ads.filter(a => a.active && a.id !== editingAdId).length
+      if (activeCount >= 5) {
+        alert('Límite alcanzado: Sólo puedes tener un máximo de 5 publicidades activas de forma simultánea. Desactiva otra publicidad para poder activar esta.')
+        return
+      }
+    }
+
+    const payload = {
+      type: adFormData.type,
+      active: adFormData.active,
+      startDate: adFormData.startDate,
+      endDate: adFormData.endDate,
+    }
+
+    if (adFormData.type === 'inventory') {
+      payload.productId = adFormData.productId
+      payload.discountType = adFormData.discountType
+      payload.discountValue = Number(adFormData.discountValue)
+      payload.customTitle = adFormData.customTitle || ''
+      payload.customBanner = adFormData.customBanner || ''
+      payload.glowEffect = adFormData.glowEffect || false
+    } else {
+      payload.title = adFormData.title
+      payload.description = adFormData.description || ''
+      payload.image = adFormData.image || ''
+      payload.banner = adFormData.banner || ''
+      payload.colors = adFormData.colors || { bg: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))', text: '#ffffff' }
+      payload.ctaText = adFormData.ctaText || 'Ver promoción'
+      payload.ctaAction = adFormData.ctaAction || 'modal'
+      payload.ctaValue = adFormData.ctaValue || ''
+      payload.category = adFormData.category || ''
+      payload.isTemporalProduct = adFormData.isTemporalProduct || false
+      if (adFormData.isTemporalProduct) {
+        payload.price = Number(adFormData.price) || 0
+        payload.promoPrice = Number(adFormData.promoPrice) || 0
+      }
+    }
+
+    if (editingAdId) {
+      updateMutation.mutate({ id: editingAdId, data: payload }, {
+        onSuccess: () => {
+          setShowAdForm(false)
+          setEditingAdId(null)
+        }
+      })
+    } else {
+      createMutation.mutate(payload, {
+        onSuccess: () => {
+          setShowAdForm(false)
+        }
+      })
+    }
+  }
+
+  // ─── GESTIÓN DE CUPONES DE DESCUENTO ─────────────────────────────────
+  const { data: coupons = [], isLoading: isLoadingCoupons } = useCoupons()
+  const createCouponMutation = useCreateCoupon()
+  const updateCouponMutation = useUpdateCoupon()
+  const deleteCouponMutation = useDeleteCoupon()
+
+  const [showCouponForm, setShowCouponForm] = useState(false)
+  const [editingCouponId, setEditingCouponId] = useState(null)
+  const [couponToDelete, setCouponToDelete] = useState(null)
+  const [couponFormData, setCouponFormData] = useState({
+    code: '',
+    type: 'percentage', // percentage | fixed
+    value: '',
+    minPurchase: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
+    active: true
+  })
+
+  const handleSaveCoupon = () => {
+    if (!couponFormData.code) {
+      alert('Ingresa el código del cupón')
+      return
+    }
+    if (!couponFormData.value || Number(couponFormData.value) <= 0) {
+      alert('Ingresa un valor de descuento válido mayor a 0')
+      return
+    }
+
+    const payload = {
+      code: couponFormData.code.toUpperCase().trim(),
+      type: couponFormData.type,
+      value: Number(couponFormData.value),
+      minPurchase: Number(couponFormData.minPurchase || 0),
+      startDate: couponFormData.startDate,
+      endDate: couponFormData.endDate,
+      active: couponFormData.active
+    }
+
+    if (editingCouponId) {
+      updateCouponMutation.mutate({ id: editingCouponId, data: payload }, {
+        onSuccess: () => {
+          setShowCouponForm(false)
+          setEditingCouponId(null)
+        }
+      })
+    } else {
+      createCouponMutation.mutate(payload, {
+        onSuccess: () => {
+          setShowCouponForm(false)
+        }
+      })
+    }
+  }
+
   const [formData, setFormData] = useState({
     appName: '',
     sellerName: '',
     appIcon: '',
-    theme: 'modern-purple',
+    welcomeWavesEnabled: true,
+    theme: 'rosa-elegante',
     whatsappAdmin: '',
     bankInfo: {
+      banco: '',
+      tipoCuenta: 'ahorros',
+      numeroCuenta: '',
+      titular: '',
+      cedulaNit: ''
+    },
+    bankInfo2: {
+      activa: false,
       banco: '',
       tipoCuenta: 'ahorros',
       numeroCuenta: '',
@@ -160,6 +638,7 @@ export default function AdminSettings() {
     animationsEnabled: true,
     guidedModeEnabled: true,
     actionColor: '',
+    loginTrustMessage: '',
   })
 
   // Sincronizar store local con formulario al cargar
@@ -169,7 +648,7 @@ export default function AdminSettings() {
         appName: config.appName || '',
         sellerName: config.sellerName || '',
         appIcon: config.appIcon || '',
-        theme: config.theme || 'modern-purple',
+        theme: config.theme || 'rosa-elegante',
         whatsappAdmin: config.whatsappAdmin || '',
         bankInfo: {
           banco: config.bankInfo?.banco || '',
@@ -177,6 +656,14 @@ export default function AdminSettings() {
           numeroCuenta: config.bankInfo?.numeroCuenta || '',
           titular: config.bankInfo?.titular || '',
           cedulaNit: config.bankInfo?.cedulaNit || ''
+        },
+        bankInfo2: {
+          activa: config.bankInfo2?.activa || false,
+          banco: config.bankInfo2?.banco || '',
+          tipoCuenta: config.bankInfo2?.tipoCuenta || 'ahorros',
+          numeroCuenta: config.bankInfo2?.numeroCuenta || '',
+          titular: config.bankInfo2?.titular || '',
+          cedulaNit: config.bankInfo2?.cedulaNit || ''
         },
         catalogFilters: config.catalogFilters || {
           categories: true,
@@ -191,6 +678,8 @@ export default function AdminSettings() {
         animationsEnabled: config.animationsEnabled ?? true,
         guidedModeEnabled: config.guidedModeEnabled ?? true,
         actionColor: config.actionColor || '',
+        welcomeWavesEnabled: config.welcomeWavesEnabled ?? true,
+        loginTrustMessage: config.loginTrustMessage || '',
       })
     }
   }, [
@@ -201,6 +690,7 @@ export default function AdminSettings() {
     config.theme, 
     config.whatsappAdmin, 
     config.bankInfo, 
+    config.bankInfo2,
     config.catalogFilters,
     config.appFont,
     config.appRadius,
@@ -208,7 +698,8 @@ export default function AdminSettings() {
     config.catalogLayout,
     config.animationsEnabled,
     config.guidedModeEnabled,
-    config.actionColor
+    config.actionColor,
+    config.welcomeWavesEnabled
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -320,10 +811,10 @@ export default function AdminSettings() {
   const toggleCustomMode = () => {
     if (typeof formData.theme === 'object') {
       // Volver a predefinida
-      setFormData({ ...formData, theme: 'modern-purple' })
+      setFormData({ ...formData, theme: 'rosa-elegante' })
     } else {
       // Convertir a objeto personalizado basado en el actual
-      const basePalette = ADVANCED_PALETTES[formData.theme] || ADVANCED_PALETTES['modern-purple']
+      const basePalette = ADVANCED_PALETTES[formData.theme] || ADVANCED_PALETTES['rosa-elegante']
       setFormData({
         ...formData,
         theme: {
@@ -482,6 +973,22 @@ export default function AdminSettings() {
   // ─── Definición de secciones del menú ──────────────────────────────────────
   const MENU_SECTIONS = [
     {
+      id: 'cupones',
+      label: 'Cupones de Descuento',
+      description: 'Genera códigos promocionales y ofertas',
+      icon: Tag,
+      iconBg: 'bg-violet-500/10',
+      iconColor: 'text-violet-500',
+    },
+    {
+      id: 'publicidad',
+      label: 'Publicidad y Promociones',
+      description: 'Gestiona banners y promociones híbridas',
+      icon: Megaphone,
+      iconBg: 'bg-pink-500/10',
+      iconColor: 'text-pink-500',
+    },
+    {
       id: 'marca',
       label: 'Identidad de Marca',
       description: 'Nombre de la tienda y logo',
@@ -498,14 +1005,6 @@ export default function AdminSettings() {
       iconColor: 'text-purple-500',
     },
     {
-      id: 'ventas',
-      label: 'Ventas y Transferencias',
-      description: 'WhatsApp y datos bancarios',
-      icon: Smartphone,
-      iconBg: 'bg-green-500/10',
-      iconColor: 'text-green-500',
-    },
-    {
       id: 'filtros',
       label: 'Filtros del Catálogo',
       description: 'Filtros y atributos de productos',
@@ -514,12 +1013,20 @@ export default function AdminSettings() {
       iconColor: 'text-indigo-500',
     },
     {
-      id: 'developer',
-      label: 'Herramientas de Pruebas',
-      description: 'Datos ficticios y limpieza de BD',
-      icon: Database,
-      iconBg: 'bg-red-500/10',
-      iconColor: 'text-red-500',
+      id: 'ventas',
+      label: 'Ventas y Transferencias',
+      description: 'WhatsApp y datos bancarios',
+      icon: Smartphone,
+      iconBg: 'bg-green-500/10',
+      iconColor: 'text-green-500',
+    },
+    {
+      id: 'facturacion',
+      label: 'Facturación',
+      description: 'Comisiones y métricas de ventas',
+      icon: Receipt,
+      iconBg: 'bg-emerald-500/10',
+      iconColor: 'text-emerald-500',
     },
     {
       id: 'seguridad',
@@ -530,6 +1037,14 @@ export default function AdminSettings() {
       iconColor: 'text-orange-500',
     },
     {
+      id: 'developer',
+      label: 'Herramientas de Pruebas',
+      description: 'Datos ficticios y limpieza de BD',
+      icon: Database,
+      iconBg: 'bg-red-500/10',
+      iconColor: 'text-red-500',
+    },
+    {
       id: 'pwa',
       label: 'Descargar Aplicación',
       description: 'Instalar en este dispositivo',
@@ -538,6 +1053,190 @@ export default function AdminSettings() {
       iconColor: 'text-teal-500',
     },
   ]
+
+  // ─── Control de Acceso del Desarrollador (Gate) ───────────────────────────
+  const renderDeveloperGate = () => {
+    const handleSubmit = (e) => {
+      e.preventDefault()
+      if (devPasswordInput === DEV_PASSWORD) {
+        setIsDevAuthenticated(true)
+        setDevPasswordError(false)
+      } else {
+        setDevPasswordError(true)
+      }
+    }
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md mx-auto p-6 bg-surface rounded-3xl border border-app shadow-xl mt-8"
+      >
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto mb-3.5">
+            <KeyRound size={24} />
+          </div>
+          <h3 className="text-base font-black text-app">Zona Protegida de Desarrollador</h3>
+          <p className="text-xs text-muted mt-1 leading-relaxed">
+            Ingresa la contraseña maestra del desarrollador para acceder a la facturación y herramientas internas.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-app mb-1.5 block">Contraseña Maestra</label>
+            <input
+              type="password"
+              value={devPasswordInput}
+              onChange={(e) => {
+                setDevPasswordInput(e.target.value)
+                if (devPasswordError) setDevPasswordError(false)
+              }}
+              placeholder="••••••••"
+              className={`w-full h-11 px-3 rounded-xl bg-surface-2 border text-sm text-app focus:outline-none focus:border-primary transition-colors ${
+                devPasswordError ? 'border-red-500 focus:border-red-500' : 'border-app'
+              }`}
+            />
+            {devPasswordError && (
+              <p className="text-[11px] text-red-500 font-semibold mt-1">La contraseña es incorrecta.</p>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="w-full h-11 bg-primary text-white font-bold text-sm rounded-xl transition-all active:scale-95 hover:opacity-90 flex items-center justify-center gap-2"
+          >
+            <KeyRound size={16} /> Desbloquear Sección
+          </button>
+        </form>
+      </motion.div>
+    )
+  }
+
+  // ─── Previsualizador de Dispositivo Móvil en Tiempo Real ──────────────────
+  const renderMobilePreview = () => {
+    const currentThemeColors = getActiveColors(formData.theme, config.isDarkMode)
+    const primaryColor = currentThemeColors['--color-primary']
+    const actionBtnColor = formData.actionColor || primaryColor
+    const fontName = FONTS[formData.appFont]?.name || 'Inter'
+
+    return (
+      <div 
+        className="flex flex-col items-center justify-start lg:col-span-5 sticky top-6 bg-surface-2 p-6 rounded-3xl border border-app h-[580px] w-full mt-6 lg:mt-0"
+        style={{ fontFamily: `'${fontName}', sans-serif` }}
+      >
+        {/* Enlace para cargar la tipografía dinámica de Google Fonts para la vista previa */}
+        <link href={`https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;500;700;900&display=swap`} rel="stylesheet" />
+
+        <div className="text-center mb-4">
+          <span className="text-xs font-bold text-muted uppercase tracking-wider">Vista Previa del Cliente</span>
+        </div>
+
+        {/* Armazón del Celular */}
+        <div className="w-[270px] h-[480px] rounded-[40px] border-[8px] border-slate-800 bg-app shadow-2xl relative overflow-hidden flex flex-col">
+          {/* Altavoz/Notch del Celular */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-800 rounded-b-2xl z-50 flex items-center justify-center">
+            <div className="w-10 h-1 bg-slate-700 rounded-full" />
+          </div>
+
+          {/* 1. Header de la Tienda */}
+          <div className="h-12 bg-surface/75 backdrop-blur-md border-b border-app flex items-center justify-between px-3 pt-3 shrink-0 z-40">
+            <div className="flex items-center gap-1.5">
+              {formData.appIcon ? (
+                <img src={formData.appIcon} alt="Logo" className="w-6 h-6 rounded-md object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+              ) : (
+                <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-white text-[10px] font-bold">
+                  S
+                </div>
+              )}
+              <span className="text-xs font-black text-app truncate max-w-[100px]">{formData.appName || 'Mi Tienda'}</span>
+            </div>
+            <div className="w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center">
+              <ShoppingBag size={14} className="text-primary" />
+            </div>
+          </div>
+
+          {/* 2. Cuerpo Simulador Catálogo */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-app select-none">
+            {/* Banner de Bienvenida simulado si es Marca o Publicidad */}
+            <div className="h-24 rounded-xl bg-gradient-to-r from-primary/20 to-primary-focus/10 border border-primary/10 p-3 flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute -right-4 -bottom-4 w-16 h-16 rounded-full bg-primary/10 blur-lg" />
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wide">Colección Nueva</p>
+              <p className="text-xs font-black text-app mt-0.5 leading-tight">¡Envíos gratis en compras hoy!</p>
+            </div>
+
+            {/* Fila de Tarjetas Ficticias */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-surface rounded-xl border border-app overflow-hidden p-2 flex flex-col">
+                <div className="h-20 bg-surface-2 rounded-lg mb-2 overflow-hidden relative">
+                  <img src="https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=150&auto=format&fit=crop" alt="P" className="w-full h-full object-cover" />
+                </div>
+                <p className="text-[10px] font-black text-app truncate">Camiseta Pro</p>
+                <p className="text-[10px] text-muted">$45.000</p>
+                {/* Botón Acción en Tiempo Real */}
+                <button 
+                  className="mt-2 w-full h-6 rounded-md text-[9px] font-bold text-white flex items-center justify-center transition-colors"
+                  style={{ backgroundColor: actionBtnColor }}
+                >
+                  Agregar
+                </button>
+              </div>
+
+              <div className="bg-surface rounded-xl border border-app overflow-hidden p-2 flex flex-col">
+                <div className="h-20 bg-surface-2 rounded-lg mb-2 overflow-hidden relative">
+                  <img src="https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?q=80&w=150&auto=format&fit=crop" alt="P" className="w-full h-full object-cover" />
+                </div>
+                <p className="text-[10px] font-black text-app truncate">Cargo Pant</p>
+                <p className="text-[10px] text-muted">$120.000</p>
+                {/* Botón Acción en Tiempo Real */}
+                <button 
+                  className="mt-2 w-full h-6 rounded-md text-[9px] font-bold text-white flex items-center justify-center transition-colors"
+                  style={{ backgroundColor: actionBtnColor }}
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Barra Navegación Inferior Simulada (Con el botón de ofertas del cliente animado) */}
+          <div className="h-12 bg-surface border-t border-app flex items-center justify-around px-2 z-40 shrink-0 select-none pb-1">
+            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+              <ShoppingBag size={14} className="text-muted" />
+              <span className="text-[8px] font-medium mt-0.5 scale-90">Catálogo</span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+              <Heart size={14} className="text-muted" />
+              <span className="text-[8px] font-medium mt-0.5 scale-90">Favoritos</span>
+            </div>
+            
+            {/* Botón Circular de Ofertas */}
+            <div className="flex-1 flex flex-col items-center justify-start relative">
+              <div className="flex flex-col items-center justify-center -translate-y-2 relative">
+                {/* Ondas concéntricas ficticias */}
+                <div className="absolute w-10 h-10 rounded-full bg-primary/20 animate-ping" />
+                <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-surface bg-primary text-white shadow-md">
+                  <Tag size={16} />
+                </div>
+                <span className="text-[7px] font-black uppercase tracking-wider text-primary scale-90 mt-0.5">
+                  Ofertas
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+              <Package size={14} className="text-muted" />
+              <span className="text-[8px] font-medium mt-0.5 scale-90">Pedidos</span>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+              <CreditCard size={14} className="text-muted" />
+              <span className="text-[8px] font-medium mt-0.5 scale-90">Créditos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ─── Header compartido (Menú o Sección) ────────────────────────────────────
   const activeInfo = MENU_SECTIONS.find(s => s.id === activeSection)
@@ -557,12 +1256,22 @@ export default function AdminSettings() {
             initial={{ opacity: 0, y: 50, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 50, x: '-50%' }}
-            className={`fixed bottom-6 left-1/2 z-50 p-4 rounded-2xl shadow-2xl flex items-center gap-3 w-[90%] max-w-md border ${
-              saveMessage.type === 'error' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface text-primary border-primary/30'
+            className={`fixed bottom-6 left-1/2 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 w-[90%] max-w-sm text-sm font-extrabold transition-all duration-300 ${
+              saveMessage.type === 'error' 
+                ? 'bg-surface/85 border-red-500/20 text-app shadow-red-500/10' 
+                : 'bg-surface/85 border-primary/20 text-app shadow-primary/10'
             }`}
           >
-            {saveMessage.type === 'error' ? <AlertTriangle size={20} className="shrink-0" /> : <CheckCircle size={20} className="shrink-0" />}
-            <p className="text-sm font-bold mt-0.5">{saveMessage.text}</p>
+            {saveMessage.type === 'error' ? (
+              <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                <AlertTriangle size={14} className="stroke-[3]" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <CheckCircle size={14} className="stroke-[3]" />
+              </div>
+            )}
+            <p className="text-app mt-0.5">{saveMessage.text}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -636,65 +1345,96 @@ export default function AdminSettings() {
       {/* ─── VISTA: IDENTIDAD DE MARCA ─────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'marca' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
-          <div className="p-5 sm:p-6 space-y-5">
-            <div>
-              <label className="block text-sm font-bold text-app mb-2">Nombre del Negocio</label>
-              <input
-                type="text"
-                value={formData.appName}
-                onChange={(e) => setFormData({ ...formData, appName: e.target.value })}
-                placeholder="Ej. Mi Tienda Smart"
-                className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-app mb-2">Nombre del Vendedor</label>
-              <input
-                type="text"
-                value={formData.sellerName}
-                onChange={(e) => setFormData({ ...formData, sellerName: e.target.value })}
-                placeholder="Ej. Sergio"
-                className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-app mb-2">URL del Logo</label>
-              <div className="flex gap-3 items-center">
-                <div className="relative flex-1">
-                  <Link size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                  <input
-                    type="text"
-                    value={formData.appIcon}
-                    onChange={(e) => setFormData({ ...formData, appIcon: e.target.value })}
-                    placeholder="https://ejemplo.com/logo.png"
-                    className="w-full h-12 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-                  />
-                </div>
-                {formData.appIcon && (
-                  <div className="w-12 h-12 rounded-xl border border-app bg-surface overflow-hidden shrink-0">
-                    <img src={formData.appIcon} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
+            <div className="p-5 sm:p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-app mb-2">Nombre del Negocio</label>
+                <input
+                  type="text"
+                  value={formData.appName}
+                  onChange={(e) => setFormData({ ...formData, appName: e.target.value })}
+                  placeholder="Ej. Mi Tienda Smart"
+                  className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-app mb-2">Nombre del Vendedor</label>
+                <input
+                  type="text"
+                  value={formData.sellerName}
+                  onChange={(e) => setFormData({ ...formData, sellerName: e.target.value })}
+                  placeholder="Ej. Sergio"
+                  className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-app mb-2">URL del Logo</label>
+                <div className="flex gap-3 items-center">
+                  <div className="relative flex-1">
+                    <Link size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                    <input
+                      type="text"
+                      value={formData.appIcon}
+                      onChange={(e) => setFormData({ ...formData, appIcon: e.target.value })}
+                      placeholder="https://ejemplo.com/logo.png"
+                      className="w-full h-12 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                    />
                   </div>
-                )}
+                  {formData.appIcon && (
+                    <div className="w-12 h-12 rounded-xl border border-app bg-surface overflow-hidden shrink-0">
+                      <img src={formData.appIcon} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-app mb-2">Mensaje de confianza en el Login</label>
+                <input
+                  type="text"
+                  value={formData.loginTrustMessage}
+                  onChange={(e) => setFormData({ ...formData, loginTrustMessage: e.target.value })}
+                  placeholder="Ej. Tu tienda de confianza"
+                  className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app md:col-span-2">
+                <div>
+                  <p className="text-sm font-bold text-app">Ondas animadas en el Logotipo</p>
+                  <p className="text-xs text-muted mt-0.5">Efecto sonar animado detrás de tu logotipo en pantallas de bienvenida</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={formData.welcomeWavesEnabled}
+                    onChange={(e) => setFormData({ ...formData, welcomeWavesEnabled: e.target.checked })} />
+                  <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                </label>
               </div>
             </div>
+            <div className="p-5 border-t border-app bg-surface-2/30">
+              <button
+                onClick={async () => {
+                  try {
+                    await updateAppConfig({ 
+                      appIcon: formData.appIcon, 
+                      appName: formData.appName, 
+                      sellerName: formData.sellerName,
+                      welcomeWavesEnabled: formData.welcomeWavesEnabled ?? true,
+                      loginTrustMessage: formData.loginTrustMessage || ''
+                    })
+                    setSaveMessage({ type: 'success', text: 'Identidad de marca guardada correctamente.' })
+                    setTimeout(() => setSaveMessage(null), 3000)
+                  } catch (e) {
+                    setSaveMessage({ type: 'error', text: 'Error al actualizar.' })
+                  }
+                }}
+                className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+              >
+                <Save size={18} /> Guardar Cambios
+              </button>
+            </div>
           </div>
-          <div className="p-5 border-t border-app bg-surface-2/30">
-            <button
-              onClick={async () => {
-                try {
-                  await updateAppConfig({ appIcon: formData.appIcon, appName: formData.appName, sellerName: formData.sellerName })
-                  setSaveMessage({ type: 'success', text: 'Identidad de marca guardada correctamente.' })
-                  setTimeout(() => setSaveMessage(null), 3000)
-                } catch (e) {
-                  setSaveMessage({ type: 'error', text: 'Error al actualizar.' })
-                }
-              }}
-              className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
-            >
-              <Save size={18} /> Guardar Cambios
-            </button>
-          </div>
+          {renderMobilePreview()}
         </div>
       )}
 
@@ -702,212 +1442,1455 @@ export default function AdminSettings() {
       {/* ─── VISTA: APARIENCIA Y COLORES ───────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'apariencia' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
-          <div className="p-5 sm:p-6 flex flex-col gap-5">
-            {/* ── Modo Oscuro ── */}
-            <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-              <div>
-                <p className="text-sm font-bold text-app">Modo Oscuro</p>
-                <p className="text-xs text-muted mt-0.5">Cambia entre tema claro y oscuro</p>
-              </div>
-              <button
-                onClick={() => config.toggleDarkMode()}
-                className="flex items-center justify-center gap-2 w-14 h-10 rounded-xl border border-app hover:bg-surface transition-colors text-app"
-                title={config.isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
-              >
-                {config.isDarkMode ? <Sun size={20} className="text-warning"/> : <Moon size={20} className="text-primary"/>}
-              </button>
-            </div>
-
-            {/* ── Animaciones ── */}
-            <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-              <div>
-                <p className="text-sm font-bold text-app">Animaciones de la App</p>
-                <p className="text-xs text-muted mt-0.5">Activar transiciones suaves</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                <input type="checkbox" className="sr-only peer"
-                  checked={formData.animationsEnabled}
-                  onChange={(e) => setFormData({ ...formData, animationsEnabled: e.target.checked })} />
-                <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-              </label>
-            </div>
-
-            {/* ── Sistema de Compra Guiada ── */}
-            <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-              <div>
-                <p className="text-sm font-bold text-app">Sistema de Compra Guiada</p>
-                <p className="text-xs text-muted mt-0.5">Asistencia flotante para clientes</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                <input type="checkbox" className="sr-only peer"
-                  checked={formData.guidedModeEnabled}
-                  onChange={(e) => setFormData({ ...formData, guidedModeEnabled: e.target.checked })} />
-                <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-              </label>
-            </div>
-
-            {/* ── Tema de Colores ── */}
-            <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-              <div>
-                <p className="text-sm font-bold text-app">Tema Principal</p>
-                <p className="text-xs text-muted mt-0.5">
-                  Paleta: <span className="font-bold text-primary">{typeof formData.theme === 'object' ? 'Personalizado' : (ADVANCED_PALETTES[formData.theme]?.name || 'Modern Purple')}</span>
-                </p>
-              </div>
-              <button
-                onClick={() => setIsThemeModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-app text-surface text-sm font-bold shadow-md active:scale-95 transition-all"
-              >
-                <Paintbrush size={16} /> Cambiar
-              </button>
-            </div>
-
-            {/* ── Color de Acción ── */}
-            <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-              <div className="flex justify-between items-center mb-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
+            <div className="p-5 sm:p-6 flex flex-col gap-5">
+              {/* ── Modo Oscuro ── */}
+              <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
                 <div>
-                  <p className="text-sm font-bold text-app">Color de Botones de Compra</p>
-                  <p className="text-xs text-muted mt-0.5">Sobrescribe el color primario en el carrito y pago</p>
+                  <p className="text-sm font-bold text-app">Modo Oscuro</p>
+                  <p className="text-xs text-muted mt-0.5">Cambia entre tema claro y oscuro</p>
                 </div>
-                {formData.actionColor && (
-                  <button onClick={() => setFormData({ ...formData, actionColor: '' })} className="text-xs text-primary hover:underline font-medium">Restablecer</button>
+                <button
+                  onClick={() => config.toggleDarkMode()}
+                  className="flex items-center justify-center gap-2 w-14 h-10 rounded-xl border border-app hover:bg-surface transition-colors text-app"
+                  title={config.isDarkMode ? 'Cambiar a Modo Claro' : 'Cambiar a Modo Oscuro'}
+                >
+                  {config.isDarkMode ? <Sun size={20} className="text-warning"/> : <Moon size={20} className="text-primary"/>}
+                </button>
+              </div>
+
+              {/* ── Animaciones ── */}
+              <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                <div>
+                  <p className="text-sm font-bold text-app">Animaciones de la App</p>
+                  <p className="text-xs text-muted mt-0.5">Activar transiciones suaves</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={formData.animationsEnabled}
+                    onChange={(e) => setFormData({ ...formData, animationsEnabled: e.target.checked })} />
+                  <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                </label>
+              </div>
+
+              {/* ── Sistema de Compra Guiada ── */}
+              <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                <div>
+                  <p className="text-sm font-bold text-app">Sistema de Compra Guiada</p>
+                  <p className="text-xs text-muted mt-0.5">Asistencia flotante para clientes</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={formData.guidedModeEnabled}
+                    onChange={(e) => setFormData({ ...formData, guidedModeEnabled: e.target.checked })} />
+                  <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                </label>
+              </div>
+
+              {/* ── Tema de Colores ── */}
+              <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                <div>
+                  <p className="text-sm font-bold text-app">Tema Principal</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    Paleta: <span className="font-bold text-primary">{typeof formData.theme === 'object' ? 'Personalizado' : (ADVANCED_PALETTES[formData.theme]?.name || 'Modern Purple')}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsThemeModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-app text-surface text-sm font-bold shadow-md active:scale-95 transition-all"
+                >
+                  <Paintbrush size={16} /> Cambiar
+                </button>
+              </div>
+
+              {/* ── Color de Acción ── */}
+              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
+                <div className="flex justify-between items-center mb-3">
+                  <div>
+                    <p className="text-sm font-bold text-app">Color de Botones de Compra</p>
+                    <p className="text-xs text-muted mt-0.5">Sobrescribe el color primario en el carrito y pago</p>
+                  </div>
+                  {formData.actionColor && (
+                    <button onClick={() => setFormData({ ...formData, actionColor: '' })} className="text-xs text-primary hover:underline font-medium">Restablecer</button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="color" 
+                    value={formData.actionColor || getActiveColors(formData.theme, config.isDarkMode)['--color-primary']} 
+                    onChange={(e) => setFormData({ ...formData, actionColor: e.target.value })}
+                    className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
+                  />
+                  <div className="flex-1 px-4 py-3 text-white font-bold text-center rounded-xl text-sm transition-colors shadow-sm" style={{ backgroundColor: formData.actionColor || getActiveColors(formData.theme, config.isDarkMode)['--color-primary'] }}>
+                    Agregar al Carrito
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Tipografía ── */}
+              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
+                <div className="flex items-center gap-2 mb-1">
+                  <Type size={16} className="text-primary shrink-0" />
+                  <p className="text-sm font-bold text-app">Tipografía</p>
+                </div>
+                <p className="text-xs text-muted mb-4">Fuente principal de toda la aplicación — {FONTS[formData.appFont]?.name || 'Inter'} ({FONTS[formData.appFont]?.category || 'Modernas'})</p>
+
+                {/* Precargar todas las fuentes para preview */}
+                <link rel="preconnect" href="https://fonts.googleapis.com" />
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+                {FONT_CATEGORIES.map(cat =>
+                  FONTS_BY_CATEGORY[cat].map(f => (
+                    <link key={f.key} rel="stylesheet" href={f.url} />
+                  ))
+                )}
+
+                <div className="space-y-4">
+                  {FONT_CATEGORIES.map(cat => (
+                    <div key={cat}>
+                      {/* Etiqueta de categoría */}
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">{cat}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {FONTS_BY_CATEGORY[cat].map(({ key, name, description }) => {
+                          const isSelected = formData.appFont === key
+                          return (
+                            <motion.button
+                              key={key}
+                              whileTap={{ scale: 0.96 }}
+                              onClick={() => setFormData({ ...formData, appFont: key })}
+                              className={`relative flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center overflow-hidden ${
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-app bg-surface hover:border-primary/30 hover:bg-surface-2'
+                              }`}
+                            >
+                              {/* Indicador de seleccionado */}
+                              {isSelected && (
+                                <motion.div
+                                  layoutId="font-selected"
+                                  className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary"
+                                />
+                              )}
+                              {/* Preview de la fuente */}
+                              <span
+                                className="text-2xl font-bold leading-none"
+                                style={{
+                                  fontFamily: `'${name}', serif`,
+                                  color: isSelected ? 'var(--color-primary)' : 'var(--color-text)'
+                                }}
+                              >
+                                Aa
+                              </span>
+                              {/* Nombre de la fuente */}
+                              <span className={`text-[11px] font-bold leading-tight ${
+                                isSelected ? 'text-primary' : 'text-app'
+                              }`}>
+                                {name.split(' ')[0]}
+                              </span>
+                              {/* Descripción */}
+                              <span className="text-[9px] text-muted leading-tight">{description}</span>
+                            </motion.button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Radio de Bordes ── */}
+              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
+                <p className="text-sm font-bold text-app mb-1">Estilo de Bordes</p>
+                <p className="text-xs text-muted mb-3">Redondez de tarjetas de productos</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'squared', label: 'Cuadrado', radius: '4px' },
+                    { id: 'rounded', label: 'Suave', radius: '12px' },
+                    { id: 'pill', label: 'Redondo', radius: '32px' }
+                  ].map((border) => (
+                    <button
+                      key={border.id}
+                      onClick={() => setFormData({ ...formData, appRadius: border.id })}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                        formData.appRadius === border.id ? 'border-primary bg-primary/5' : 'border-app bg-surface hover:border-primary/30'
+                      }`}
+                    >
+                      <div className="w-full h-8 border-2 border-primary/40 bg-surface-2" style={{ borderRadius: border.radius }} />
+                      <span className={`text-xs font-semibold ${formData.appRadius === border.id ? 'text-primary' : 'text-muted'}`}>{border.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Modo de Vista del Catálogo ── */}
+              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
+                <p className="text-sm font-bold text-app mb-1">Diseño del Catálogo</p>
+                <p className="text-xs text-muted mb-3">Columnas en la vista del cliente</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'list', label: 'Lista' },
+                    { id: 'grid2', label: '2 Columnas' },
+                    { id: 'grid3', label: '3 Columnas' }
+                  ].map((layout) => (
+                    <button
+                      key={layout.id}
+                      onClick={() => setFormData({ ...formData, catalogLayout: layout.id })}
+                      className={`py-2 px-1 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 ${
+                        formData.catalogLayout === layout.id ? 'border-primary bg-primary/5 text-primary' : 'border-app bg-surface text-muted hover:border-primary/30'
+                      }`}
+                    >
+                      <div className="flex gap-1 h-5">
+                        {layout.id === 'list' && <div className="w-10 h-full bg-current rounded-sm opacity-50" />}
+                        {layout.id === 'grid2' && <><div className="w-4 h-full bg-current rounded-sm opacity-50"/><div className="w-4 h-full bg-current rounded-sm opacity-50"/></>}
+                        {layout.id === 'grid3' && <><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/></>}
+                      </div>
+                      <span className="text-xs font-semibold">{layout.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Banner del Catálogo ── */}
+              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
+                <p className="text-sm font-bold text-app mb-1">Banner Principal</p>
+                <p className="text-xs text-muted mb-3">Cabecera en la tienda del cliente</p>
+                
+                <div className="flex bg-surface border border-app rounded-lg overflow-hidden h-9 mb-4">
+                  <button 
+                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'none' } })}
+                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'none' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
+                  >Oculto</button>
+                  <div className="w-px bg-app opacity-20"></div>
+                  <button 
+                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'gradient' } })}
+                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'gradient' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
+                  >Degradado</button>
+                  <div className="w-px bg-app opacity-20"></div>
+                  <button 
+                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'image' } })}
+                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'image' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
+                  >Imagen</button>
+                </div>
+
+                {formData.catalogBanner.type === 'image' && (
+                  <div className="mt-3">
+                    <input 
+                      type="url" 
+                      placeholder="URL de la imagen (https://...)" 
+                      value={formData.catalogBanner.value}
+                      onChange={(e) => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, value: e.target.value } })}
+                      className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" 
+                    />
+                    {formData.catalogBanner.value && (
+                      <div className="mt-3 w-full h-24 rounded-xl border border-app overflow-hidden bg-surface flex items-center justify-center">
+                        <img src={formData.catalogBanner.value} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <input 
-                  type="color" 
-                  value={formData.actionColor || getActiveColors(formData.theme, config.isDarkMode)['--color-primary']} 
-                  onChange={(e) => setFormData({ ...formData, actionColor: e.target.value })}
-                  className="w-12 h-12 rounded-lg cursor-pointer border-0 p-0 bg-transparent"
-                />
-                <div className="flex-1 px-4 py-3 text-white font-bold text-center rounded-xl text-sm transition-colors shadow-sm" style={{ backgroundColor: formData.actionColor || getActiveColors(formData.theme, config.isDarkMode)['--color-primary'] }}>
-                  Agregar al Carrito
+              
+            </div>
+            
+            {/* Botón Guardar */}
+            <div className="p-5 sm:p-6 border-t border-app bg-surface-2/30">
+              <button onClick={handleSaveConfig} disabled={isSaving}
+                className="w-full min-h-[52px] py-3 px-6 bg-primary text-white rounded-xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-3 shadow-lg shadow-primary/30 disabled:opacity-50">
+                {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={20} className="shrink-0" /> Guardar Cambios</>}
+              </button>
+            </div>
+          </div>
+          {renderMobilePreview()}
+        </div>
+      )}
+
+      {/* ─── VISTA: PUBLICIDAD Y PROMOCIONES ────────────────────────────────── */}
+      {activeSection === 'publicidad' && (
+        <div className="space-y-6">
+          {/* BOTÓN AGREGAR Y HEADER */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted">Crea y gestiona tus campañas híbridas y de inventario</p>
+            </div>
+            {!showAdForm && (
+              <button
+                onClick={() => {
+                  setEditingAdId(null)
+                  setAdFormData({
+                    type: 'inventory',
+                    active: true,
+                    productId: '',
+                    discountType: 'percentage',
+                    discountValue: 0,
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+                    customTitle: '',
+                    customBanner: '',
+                    glowEffect: false,
+                    title: '',
+                    description: '',
+                    image: '',
+                    banner: '',
+                    colors: { bg: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))', text: '#ffffff' },
+                    ctaText: 'Ver promoción',
+                    ctaAction: 'modal',
+                    ctaValue: '',
+                    category: '',
+                    isTemporalProduct: false,
+                    price: 0,
+                    promoPrice: 0,
+                  })
+                  setShowAdForm(true)
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:opacity-90 active:scale-95 transition-all flex items-center gap-1.5"
+                style={{ borderRadius: 'var(--radius-base)' }}
+              >
+                <Plus size={16} /> Nuevo Anuncio
+              </button>
+            )}
+          </div>
+
+          {/* FORMULARIO DE CREAR/EDITAR */}
+          {showAdForm && (
+            <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+              <div className="p-5 sm:p-6 border-b border-app bg-surface-2/30 flex justify-between items-center">
+                <p className="font-bold text-app text-sm">
+                  {editingAdId ? 'Editar Anuncio' : 'Nuevo Anuncio / Promoción'}
+                </p>
+                <button
+                  onClick={() => setShowAdForm(false)}
+                  className="w-7 h-7 rounded-full bg-surface-2 hover:bg-red-500/10 hover:text-red-500 flex items-center justify-center text-muted transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-4">
+                {/* Selector de Tipo */}
+                <div>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-wider block mb-2">
+                    Tipo de Promoción
+                  </label>
+                  <div className="flex bg-surface-2 border border-app rounded-xl overflow-hidden p-1">
+                    <button
+                      type="button"
+                      onClick={() => setAdFormData({ ...adFormData, type: 'inventory' })}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                        adFormData.type === 'inventory' ? 'bg-primary text-white shadow-sm' : 'text-muted hover:bg-surface'
+                      }`}
+                    >
+                      Producto del Inventario
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdFormData({ ...adFormData, type: 'custom' })}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                        adFormData.type === 'custom' ? 'bg-primary text-white shadow-sm' : 'text-muted hover:bg-surface'
+                      }`}
+                    >
+                      Promoción Personalizada
+                    </button>
+                  </div>
+                </div>
+
+                {/* FORMULARIO: INVENTARIO */}
+                {adFormData.type === 'inventory' && (
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="text-xs font-bold text-app mb-1 block">Seleccionar Producto</label>
+                      <CustomSelect
+                        value={adFormData.productId}
+                        placeholder="Selecciona un producto..."
+                        onChange={(val) => {
+                          const prod = products.find(p => p.id === val)
+                          setAdFormData({ ...adFormData, productId: val, customTitle: prod ? prod.nombre : '' })
+                        }}
+                        options={products.map(prod => ({
+                          value: prod.id,
+                          label: `${prod.nombre} ($${prod.precioBase.toLocaleString()})`
+                        }))}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Tipo Descuento</label>
+                        <CustomSelect
+                          value={adFormData.discountType}
+                          onChange={(val) => setAdFormData({ ...adFormData, discountType: val })}
+                          options={[
+                            { value: 'percentage', label: 'Porcentaje (%)' },
+                            { value: 'amount', label: 'Monto Fijo ($)' },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Valor Descuento</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={adFormData.discountValue === 0 ? '' : String(adFormData.discountValue)}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '');
+                            // Evitar múltiples puntos decimales
+                            const parts = raw.split('.');
+                            const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : raw;
+                            setAdFormData({ ...adFormData, discountValue: cleaned === '' ? 0 : cleaned });
+                          }}
+                          onBlur={(e) => {
+                            // Al salir del campo, convertir a número limpio
+                            const num = parseFloat(e.target.value);
+                            setAdFormData(prev => ({ ...prev, discountValue: isNaN(num) ? 0 : num }));
+                          }}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Vista Previa del Descuento */}
+                    {adFormData.productId && (
+                      <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 text-xs text-primary font-bold">
+                        {(() => {
+                          const prod = products.find(p => p.id === adFormData.productId)
+                          if (!prod) return ''
+                          const desc = adFormData.discountType === 'percentage'
+                            ? (prod.precioBase * adFormData.discountValue) / 100
+                            : adFormData.discountValue
+                          const finalPrice = Math.max(0, prod.precioBase - desc)
+                          return `Precio Base: $${prod.precioBase.toLocaleString()} | Descuento: -$${desc.toLocaleString()} | Precio Final: $${finalPrice.toLocaleString()}`
+                        })()}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-bold text-app mb-1 block">Título Personalizado (Opcional)</label>
+                      <input
+                        type="text"
+                        placeholder="Dejar vacío para usar el nombre del producto"
+                        value={adFormData.customTitle}
+                        onChange={(e) => setAdFormData({ ...adFormData, customTitle: e.target.value })}
+                        className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-app mb-1 block">Imagen Banner Opcional (URL)</label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={adFormData.customBanner}
+                        onChange={(e) => setAdFormData({ ...adFormData, customBanner: e.target.value })}
+                        className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-2 border border-app">
+                      <div>
+                        <p className="text-xs font-bold text-app">Efecto Brillo (Glow visual)</p>
+                        <p className="text-[10px] text-muted">Añade un brillo animado premium a la tarjeta del producto</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={adFormData.glowEffect}
+                        onChange={(e) => setAdFormData({ ...adFormData, glowEffect: e.target.checked })}
+                        className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Preview en vivo para Producto de Inventario */}
+                    {adFormData.productId && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-muted uppercase tracking-wider font-bold">Vista Previa del Anuncio (Inventario)</p>
+                        {(() => {
+                          const prod = products.find(p => p.id === adFormData.productId)
+                          if (!prod) return null
+                          
+                          // Calcular precio final
+                          const desc = adFormData.discountType === 'percentage'
+                            ? (prod.precioBase * adFormData.discountValue) / 100
+                            : adFormData.discountValue
+                          const finalPrice = Math.max(0, prod.precioBase - desc)
+                          const hasDiscount = desc > 0
+
+                          const imageToShow = adFormData.customBanner || prod.imagen || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60'
+                          const titleToShow = adFormData.customTitle || prod.nombre
+
+                          // Estilo del Glow
+                          const glowStyle = adFormData.glowEffect
+                            ? {
+                                boxShadow: '0 0 15px 3px rgba(var(--color-primary-rgb, 233, 30, 140), 0.5)',
+                                border: '1px solid var(--color-primary, #e91e8c)'
+                              }
+                            : {
+                                border: '1px solid var(--color-border, rgba(255, 255, 255, 0.1))'
+                              }
+
+                          return (
+                            <div 
+                              className="relative overflow-hidden rounded-2xl bg-surface transition-all duration-300 flex flex-col md:flex-row items-center gap-4 p-4"
+                              style={glowStyle}
+                            >
+                              {/* Imagen del Producto */}
+                              <div className="w-20 h-20 rounded-xl overflow-hidden bg-surface-2 shrink-0 border border-app relative flex items-center justify-center">
+                                {adFormData.customBanner || prod.imagen || prod.imageUrl ? (
+                                  <>
+                                    <img 
+                                      src={adFormData.customBanner || prod.imagen || prod.imageUrl} 
+                                      alt={titleToShow} 
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none'
+                                        const sibling = e.target.nextSibling
+                                        if (sibling) sibling.style.display = 'flex'
+                                      }}
+                                    />
+                                    <div className="hidden absolute inset-0 flex items-center justify-center text-muted text-[10px] font-bold bg-surface-2">
+                                      Imagen
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="text-muted text-[10px] font-bold">Imagen</span>
+                                )}
+                                {hasDiscount && (
+                                  <div className="absolute top-1 left-1 bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-md z-10">
+                                    {adFormData.discountType === 'percentage' ? `-${adFormData.discountValue}%` : `-$${adFormData.discountValue.toLocaleString()}`}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Detalles */}
+                              <div className="flex-1 text-center md:text-left min-w-0">
+                                <span className="inline-block bg-primary/10 text-primary text-[9px] font-bold px-2 py-0.5 rounded-full mb-1">
+                                  {prod.categoria || 'Promoción'}
+                                </span>
+                                <h4 className="font-bold text-sm text-app truncate">{titleToShow}</h4>
+                                
+                                <div className="flex items-center justify-center md:justify-start gap-2 mt-1">
+                                  {hasDiscount && (
+                                    <span className="text-xs text-muted line-through">
+                                      ${prod.precioBase.toLocaleString()}
+                                    </span>
+                                  )}
+                                  <span className="text-sm font-extrabold text-primary">
+                                    ${finalPrice.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Botón CTA ficticio */}
+                              <div className="shrink-0 w-full md:w-auto">
+                                <div className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold text-center shadow-lg shadow-primary/20">
+                                  Ver Producto
+                                </div>
+                              </div>
+
+                              {/* Detalle Glow Animado de fondo si aplica */}
+                              {adFormData.glowEffect && (
+                                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent pointer-events-none" />
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* FORMULARIO: PERSONALIZADO */}
+                {adFormData.type === 'custom' && (
+                  <div className="space-y-4 pt-2">
+                    {/* Switch Producto Temporal */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-2 border border-app">
+                      <div>
+                        <p className="text-xs font-bold text-app">¿Es un Producto Temporal?</p>
+                        <p className="text-[10px] text-muted">Permite vender un combo o producto que no está en el inventario real</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={adFormData.isTemporalProduct}
+                        onChange={(e) => setAdFormData({ ...adFormData, isTemporalProduct: e.target.checked })}
+                        className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Título</label>
+                        <input
+                          type="text"
+                          required
+                          value={adFormData.title}
+                          onChange={(e) => setAdFormData({ ...adFormData, title: e.target.value })}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Categoría Visual (ej: Combos, Ofertas)</label>
+                        <input
+                          type="text"
+                          value={adFormData.category}
+                          onChange={(e) => setAdFormData({ ...adFormData, category: e.target.value })}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          placeholder="Combos"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-app mb-1 block">Descripción</label>
+                      <textarea
+                        rows={2}
+                        value={adFormData.description}
+                        onChange={(e) => setAdFormData({ ...adFormData, description: e.target.value })}
+                        className="w-full p-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+
+                    {adFormData.isTemporalProduct && (
+                      <div className="grid grid-cols-2 gap-4 bg-surface-2 p-4 rounded-2xl border border-app shadow-inner">
+                        <div>
+                          <label className="text-xs font-bold text-app mb-1 block">Precio Original ($)</label>
+                          <input
+                            type="number"
+                            value={adFormData.price}
+                            onChange={(e) => setAdFormData({ ...adFormData, price: Number(e.target.value) })}
+                            className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-app mb-1 block">Precio Promoción ($)</label>
+                          <input
+                            type="number"
+                            value={adFormData.promoPrice}
+                            onChange={(e) => setAdFormData({ ...adFormData, promoPrice: Number(e.target.value) })}
+                            className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Imagen Cuadrada URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={adFormData.image}
+                          onChange={(e) => setAdFormData({ ...adFormData, image: e.target.value })}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Banner Horizontal URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={adFormData.banner}
+                          onChange={(e) => setAdFormData({ ...adFormData, banner: e.target.value })}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* ── Fondo y Color ── */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold text-app">Colores del Anuncio</p>
+
+                      {/* Presets de degradados */}
+                      <div>
+                        <p className="text-[10px] text-muted uppercase tracking-wider font-bold mb-2">Fondo (Degradado o Color Sólido)</p>
+                        <div className="grid grid-cols-4 gap-2 mb-3">
+                          {[
+                            { label: 'Rosa', bg: 'linear-gradient(135deg, #e91e8c, #ff4081)' },
+                            { label: 'Púrpura', bg: 'linear-gradient(135deg, #7c3aed, #c026d3)' },
+                            { label: 'Azul', bg: 'linear-gradient(135deg, #1565c0, #2979ff)' },
+                            { label: 'Verde', bg: 'linear-gradient(135deg, #1b5e20, #43a047)' },
+                            { label: 'Naranja', bg: 'linear-gradient(135deg, #e65100, #ff9800)' },
+                            { label: 'Negro', bg: 'linear-gradient(135deg, #0f0f0f, #37474f)' },
+                            { label: 'Dorado', bg: 'linear-gradient(135deg, #b8860b, #f5c518)' },
+                            { label: 'App', bg: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' },
+                          ].map(({ label, bg }) => (
+                            <button
+                              key={label}
+                              type="button"
+                              title={label}
+                              onClick={() => setAdFormData({ ...adFormData, colors: { ...adFormData.colors, bg } })}
+                              className={`h-10 rounded-xl border-2 transition-all ${adFormData.colors.bg === bg ? 'border-white shadow-lg scale-105' : 'border-transparent hover:border-white/40'}`}
+                              style={{ background: bg }}
+                            >
+                              {adFormData.colors.bg === bg && (
+                                <span className="text-white text-xs font-bold drop-shadow">✓</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Color sólido personalizado */}
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-app">
+                          <input
+                            type="color"
+                            value={(() => {
+                              const m = adFormData.colors.bg.match(/#[0-9a-fA-F]{6}/)
+                              return m ? m[0] : '#e91e8c'
+                            })()}
+                            onChange={(e) => setAdFormData({ ...adFormData, colors: { ...adFormData.colors, bg: e.target.value } })}
+                            className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                          />
+                          <div>
+                            <p className="text-xs font-bold text-app">Color personalizado</p>
+                            <p className="text-[10px] text-muted">Selecciona un color sólido exacto</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Color de texto */}
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-app">
+                        <input
+                          type="color"
+                          value={adFormData.colors.text || '#ffffff'}
+                          onChange={(e) => setAdFormData({ ...adFormData, colors: { ...adFormData.colors, text: e.target.value } })}
+                          className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0 bg-transparent shrink-0"
+                        />
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-app">Color del texto</p>
+                          <p className="text-[10px] text-muted">Color de títulos y descripción sobre el fondo</p>
+                        </div>
+                        {/* Botones rápidos Blanco/Negro */}
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setAdFormData({ ...adFormData, colors: { ...adFormData.colors, text: '#ffffff' } })}
+                            className={`w-7 h-7 rounded-lg border-2 bg-white transition-all ${adFormData.colors.text === '#ffffff' ? 'border-primary scale-110' : 'border-app'}`}
+                            title="Blanco"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setAdFormData({ ...adFormData, colors: { ...adFormData.colors, text: '#111111' } })}
+                            className={`w-7 h-7 rounded-lg border-2 bg-black transition-all ${adFormData.colors.text === '#111111' ? 'border-primary scale-110' : 'border-app'}`}
+                            title="Negro"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Preview en vivo */}
+                      <div
+                        className="w-full h-16 rounded-2xl flex items-center justify-center overflow-hidden"
+                        style={{ background: adFormData.colors.bg }}
+                      >
+                        <p className="font-bold text-sm px-4 text-center drop-shadow" style={{ color: adFormData.colors.text }}>
+                          {adFormData.title || 'Vista previa del anuncio'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* ── Texto del Botón CTA ── */}
+                    <div>
+                      <label className="text-xs font-bold text-app mb-1 block">Texto del Botón CTA</label>
+                      <input
+                        type="text"
+                        value={adFormData.ctaText}
+                        onChange={(e) => setAdFormData({ ...adFormData, ctaText: e.target.value })}
+                        className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                        placeholder="Ver promoción"
+                      />
+                    </div>
+
+                    {/* ── Comportamiento CTA ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Comportamiento Clic (Acción)</label>
+                        <CustomSelect
+                          value={adFormData.ctaAction}
+                          onChange={(val) => setAdFormData({ ...adFormData, ctaAction: val })}
+                          options={[
+                            { value: 'modal', label: 'Abrir Detalle en Modal' },
+                            { value: 'whatsapp', label: 'Abrir WhatsApp' },
+                            { value: 'url', label: 'Abrir Enlace Externo' },
+                            { value: 'category', label: 'Filtrar por Categoría' },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-app mb-1 block">Valor de la Acción</label>
+                        <input
+                          type="text"
+                          value={adFormData.ctaValue}
+                          onChange={(e) => setAdFormData({ ...adFormData, ctaValue: e.target.value })}
+                          className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          placeholder={
+                            adFormData.ctaAction === 'whatsapp' ? '+57300...' :
+                            adFormData.ctaAction === 'category' ? 'Nombre o ID Categoría' :
+                            adFormData.ctaAction === 'url' ? 'https://...' :
+                            'Texto descriptivo largo para el modal...'
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* ── Efecto Glow (igual que inventario) ── */}
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-surface-2 border border-app">
+                      <div>
+                        <p className="text-xs font-bold text-app">Efecto Brillo (Glow visual)</p>
+                        <p className="text-[10px] text-muted">Añade un brillo animado premium a la tarjeta del anuncio</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={adFormData.glowEffect}
+                        onChange={(e) => setAdFormData({ ...adFormData, glowEffect: e.target.checked })}
+                        className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer"
+                      />
+                    </div>
+
+                  </div>
+                )}
+
+                {/* Fechas de Vigencia Comunes */}
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="text-xs font-bold text-app mb-1 block">Fecha Inicio</label>
+                    <CustomDatePicker
+                      value={adFormData.startDate}
+                      onChange={(e) => setAdFormData({ ...adFormData, startDate: e.target.value })}
+                      placeholder="dd/mm/aaaa"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-app mb-1 block">Fecha Fin</label>
+                    <CustomDatePicker
+                      value={adFormData.endDate}
+                      onChange={(e) => setAdFormData({ ...adFormData, endDate: e.target.value })}
+                      placeholder="dd/mm/aaaa"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* ── Tipografía ── */}
-            <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-              <p className="text-sm font-bold text-app mb-1">Tipografía</p>
-              <p className="text-xs text-muted mb-3">Fuente principal de toda la aplicación</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {['inter', 'poppins', 'outfit', 'nunito', 'playfair', 'roboto'].map((font) => (
-                  <button
-                    key={font}
-                    onClick={() => setFormData({ ...formData, appFont: font })}
-                    className={`p-2 rounded-xl border text-sm font-medium transition-all capitalize ${
-                      formData.appFont === font ? 'border-primary bg-primary/5 text-primary' : 'border-app bg-surface text-app hover:border-primary/30'
-                    }`}
-                    style={{ fontFamily: font === 'inter' ? 'Inter' : font === 'poppins' ? 'Poppins' : font === 'outfit' ? 'Outfit' : font === 'nunito' ? 'Nunito' : font === 'playfair' ? 'Playfair Display' : 'Roboto' }}
-                  >
-                    {font === 'playfair' ? 'Playfair' : font}
-                  </button>
-                ))}
+              {/* Botones de Guardar/Cancelar */}
+              <div className="p-4 border-t border-app bg-surface-2/30 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdForm(false)}
+                  className="flex-1 py-3 bg-surface border border-app text-app font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-surface-2"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAd}
+                  className="flex-1 py-3 bg-primary text-white font-bold text-xs rounded-xl active:scale-95 transition-all hover:opacity-90 flex items-center justify-center gap-1.5"
+                  style={{ borderRadius: 'var(--radius-base)' }}
+                >
+                  <Save size={16} /> Guardar
+                </button>
               </div>
             </div>
+          )}
 
-            {/* ── Radio de Bordes ── */}
-            <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-              <p className="text-sm font-bold text-app mb-1">Estilo de Bordes</p>
-              <p className="text-xs text-muted mb-3">Redondez de tarjetas de productos</p>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: 'squared', label: 'Cuadrado', radius: '4px' },
-                  { id: 'rounded', label: 'Suave', radius: '12px' },
-                  { id: 'pill', label: 'Redondo', radius: '32px' }
-                ].map((border) => (
-                  <button
-                    key={border.id}
-                    onClick={() => setFormData({ ...formData, appRadius: border.id })}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                      formData.appRadius === border.id ? 'border-primary bg-primary/5' : 'border-app bg-surface hover:border-primary/30'
-                    }`}
-                  >
-                    <div className="w-full h-8 border-2 border-primary/40 bg-surface-2" style={{ borderRadius: border.radius }} />
-                    <span className={`text-xs font-semibold ${formData.appRadius === border.id ? 'text-primary' : 'text-muted'}`}>{border.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* LISTADO DE ANUNCIOS */}
+          {!showAdForm && (
+            <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+              {isLoadingAds ? (
+                <div className="p-8 text-center text-muted">Cargando anuncios...</div>
+              ) : ads.length === 0 ? (
+                <div className="p-8 text-center text-muted text-sm">
+                  No hay anuncios creados. ¡Crea el primero usando el botón de arriba!
+                </div>
+              ) : (
+                <div className="divide-y divide-app">
+                  {ads.map(ad => {
+                    const linkedProduct = ad.type === 'inventory' ? products.find(p => p.id === ad.productId) : null
+                    return (
+                      <div key={ad.id} className="p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-surface-2/30 transition-colors">
+                        <div className="flex gap-3 items-start">
+                          {/* Miniatura */}
+                          <div className="w-12 h-12 rounded-xl bg-surface-2 border border-app overflow-hidden shrink-0 flex items-center justify-center">
+                            {(ad.type === 'inventory' ? (linkedProduct?.imageUrl || ad.customBanner) : (ad.image || ad.banner)) ? (
+                              <img
+                                src={ad.type === 'inventory' ? (linkedProduct?.imageUrl || ad.customBanner) : (ad.image || ad.banner)}
+                                alt=""
+                                className="w-full h-full object-cover rounded-xl"
+                                onError={(e) => { e.target.style.display = 'none' }}
+                              />
+                            ) : (
+                              <Megaphone size={20} className="text-muted" />
+                            )}
+                          </div>
 
-            {/* ── Modo de Vista del Catálogo ── */}
-            <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-              <p className="text-sm font-bold text-app mb-1">Diseño del Catálogo</p>
-              <p className="text-xs text-muted mb-3">Columnas en la vista del cliente</p>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: 'list', label: 'Lista' },
-                  { id: 'grid2', label: '2 Columnas' },
-                  { id: 'grid3', label: '3 Columnas' }
-                ].map((layout) => (
-                  <button
-                    key={layout.id}
-                    onClick={() => setFormData({ ...formData, catalogLayout: layout.id })}
-                    className={`py-2 px-1 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 ${
-                      formData.catalogLayout === layout.id ? 'border-primary bg-primary/5 text-primary' : 'border-app bg-surface text-muted hover:border-primary/30'
-                    }`}
-                  >
-                    <div className="flex gap-1 h-5">
-                      {layout.id === 'list' && <div className="w-10 h-full bg-current rounded-sm opacity-50" />}
-                      {layout.id === 'grid2' && <><div className="w-4 h-full bg-current rounded-sm opacity-50"/><div className="w-4 h-full bg-current rounded-sm opacity-50"/></>}
-                      {layout.id === 'grid3' && <><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/></>}
-                    </div>
-                    <span className="text-xs font-semibold">{layout.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                                ad.type === 'inventory' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                              }`}>
+                                {ad.type === 'inventory' ? 'Inventario' : ad.isTemporalProduct ? 'Prod. Temporal' : 'Personalizado'}
+                              </span>
+                              <span className={`text-[10px] font-bold ${ad.active ? 'text-green-600' : 'text-muted'}`}>
+                                {ad.active ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </div>
+                            <p className="text-sm font-bold text-app mt-1">
+                              {ad.type === 'inventory' ? (ad.customTitle || linkedProduct?.nombre || 'Producto Desvinculado') : ad.title}
+                            </p>
+                            <p className="text-xs text-muted mt-0.5">
+                              Vigencia: {ad.startDate} al {ad.endDate}
+                            </p>
+                          </div>
+                        </div>
 
-            {/* ── Banner del Catálogo ── */}
-            <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-              <p className="text-sm font-bold text-app mb-1">Banner Principal</p>
-              <p className="text-xs text-muted mb-3">Cabecera en la tienda del cliente</p>
-              
-              <div className="flex bg-surface border border-app rounded-lg overflow-hidden h-9 mb-4">
-                <button 
-                  onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'none' } })}
-                  className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'none' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                >Oculto</button>
-                <div className="w-px bg-app opacity-20"></div>
-                <button 
-                  onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'gradient' } })}
-                  className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'gradient' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                >Degradado</button>
-                <div className="w-px bg-app opacity-20"></div>
-                <button 
-                  onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'image' } })}
-                  className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'image' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                >Imagen</button>
-              </div>
+                        {/* Controles de Acción */}
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          {/* Toggle Activo */}
+                          <button
+                            onClick={() => {
+                              if (!ad.active) {
+                                const activeCount = ads.filter(a => a.active).length
+                                if (activeCount >= 5) {
+                                  alert('Límite alcanzado: Sólo puedes tener un máximo de 5 publicidades activas de forma simultánea. Desactiva otra publicidad para poder activar esta.')
+                                  return
+                                }
+                              }
+                              updateMutation.mutate({ id: ad.id, data: { active: !ad.active } })
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                              ad.active
+                                ? 'bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20'
+                                : 'bg-surface border-app text-muted hover:bg-surface-2'
+                            }`}
+                          >
+                            {ad.active ? 'Desactivar' : 'Activar'}
+                          </button>
 
-              {formData.catalogBanner.type === 'image' && (
-                <div className="mt-3">
-                  <input 
-                    type="url" 
-                    placeholder="URL de la imagen (https://...)" 
-                    value={formData.catalogBanner.value}
-                    onChange={(e) => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, value: e.target.value } })}
-                    className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" 
-                  />
-                  {formData.catalogBanner.value && (
-                    <div className="mt-3 w-full h-24 rounded-xl border border-app overflow-hidden bg-surface flex items-center justify-center">
-                      <img src={formData.catalogBanner.value} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
-                    </div>
-                  )}
+                          {/* Editar */}
+                          <button
+                            onClick={() => {
+                              setEditingAdId(ad.id)
+                              setAdFormData({
+                                type: ad.type || 'inventory',
+                                active: ad.active ?? true,
+                                productId: ad.productId || '',
+                                discountType: ad.discountType || 'percentage',
+                                discountValue: ad.discountValue || 0,
+                                startDate: ad.startDate || new Date().toISOString().split('T')[0],
+                                endDate: ad.endDate || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().split('T')[0],
+                                customTitle: ad.customTitle || '',
+                                customBanner: ad.customBanner || '',
+                                glowEffect: ad.glowEffect || false,
+                                title: ad.title || '',
+                                description: ad.description || '',
+                                image: ad.image || '',
+                                banner: ad.banner || '',
+                                colors: ad.colors || { bg: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))', text: '#ffffff' },
+                                ctaText: ad.ctaText || 'Ver promoción',
+                                ctaAction: ad.ctaAction || 'modal',
+                                ctaValue: ad.ctaValue || '',
+                                category: ad.category || '',
+                                isTemporalProduct: ad.isTemporalProduct || false,
+                                price: ad.price || 0,
+                                promoPrice: ad.promoPrice || 0,
+                              })
+                              setShowAdForm(true)
+                            }}
+                            className="p-2 rounded-lg bg-surface-2 border border-app text-app hover:bg-primary hover:text-white transition-colors"
+                          >
+                            <Paintbrush size={14} />
+                          </button>
+
+                          {/* Eliminar */}
+                          <button
+                            onClick={() => setAdToDelete(ad)}
+                            className="p-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
+          )}
+
+          {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN PREMIUM */}
+          {adToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              {/* Overlay con desenfoque */}
+              <div 
+                className="absolute inset-0 bg-black/75 backdrop-blur-[3px] transition-opacity duration-300"
+                onClick={() => setAdToDelete(null)}
+              />
+              
+              {/* Cuerpo del Modal */}
+              <div 
+                className="relative bg-surface rounded-3xl border border-app shadow-2xl p-6 w-full max-w-sm text-center overflow-hidden transition-all transform scale-100 duration-300 z-10 animate-in fade-in zoom-in-95 duration-200"
+              >
+                {/* Icono animado */}
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500 mb-4">
+                  <Trash2 size={24} className="animate-pulse" />
+                </div>
+
+                <h3 className="text-base font-bold text-app mb-2">¿Eliminar promoción?</h3>
+                
+                <p className="text-xs text-muted leading-relaxed mb-6">
+                  Esta acción es permanente. El anuncio seleccionado se retirará de la tienda del cliente inmediatamente.
+                </p>
+
+                {/* Previsualización del elemento a borrar */}
+                <div className="bg-surface-2 p-3 rounded-2xl border border-app text-left mb-6">
+                  <p className="text-[10px] text-muted font-bold uppercase tracking-wider">Nombre del Anuncio</p>
+                  <p className="text-xs font-extrabold text-app mt-0.5 truncate">
+                    {adToDelete.type === 'inventory' 
+                      ? (adToDelete.customTitle || products.find(p => p.id === adToDelete.productId)?.nombre || 'Producto de Inventario')
+                      : (adToDelete.title || 'Promoción Personalizada')
+                    }
+                  </p>
+                </div>
+
+                {/* Botones */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAdToDelete(null)}
+                    className="flex-1 py-3 bg-surface border border-app text-app font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-surface-2"
+                  >
+                    No, Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteMutation.mutate(adToDelete.id)
+                      setAdToDelete(null)
+                    }}
+                    className="flex-1 py-3 bg-red-500 text-white font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-red-600 shadow-lg shadow-red-500/20"
+                  >
+                    Sí, Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* ─── VISTA: CUPONES DE DESCUENTO ─────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {activeSection === 'cupones' && (
+        <div className="space-y-6">
+          <div className="bg-surface rounded-3xl border border-app shadow-sm p-6 relative overflow-hidden">
+            <div className="absolute -right-12 -top-12 w-32 h-32 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
             
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/10">
+                  Fidelización de Clientes
+                </span>
+                <h3 className="text-lg font-bold text-app mt-1">Cupones de Descuento</h3>
+                <p className="text-xs text-muted">Crea incentivos de compra y cupones de descuento para tus clientes</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingCouponId(null)
+                  setCouponFormData({
+                    code: '',
+                    type: 'percentage',
+                    value: '',
+                    minPurchase: '',
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
+                    active: true
+                  })
+                  setShowCouponForm(true)
+                }}
+                className="px-4 py-2.5 bg-primary text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto"
+              >
+                <Plus size={16} />
+                Nuevo Cupón
+              </button>
+            </div>
+
+            {/* Listado de Cupones */}
+            {isLoadingCoupons ? (
+              <div className="text-center py-10 text-muted">Cargando cupones...</div>
+            ) : coupons.length === 0 ? (
+              <div className="py-12 text-center bg-surface-2 rounded-2xl border border-dashed border-app">
+                <p className="text-3xl mb-2">🎫</p>
+                <p className="text-xs text-muted font-medium">No has creado cupones de descuento aún.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {coupons.map(coupon => {
+                  const today = new Date().toISOString().split('T')[0]
+                  const isExpired = today > coupon.endDate
+                  const isCouponActive = coupon.active && !isExpired
+                  const usageCount = couponUsageMap[coupon.code.toUpperCase()] || 0
+
+                  return (
+                    <div 
+                      key={coupon.id}
+                      className="bg-surface-2 border border-app rounded-2xl p-4.5 relative overflow-hidden flex flex-col justify-between"
+                      style={{ borderLeftWidth: '4px', borderLeftColor: isCouponActive ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-app tracking-wide bg-surface border border-app px-2 py-0.5 rounded-lg">
+                              {coupon.code}
+                            </span>
+                            {/* Métrica de usos en Badge premium */}
+                            <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10 shrink-0">
+                              {usageCount === 1 ? 'Usado 1 vez' : `Usado ${usageCount} veces`}
+                            </span>
+                          </div>
+                          
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider ${
+                            isCouponActive 
+                              ? 'bg-green-500/10 text-green-600 border border-green-500/20' 
+                              : isExpired 
+                              ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                              : 'bg-surface border-app text-muted'
+                          }`}>
+                            {isCouponActive ? 'Activo' : isExpired ? 'Expirado' : 'Inactivo'}
+                          </span>
+                        </div>
+
+                        <p className="text-sm font-black text-app">
+                          Descuento: <span className="text-primary">
+                            {coupon.type === 'percentage' ? `${coupon.value}%` : `$${coupon.value.toLocaleString()}`}
+                          </span>
+                        </p>
+                        
+                        {coupon.minPurchase > 0 && (
+                          <p className="text-[11px] text-muted mt-0.5">
+                            Compra mínima: <strong className="text-app">{formatCurrency(coupon.minPurchase)}</strong>
+                          </p>
+                        )}
+                        
+                        <p className="text-[11px] text-muted mt-1">
+                          Vigencia: {coupon.startDate} al {coupon.endDate}
+                        </p>
+                      </div>
+
+                      {/* Controles de Acción */}
+                      <div className="flex items-center justify-between mt-4.5 border-t border-app pt-3.5">
+                        <button
+                          onClick={() => {
+                            if (!coupon.active) {
+                              // Validar que no esté expirado antes de reactivar por comodidad
+                              if (today > coupon.endDate) {
+                                alert('Este cupón está expirado. Modifica la fecha de fin si deseas activarlo.')
+                                return
+                              }
+                            }
+                            updateCouponMutation.mutate({ id: coupon.id, data: { active: !coupon.active } })
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                            coupon.active
+                              ? 'bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20'
+                              : 'bg-surface border-app text-muted hover:bg-surface-2'
+                          }`}
+                        >
+                          {coupon.active ? 'Desactivar' : 'Activar'}
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEditingCouponId(coupon.id)
+                              setCouponFormData({
+                                code: coupon.code,
+                                type: coupon.type,
+                                value: coupon.value,
+                                minPurchase: coupon.minPurchase || '',
+                                startDate: coupon.startDate,
+                                endDate: coupon.endDate,
+                                active: coupon.active
+                              })
+                              setShowCouponForm(true)
+                            }}
+                            className="px-2.5 py-1.5 text-xs text-muted hover:text-app bg-surface border border-app rounded-lg transition-colors active:scale-95"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => setCouponToDelete(coupon)}
+                            className="p-1.5 text-xs text-red-500 hover:bg-red-500/10 border border-red-500/20 rounded-lg transition-colors active:scale-95"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-          
-          {/* Botón Guardar */}
-          <div className="p-5 sm:p-6 border-t border-app bg-surface-2/30">
-            <button onClick={handleSaveConfig} disabled={isSaving}
-              className="w-full min-h-[52px] py-3 px-6 bg-primary text-white rounded-xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-3 shadow-lg shadow-primary/30 disabled:opacity-50">
-              {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={20} className="shrink-0" /> Guardar Cambios</>}
-            </button>
-          </div>
+
+          {/* Formulario Modal de Cupón */}
+          <AnimatePresence>
+            {showCouponForm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowCouponForm(false)}
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                />
+
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                  className="relative w-full max-w-md bg-surface rounded-3xl shadow-2xl p-6 border border-app z-10"
+                >
+                  <button
+                    onClick={() => setShowCouponForm(false)}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-surface-2 border border-app text-muted hover:text-app flex items-center justify-center transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+
+                  <h3 className="text-lg font-bold text-app mb-1">
+                    {editingCouponId ? 'Editar Cupón' : 'Nuevo Cupón de Descuento'}
+                  </h3>
+                  <p className="text-xs text-muted mb-5">Configura las opciones y restricciones del cupón</p>
+
+                  <div className="space-y-4">
+                    {/* Código con Autogenerador */}
+                    <div>
+                      <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">Código del Cupón *</label>
+                      <div className="flex flex-row gap-2 max-w-full">
+                        <input
+                          type="text"
+                          value={couponFormData.code}
+                          onChange={(e) => setCouponFormData(p => ({ ...p, code: e.target.value.toUpperCase().trim() }))}
+                          className="flex-1 min-w-0 h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary text-sm font-bold tracking-wider uppercase"
+                          placeholder="Ej: FLASH10"
+                          maxLength={15}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+                            let randomCode = 'FLASH-'
+                            for (let i = 0; i < 5; i++) {
+                              randomCode += chars.charAt(Math.floor(Math.random() * chars.length))
+                            }
+                            setCouponFormData(p => ({ ...p, code: randomCode }))
+                          }}
+                          className="h-11 px-3 sm:px-4 bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 whitespace-nowrap"
+                          title="Generar código aleatorio"
+                        >
+                          <Sparkles size={14} /> Generar
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Plantillas de Ofertas Rápidas */}
+                    <div className="p-3 bg-surface-2 rounded-2xl border border-app">
+                      <p className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <Sparkles size={11} className="text-primary" /> Plantillas de Configuración Rápida
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCouponFormData(p => ({
+                              ...p,
+                              code: 'BIENVENIDA10',
+                              type: 'percentage',
+                              value: '10',
+                              minPurchase: '0'
+                            }))
+                          }}
+                          className="px-2.5 py-1.5 bg-surface hover:bg-primary/5 hover:border-primary/30 border border-app rounded-xl text-[10px] font-bold text-app transition-colors"
+                        >
+                          🎁 Bienvenida 10%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCouponFormData(p => ({
+                              ...p,
+                              code: 'MEGAPROMO20',
+                              type: 'percentage',
+                              value: '20',
+                              minPurchase: '80000'
+                            }))
+                          }}
+                          className="px-2.5 py-1.5 bg-surface hover:bg-primary/5 hover:border-primary/30 border border-app rounded-xl text-[10px] font-bold text-app transition-colors"
+                        >
+                          🔥 Mega Promo 20%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCouponFormData(p => ({
+                              ...p,
+                              code: 'DESCUENTAZO',
+                              type: 'fixed',
+                              value: '15000',
+                              minPurchase: '50000'
+                            }))
+                          }}
+                          className="px-2.5 py-1.5 bg-surface hover:bg-primary/5 hover:border-primary/30 border border-app rounded-xl text-[10px] font-bold text-app transition-colors"
+                        >
+                          ⚡ Ahorro $15.000
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tipo de Descuento */}
+                    <div>
+                      <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">Tipo de Descuento *</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCouponFormData(p => ({ ...p, type: 'percentage' }))}
+                          className={`h-11 rounded-xl text-xs font-bold border transition-all ${
+                            couponFormData.type === 'percentage'
+                              ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                              : 'bg-surface border-app text-app hover:bg-surface-2'
+                          }`}
+                        >
+                          Porcentaje (%)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCouponFormData(p => ({ ...p, type: 'fixed' }))}
+                          className={`h-11 rounded-xl text-xs font-bold border transition-all ${
+                            couponFormData.type === 'fixed'
+                              ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                              : 'bg-surface border-app text-app hover:bg-surface-2'
+                          }`}
+                        >
+                          Monto Fijo ($)
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Valor & Compra Mínima */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">
+                          {couponFormData.type === 'percentage' ? 'Porcentaje (%) *' : 'Descuento ($) *'}
+                        </label>
+                        <input
+                          type="number"
+                          value={couponFormData.value}
+                          onChange={(e) => setCouponFormData(p => ({ ...p, value: e.target.value }))}
+                          className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary text-sm font-bold"
+                          placeholder={couponFormData.type === 'percentage' ? 'Ej: 10' : 'Ej: 15000'}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">Compra Mínima ($)</label>
+                        <input
+                          type="number"
+                          value={couponFormData.minPurchase}
+                          onChange={(e) => setCouponFormData(p => ({ ...p, minPurchase: e.target.value }))}
+                          className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary text-sm font-bold"
+                          placeholder="Opcional"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fechas de Vigencia */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">Fecha Inicio</label>
+                        <CustomDatePicker
+                          value={couponFormData.startDate}
+                          onChange={(e) => setCouponFormData(p => ({ ...p, startDate: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-muted uppercase tracking-wider mb-2">Fecha Fin</label>
+                        <CustomDatePicker
+                          value={couponFormData.endDate}
+                          onChange={(e) => setCouponFormData(p => ({ ...p, endDate: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Checkbox de Activo */}
+                    <div className="flex items-center gap-2.5 pt-2">
+                      <input
+                        type="checkbox"
+                        id="couponActiveCheckbox"
+                        checked={couponFormData.active}
+                        onChange={(e) => setCouponFormData(p => ({ ...p, active: e.target.checked }))}
+                        className="w-4.5 h-4.5 text-primary border-app rounded focus:ring-primary/20 accent-primary"
+                      />
+                      <label htmlFor="couponActiveCheckbox" className="text-xs font-bold text-app select-none cursor-pointer">
+                        Habilitar cupón inmediatamente
+                      </label>
+                    </div>
+
+                    {/* Botones */}
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowCouponForm(false)}
+                        className="flex-1 py-3 bg-surface border border-app text-app font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-surface-2"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveCoupon}
+                        className="flex-1 py-3 bg-primary text-white font-bold text-xs rounded-xl active:scale-95 transition-all hover:opacity-90 flex items-center justify-center gap-1.5"
+                      >
+                        <Save size={14} />
+                        Guardar Cupón
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* Modal de Eliminación */}
+          {couponToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={() => setCouponToDelete(null)}
+              />
+              <div className="relative w-full max-w-sm bg-surface rounded-3xl shadow-2xl p-6 border border-app z-10 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                  <AlertTriangle size={24} />
+                </div>
+                <h4 className="text-lg font-bold text-app mb-1">¿Eliminar Cupón?</h4>
+                <p className="text-xs text-muted mb-6">
+                  Esta acción es permanente. ¿Seguro de eliminar el cupón <strong>{couponToDelete.code}</strong>?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCouponToDelete(null)}
+                    className="flex-1 py-3 bg-surface border border-app text-app font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-surface-2"
+                  >
+                    No, Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteCouponMutation.mutate(couponToDelete.id)
+                      setCouponToDelete(null)
+                    }}
+                    className="flex-1 py-3 bg-red-500 text-white font-bold text-xs rounded-xl active:scale-95 transition-all hover:bg-red-600 shadow-lg shadow-red-500/20"
+                  >
+                    Sí, Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -930,58 +2913,159 @@ export default function AdminSettings() {
                 className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
               />
             </div>
-            <div className="pt-4 border-t border-app">
-              <h3 className="font-bold text-app mb-4 text-sm uppercase tracking-wider">Datos de Cuenta Bancaria</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5">Entidad Bancaria</label>
-                  <input type="text" value={formData.bankInfo.banco}
-                    onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, banco: e.target.value } })}
-                    placeholder="Ej. Bancolombia, Nequi..."
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5">Tipo de Cuenta</label>
-                  <div className="relative">
-                    <select value={formData.bankInfo.tipoCuenta}
-                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, tipoCuenta: e.target.value } })}
-                      className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors appearance-none"
-                      style={{ borderRadius: 'var(--radius-base)' }}>
-                      <option value="ahorros">Ahorros</option>
-                      <option value="corriente">Corriente</option>
-                      <option value="digital">Billetera Digital</option>
-                    </select>
-                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+            <div className="pt-4 border-t border-app space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-app text-sm uppercase tracking-wider">Cuentas Bancarias para Transferencia</h3>
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">El cliente elige</span>
+              </div>
+
+              {/* ── Cuenta Principal ── */}
+              <div className="rounded-2xl border-2 border-app bg-surface-2/50 overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3 bg-surface-2 border-b border-app">
+                  <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
+                    <span className="text-white text-xs font-black">1</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-app">Cuenta Principal</p>
+                    <p className="text-[10px] text-muted">Siempre visible para el cliente</p>
                   </div>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-bold text-muted mb-1.5">Número de Cuenta</label>
-                  <input type="text" value={formData.bankInfo.numeroCuenta}
-                    onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, numeroCuenta: e.target.value } })}
-                    placeholder="Ej. 123-456789-00"
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Entidad Bancaria</label>
+                    <input type="text" value={formData.bankInfo.banco}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, banco: e.target.value } })}
+                      placeholder="Ej. Bancolombia, Nequi..."
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Tipo de Cuenta</label>
+                    <div className="relative">
+                      <select value={formData.bankInfo.tipoCuenta}
+                        onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, tipoCuenta: e.target.value } })}
+                        className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors appearance-none"
+                        style={{ borderRadius: 'var(--radius-base)' }}>
+                        <option value="ahorros">Ahorros</option>
+                        <option value="corriente">Corriente</option>
+                        <option value="digital">Billetera Digital</option>
+                      </select>
+                      <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+                    </div>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-muted mb-1.5">Número de Cuenta</label>
+                    <input type="text" value={formData.bankInfo.numeroCuenta}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, numeroCuenta: e.target.value } })}
+                      placeholder="Ej. 123-456789-00"
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Titular</label>
+                    <input type="text" value={formData.bankInfo.titular}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, titular: e.target.value } })}
+                      placeholder="Nombre de quien recibe"
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Cédula / NIT (Opcional)</label>
+                    <input type="text" value={formData.bankInfo.cedulaNit}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, cedulaNit: e.target.value } })}
+                      placeholder="Ej. 1234567890"
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5">Titular</label>
-                  <input type="text" value={formData.bankInfo.titular}
-                    onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, titular: e.target.value } })}
-                    placeholder="Nombre de quien recibe"
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+              </div>
+
+              {/* ── Cuenta Secundaria ── */}
+              <div className={`rounded-2xl border-2 overflow-hidden transition-all duration-300 ${formData.bankInfo2.activa ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-dashed border-app bg-surface-2/30'}`}>
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-app/50">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${formData.bankInfo2.activa ? 'bg-emerald-500' : 'bg-app/30'}`}>
+                    <span className="text-white text-xs font-black">2</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-black text-app">Cuenta Secundaria</p>
+                    <p className="text-[10px] text-muted">El cliente podrá elegir entre las dos cuentas</p>
+                  </div>
+                  {/* Toggle para activar/desactivar */}
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input type="checkbox" className="sr-only peer"
+                      checked={formData.bankInfo2.activa}
+                      onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, activa: e.target.checked } })} />
+                    <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5">Cédula / NIT (Opcional)</label>
-                  <input type="text" value={formData.bankInfo.cedulaNit}
-                    onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, cedulaNit: e.target.value } })}
-                    placeholder="Ej. 1234567890"
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
-                </div>
+                {formData.bankInfo2.activa && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-muted mb-1.5">Entidad Bancaria</label>
+                      <input type="text" value={formData.bankInfo2.banco}
+                        onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, banco: e.target.value } })}
+                        placeholder="Ej. Davivienda, Nequi..."
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted mb-1.5">Tipo de Cuenta</label>
+                      <div className="relative">
+                        <select value={formData.bankInfo2.tipoCuenta}
+                          onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, tipoCuenta: e.target.value } })}
+                          className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors appearance-none"
+                          style={{ borderRadius: 'var(--radius-base)' }}>
+                          <option value="ahorros">Ahorros</option>
+                          <option value="corriente">Corriente</option>
+                          <option value="digital">Billetera Digital</option>
+                        </select>
+                        <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-muted mb-1.5">Número de Cuenta</label>
+                      <input type="text" value={formData.bankInfo2.numeroCuenta}
+                        onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, numeroCuenta: e.target.value } })}
+                        placeholder="Ej. 123-456789-00"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors font-mono" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted mb-1.5">Titular</label>
+                      <input type="text" value={formData.bankInfo2.titular}
+                        onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, titular: e.target.value } })}
+                        placeholder="Nombre de quien recibe"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted mb-1.5">Cédula / NIT (Opcional)</label>
+                      <input type="text" value={formData.bankInfo2.cedulaNit}
+                        onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, cedulaNit: e.target.value } })}
+                        placeholder="Ej. 1234567890"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                  </div>
+                )}
+                {!formData.bankInfo2.activa && (
+                  <div className="px-4 py-5 text-center">
+                    <p className="text-xs text-muted">Activa el toggle para agregar una segunda cuenta bancaria</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          <div className="p-5 sm:p-6 border-t border-app bg-surface-2/30">
-            <button onClick={handleSaveConfig} disabled={isSaving}
-              className="w-full min-h-[52px] py-3 px-6 bg-primary text-white rounded-xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-3 shadow-lg shadow-primary/30 disabled:opacity-50">
-              {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={20} className="shrink-0" /> Guardar Cambios</>}
+          <div className="p-5 sm:p-6 border-t border-app bg-surface-2/30 space-y-3">
+            {/* Advertencia de cambio crítico */}
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-500/90 leading-relaxed">
+                <strong>Dato crítico:</strong> El WhatsApp y la cuenta bancaria son visibles para tus clientes en el checkout. Verifica la información antes de guardar.
+              </p>
+            </div>
+            <button onClick={() => {
+              setCriticalConfirmText('')
+              setCriticalConfirmModal({
+                title: '⚠️ Cambio en Datos de Pago',
+                desc: 'Estás a punto de modificar el número de WhatsApp y/o la cuenta bancaria. Tus clientes usarán estos datos para contactarte y realizar pagos. Un dato incorrecto puede causar pérdidas.\n\nEscribe CONFIRMAR para continuar.',
+                onConfirm: handleSaveConfig
+              })
+            }} disabled={isSaving}
+              className="w-full min-h-[52px] py-3 px-6 bg-amber-500 text-white rounded-xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-3 shadow-lg shadow-amber-500/30 disabled:opacity-50">
+              {isSaving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Lock size={18} className="shrink-0" /> Guardar Datos Críticos</>}
             </button>
           </div>
         </div>
@@ -1079,10 +3163,22 @@ export default function AdminSettings() {
       {/* ─── VISTA: HERRAMIENTAS DE PRUEBAS ────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'developer' && (
-        <div className="bg-surface rounded-3xl border border-red-500/20 shadow-sm overflow-hidden">
-          <div className="p-5 sm:p-6 border-b border-red-500/10 bg-red-500/5">
-            <p className="text-sm text-app/70">Usa estas herramientas para probar la aplicación con datos falsos de forma segura.</p>
-          </div>
+        !isDevAuthenticated ? (
+          renderDeveloperGate()
+        ) : (
+          <div className="bg-surface rounded-3xl border border-red-500/20 shadow-sm overflow-hidden">
+            <div className="p-5 sm:p-6 border-b border-red-500/10 bg-red-500/5 flex items-center justify-between flex-wrap gap-3">
+              <p className="text-sm text-app/70">Usa estas herramientas para probar la aplicación con datos falsos de forma segura.</p>
+              <button
+                onClick={() => {
+                  setIsDevAuthenticated(false)
+                  setDevPasswordInput('')
+                }}
+                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+              >
+                <Lock size={12} /> Bloquear Sección
+              </button>
+            </div>
           <div className="p-5 sm:p-6">
             {message && (
               <div className={`p-4 rounded-xl mb-6 flex items-start gap-3 ${message.type === 'error' ? 'bg-red-500/10 text-red-500' : 'bg-success/10 text-success'}`}>
@@ -1108,7 +3204,8 @@ export default function AdminSettings() {
             </div>
           </div>
         </div>
-      )}
+      )
+    )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ─── VISTA: SEGURIDAD Y ACCESOS ────────────────────────────────────── */}
@@ -1193,146 +3290,450 @@ export default function AdminSettings() {
               Instala esta aplicación en tu dispositivo para disfrutar de un acceso rápido, mejor rendimiento y una experiencia de pantalla completa sin barra de navegación.
             </p>
 
-            {!isStandalone && (rawInstallable || isIOS) ? (
-              rawInstallable ? (
+            {!isStandalone ? (
+              <div className="w-full flex flex-col items-center gap-4">
                 <button
-                  onClick={handleInstall}
+                  onClick={rawInstallable ? handleInstall : () => {
+                    if (isIOS) {
+                      alert("📱 Para instalar en iOS:\n\n1. Pulsa el botón de Compartir (↑) en la barra inferior de Safari.\n2. Selecciona 'Agregar a la pantalla de inicio'.")
+                    } else {
+                      alert("📥 Para instalar en Android/Chrome:\n\n1. Toca los tres puntos (⋮) del menú.\n2. Elige 'Instalar aplicación' o 'Agregar a la pantalla principal'.")
+                    }
+                  }}
                   className="w-full sm:w-auto px-8 py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
                   style={{ borderRadius: 'var(--radius-base)' }}
                 >
                   <Download size={18} />
-                  Descargar Ahora
+                  Instalar en este Dispositivo
                 </button>
-              ) : isIOS ? (
-                <div className="text-xs text-muted bg-surface-2 p-4 rounded-2xl border border-app leading-relaxed text-left max-w-md">
-                  📱 En tu iPhone/iPad: pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+
+                {/* Mostrar instrucciones secundarias de apoyo abajo del botón */}
+                <div className="w-full p-4 rounded-2xl bg-surface-2 border border-app text-sm text-muted">
+                  {isIOS ? (
+                    <div className="text-xs text-muted leading-relaxed text-left max-w-md">
+                      📱 <strong>Instrucciones para iPhone/iPad:</strong> pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+                    </div>
+                  ) : (
+                    <div className="text-left space-y-2.5">
+                      <p className="font-semibold text-app text-xs uppercase tracking-wider text-center mb-1">¿No aparece el instalador directo?</p>
+                      <p className="text-xs leading-relaxed text-muted">
+                        Puedes instalarla manualmente en tu dispositivo siguiendo estos pasos en Chrome:
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted leading-relaxed">
+                        <li>Toca el menú de <strong>tres puntos</strong> <strong className="text-app">(⋮)</strong> en la parte superior derecha de tu navegador Chrome.</li>
+                        <li>Selecciona la opción <strong>"Instalar aplicación"</strong> o <strong>"Agregar a la pantalla principal"</strong>.</li>
+                        <li>Confirma en la ventana emergente y se añadirá el ícono de acceso rápido.</li>
+                      </ol>
+                    </div>
+                  )}
                 </div>
-              ) : null
+              </div>
             ) : (
               <div className="w-full p-4 rounded-2xl bg-surface-2 border border-app text-sm text-muted">
-                {isStandalone ? (
-                  <p className="font-semibold text-primary flex items-center justify-center gap-2">
-                    <CheckCircle size={18} />
-                    ¡Ya estás ejecutando la aplicación instalada!
-                  </p>
-                ) : (
-                  <p>
-                    La aplicación ya está instalada o tu navegador actual no soporta la descarga directa. Puedes agregarla manualmente desde los ajustes de tu navegador ("Agregar a la pantalla principal").
-                  </p>
-                )}
+                <p className="font-semibold text-primary flex items-center justify-center gap-2">
+                  <CheckCircle size={18} />
+                  ¡Ya estás ejecutando la aplicación instalada!
+                </p>
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* ─── VISTA: FACTURACIÓN ──────────────────────────────────────────────────── */}
+      {activeSection === 'facturacion' && (
+        !isDevAuthenticated ? (
+          renderDeveloperGate()
+        ) : (() => {
+          // Sincronizar el input con el valor real cuando llegan los datos por primera vez
+          const currentPercent = billingMetrics?.commissionPercent ?? 1
+
+          const inputVal = commissionInput !== null ? commissionInput : String(currentPercent)
+
+          // Función de formato de moneda
+          const fmt = (v) => `$${Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+          return (
+            <div className="space-y-4">
+              {/* Botón flotante superior de bloqueo */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setIsDevAuthenticated(false)
+                    setDevPasswordInput('')
+                  }}
+                  className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5"
+                >
+                  <Lock size={12} /> Bloquear Sección
+                </button>
+              </div>
+
+            {/* Banner de bienvenida */}
+            <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-surface to-teal-500/5 p-5">
+              <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-emerald-500/5 -translate-y-8 translate-x-8" />
+              <div className="relative flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                  <Receipt size={24} className="text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-app mb-1">Módulo de Facturación</p>
+                  <p className="text-xs text-muted leading-relaxed">
+                    Inicialmente ya hiciste tu pago para iniciar el proyecto. Gracias por contribuir a mejorar tu negocio.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cards de métricas */}
+            {billingLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-surface-2 border border-app rounded-2xl p-4 animate-pulse">
+                    <div className="h-3 bg-app/20 rounded-full w-16 mb-3" />
+                    <div className="h-7 bg-app/20 rounded-full w-24" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {/* Ventas del mes */}
+                <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <ShoppingBag size={14} className="text-blue-500" />
+                    </div>
+                    <p className="text-xs text-muted font-medium">Ventas del mes</p>
+                  </div>
+                  <p className="text-xl font-black text-app">{fmt(billingMetrics?.totalMes)}</p>
+                </div>
+
+                {/* Comisión del mes */}
+                <div className="bg-surface-2 border border-emerald-500/20 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Wallet size={14} className="text-emerald-500" />
+                    </div>
+                    <p className="text-xs text-muted font-medium">Mi comisión del mes</p>
+                  </div>
+                  <p className="text-xl font-black text-emerald-500">{fmt(billingMetrics?.comisionMes)}</p>
+                </div>
+
+                {/* Pedidos completados */}
+                <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <TrendingUp size={14} className="text-purple-500" />
+                    </div>
+                    <p className="text-xs text-muted font-medium">Pedidos completados</p>
+                  </div>
+                  <p className="text-xl font-black text-app">{billingMetrics?.pedidosMes ?? 0}</p>
+                  <p className="text-xs text-muted mt-0.5">este mes</p>
+                </div>
+
+                {/* Comisión histórica */}
+                <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                      <BarChart3 size={14} className="text-amber-500" />
+                    </div>
+                    <p className="text-xs text-muted font-medium">Comisión acumulada</p>
+                  </div>
+                  <p className="text-xl font-black text-app">{fmt(billingMetrics?.comisionHistorica)}</p>
+                  <p className="text-xs text-muted mt-0.5">histórico total</p>
+                </div>
+              </div>
+            )}
+
+            {/* Configuración del porcentaje */}
+            <div className="bg-surface rounded-2xl border border-app overflow-hidden">
+              <div className="px-5 pt-5 pb-4">
+                <p className="text-sm font-bold text-app mb-1">Porcentaje de comisión</p>
+                <p className="text-xs text-muted mb-4">Se aplica sobre el total de cada pedido completado.</p>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-app mb-1.5 block">Comisión por venta (%)</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={inputVal}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9.]/g, '')
+                          const parts = raw.split('.')
+                          const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : raw
+                          setCommissionInput(cleaned)
+                        }}
+                        onBlur={(e) => {
+                          if (e.target.value.trim() === '') {
+                            setCommissionInput(String(currentPercent))
+                          } else {
+                            const num = parseFloat(e.target.value)
+                            setCommissionInput(isNaN(num) ? String(currentPercent) : String(num))
+                          }
+                        }}
+                        className="w-full h-11 pl-3 pr-8 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted">%</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const num = parseFloat(inputVal)
+                      if (!isNaN(num) && num >= 0) {
+                        try {
+                          await savePercent(num)
+                          setCommissionInput(null)
+                          setSaveMessage({ type: 'success', text: `Comisión actualizada al ${num}%` })
+                          setTimeout(() => setSaveMessage(null), 3000)
+                        } catch (error) {
+                          setSaveMessage({ type: 'error', text: 'Error al actualizar la comisión.' })
+                          setTimeout(() => setSaveMessage(null), 3000)
+                        }
+                      }
+                    }}
+                    disabled={billingIsSaving}
+                    className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
+                    style={{ background: 'var(--color-primary)', color: 'white' }}
+                  >
+                    {billingIsSaving ? (
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumen compacto del historial */}
+            {!billingLoading && billingMetrics && (
+              <div className="bg-surface rounded-2xl border border-app overflow-hidden">
+                <div className="px-5 py-4 border-b border-app">
+                  <p className="text-sm font-bold text-app">Resumen de comisiones</p>
+                  <p className="text-xs text-muted">Totales calculados sobre pedidos completados</p>
+                </div>
+                <div className="divide-y divide-app">
+                  {[
+                    { label: 'Ventas del mes', value: fmt(billingMetrics.totalMes), sub: `${billingMetrics.pedidosMes} pedidos completados` },
+                    { label: 'Comisión del mes', value: fmt(billingMetrics.comisionMes), highlight: true },
+                    { label: 'Total ventas histórico', value: fmt(billingMetrics.totalHistorico), sub: 'Todos los tiempos' },
+                    { label: 'Comisión histórica acumulada', value: fmt(billingMetrics.comisionHistorica), highlight: true },
+                  ].map((row, i) => (
+                    <div key={i} className="flex items-center justify-between px-5 py-3.5">
+                      <div>
+                        <p className="text-xs font-semibold text-app">{row.label}</p>
+                        {row.sub && <p className="text-[10px] text-muted mt-0.5">{row.sub}</p>}
+                      </div>
+                      <p className={`text-sm font-black ${row.highlight ? 'text-emerald-500' : 'text-app'}`}>{row.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            </div>
+          )
+        })()
+      )}
+
+
+      {/* ─── MODAL DE CONFIRMACIÓN CRÍTICA (Fase 5) ─────────────────────────────── */}
+      <AnimatePresence>
+        {criticalConfirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+            onClick={(e) => { if (e.target === e.currentTarget) { setCriticalConfirmModal(null); setCriticalConfirmText('') } }}
+          >
+            <motion.div
+              initial={{ scale: 0.88, y: 24 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.88, y: 24 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl"
+              style={{ background: 'var(--color-surface)', border: '2px solid rgba(245,158,11,0.4)' }}
+            >
+              {/* Cabecera */}
+              <div className="p-5 bg-amber-500/10 border-b border-amber-500/20 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-3">
+                  <AlertTriangle size={28} className="text-amber-500" />
+                </div>
+                <h3 className="text-base font-black text-app">{criticalConfirmModal.title}</h3>
+              </div>
+              {/* Cuerpo */}
+              <div className="p-5 space-y-4">
+                {criticalConfirmModal.desc.split('\n').map((line, i) => (
+                  <p key={i} className="text-sm text-muted leading-relaxed">{line}</p>
+                ))}
+                <div>
+                  <label className="text-xs font-bold text-app mb-2 block tracking-wide uppercase">Confirmación de seguridad</label>
+                  <input
+                    type="text"
+                    value={criticalConfirmText}
+                    onChange={e => setCriticalConfirmText(e.target.value)}
+                    placeholder="Escribe CONFIRMAR"
+                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border text-app text-sm font-bold tracking-widest focus:outline-none transition-colors"
+                    style={{ borderColor: criticalConfirmText.trim().toUpperCase() === 'CONFIRMAR' ? '#10b981' : 'var(--color-border)' }}
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && criticalConfirmText.trim().toUpperCase() === 'CONFIRMAR') {
+                        criticalConfirmModal.onConfirm()
+                        setCriticalConfirmModal(null)
+                        setCriticalConfirmText('')
+                      }
+                    }}
+                  />
+                  {criticalConfirmText.length > 0 && criticalConfirmText.trim().toUpperCase() !== 'CONFIRMAR' && (
+                    <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1">
+                      <X size={12} /> Debes escribir exactamente <strong>CONFIRMAR</strong>
+                    </p>
+                  )}
+                  {criticalConfirmText.trim().toUpperCase() === 'CONFIRMAR' && (
+                    <p className="text-xs text-emerald-500 mt-1.5 flex items-center gap-1">
+                      <CheckCircle size={12} /> ¡Listo! Puedes continuar.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {/* Botones */}
+              <div className="p-5 border-t border-app flex gap-3">
+                <button
+                  onClick={() => { setCriticalConfirmModal(null); setCriticalConfirmText('') }}
+                  className="flex-1 h-11 rounded-xl bg-surface-2 text-app text-sm font-bold transition-all active:scale-95 hover:bg-app hover:text-surface border border-app"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (criticalConfirmText.trim().toUpperCase() !== 'CONFIRMAR') return
+                    criticalConfirmModal.onConfirm()
+                    setCriticalConfirmModal(null)
+                    setCriticalConfirmText('')
+                  }}
+                  disabled={criticalConfirmText.trim().toUpperCase() !== 'CONFIRMAR'}
+                  className="flex-1 h-11 rounded-xl text-white text-sm font-bold transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+                  style={{ background: criticalConfirmText.trim().toUpperCase() === 'CONFIRMAR' ? '#10b981' : '#9ca3af' }}
+                >
+                  <CheckCircle size={16} />
+                  Guardar Ahora
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── MODAL DEL SELECTOR DE TEMAS ──────────────────────────────────────── */}
       <AnimatePresence>
         {isThemeModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-surface w-full max-w-4xl max-h-[90vh] rounded-3xl border border-app shadow-2xl flex flex-col overflow-hidden"
-            >
-              <div className="p-5 border-b border-app bg-surface flex justify-between items-center shrink-0">
-                <h3 className="text-lg font-bold text-app flex items-center gap-2">
-                  <Paintbrush size={20} className="text-primary" />
-                  Selector de Tema Inteligente
-                </h3>
-                <button
-                  onClick={() => setIsThemeModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="p-5 sm:p-6 overflow-y-auto flex-1">
-                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <p className="text-sm text-muted">Selecciona una paleta predefinida o crea tu propia combinación exacta.</p>
-                  <button 
-                    onClick={toggleCustomMode}
-                    className={`text-xs font-bold px-4 py-2 rounded-xl border transition-colors shrink-0 ${typeof formData.theme === 'object' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-surface-2 border-app text-app hover:bg-app hover:text-surface'}`}
+          <ThemeModalLock>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-surface w-full max-w-4xl max-h-[90vh] rounded-3xl border border-app shadow-2xl flex flex-col overflow-hidden"
+              >
+                <div className="p-5 border-b border-app bg-surface flex justify-between items-center shrink-0">
+                  <h3 className="text-lg font-bold text-app flex items-center gap-2">
+                    <Paintbrush size={20} className="text-primary" />
+                    Selector de Tema Inteligente
+                  </h3>
+                  <button
+                    onClick={() => setIsThemeModalOpen(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
                   >
-                    {typeof formData.theme === 'object' ? 'Volver a Predefinidas' : 'Crear Personalizado'}
+                    <X size={18} />
                   </button>
                 </div>
 
-                {typeof formData.theme === 'object' ? (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-6 bg-surface-2 rounded-2xl border border-app shadow-inner">
-                     <div className="flex items-center gap-2 mb-6 p-3 rounded-xl bg-surface border border-app">
-                       {config.isDarkMode ? <Moon size={18} className="text-primary" /> : <Sun size={18} className="text-warning" />}
-                       <p className="text-sm font-medium text-app">
-                         Estás editando la paleta para el modo <strong className="text-primary">{config.isDarkMode ? 'Oscuro' : 'Claro'}</strong>.
-                       </p>
-                     </div>
-                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                     {Object.entries(config.isDarkMode ? formData.theme.dark : formData.theme.light).map(([key, val]) => (
-                        <div key={key} className="flex flex-col">
-                          <label className="block text-xs font-bold text-app mb-2 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</label>
-                          <div className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-app shadow-sm">
-                            <input 
-                              type="color" 
-                              value={val} 
-                              onChange={(e) => handleCustomColorChange(key, e.target.value)}
-                              className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0 shadow-inner"
-                            />
-                            <span className="text-sm font-mono font-medium text-muted uppercase">{val}</span>
-                          </div>
-                        </div>
-                     ))}
-                     </div>
-                  </motion.div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.values(ADVANCED_PALETTES).map((palette) => {
-                      const isSelected = formData.theme === palette.id;
-                      const colors = config.isDarkMode ? palette.dark : palette.light;
-                      
-                      return (
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          key={palette.id}
-                          onClick={() => setFormData({ ...formData, theme: palette.id })}
-                          className={`p-5 rounded-2xl border-2 text-left transition-all relative overflow-hidden flex flex-col justify-between h-32 ${
-                            isSelected 
-                              ? 'border-primary shadow-[0_0_20px_rgba(var(--color-primary),0.15)] ring-2 ring-primary/20' 
-                              : 'border-app hover:border-primary/50'
-                          }`}
-                          style={{ backgroundColor: colors.surface }}
-                        >
-                          {isSelected && (
-                            <div className="absolute top-0 left-0 w-full h-1.5 bg-primary" />
-                          )}
-                          <span className="block text-base font-bold" style={{ color: colors.text }}>{palette.name}</span>
-                          <div className="flex gap-2.5 mt-auto">
-                            <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.primary }} />
-                            <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.secondary }} />
-                            <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.accent }} />
-                            <div className="w-8 h-8 rounded-full shadow-sm border-2" style={{ backgroundColor: colors.bg, borderColor: colors.border }} />
-                          </div>
-                        </motion.button>
-                      )
-                    })}
+                <div className="p-5 sm:p-6 overflow-y-auto flex-1 overscroll-y-contain">
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p className="text-sm text-muted">Selecciona una paleta predefinida o crea tu propia combinación exacta.</p>
+                    <button 
+                      onClick={toggleCustomMode}
+                      className={`text-xs font-bold px-4 py-2 rounded-xl border transition-colors shrink-0 ${typeof formData.theme === 'object' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-surface-2 border-app text-app hover:bg-app hover:text-surface'}`}
+                    >
+                      {typeof formData.theme === 'object' ? 'Volver a Predefinidas' : 'Crear Personalizado'}
+                    </button>
                   </div>
-                )}
-              </div>
-              
-              <div className="p-5 border-t border-app bg-surface flex justify-end shrink-0">
-                <button
-                  onClick={() => setIsThemeModalOpen(false)}
-                  className="px-8 py-3 bg-app text-surface rounded-xl font-bold transition-all hover:opacity-90 active:scale-95 shadow-md flex items-center gap-2"
-                >
-                  <CheckCircle size={18} />
-                  Confirmar y Cerrar
-                </button>
-              </div>
-            </motion.div>
-          </div>
+
+                  {typeof formData.theme === 'object' ? (
+                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-6 bg-surface-2 rounded-2xl border border-app shadow-inner">
+                       <div className="flex items-center gap-2 mb-6 p-3 rounded-xl bg-surface border border-app">
+                         {config.isDarkMode ? <Moon size={18} className="text-primary" /> : <Sun size={18} className="text-warning" />}
+                         <p className="text-sm font-medium text-app">
+                           Estás editando la paleta para el modo <strong className="text-primary">{config.isDarkMode ? 'Oscuro' : 'Claro'}</strong>.
+                         </p>
+                       </div>
+                       <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                       {Object.entries(config.isDarkMode ? formData.theme.dark : formData.theme.light).map(([key, val]) => (
+                          <div key={key} className="flex flex-col">
+                            <label className="block text-xs font-bold text-app mb-2 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</label>
+                            <div className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-app shadow-sm">
+                              <input 
+                                type="color" 
+                                value={val} 
+                                onChange={(e) => handleCustomColorChange(key, e.target.value)}
+                                className="w-10 h-10 rounded-lg cursor-pointer border-0 p-0 shadow-inner"
+                              />
+                              <span className="text-sm font-mono font-medium text-muted uppercase">{val}</span>
+                            </div>
+                          </div>
+                       ))}
+                       </div>
+                    </motion.div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Object.values(ADVANCED_PALETTES).map((palette) => {
+                        const isSelected = formData.theme === palette.id;
+                        const colors = config.isDarkMode ? palette.dark : palette.light;
+                        
+                        return (
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            key={palette.id}
+                            onClick={() => setFormData({ ...formData, theme: palette.id })}
+                            className={`p-5 rounded-2xl border-2 text-left transition-all relative overflow-hidden flex flex-col justify-between h-32 ${
+                              isSelected 
+                                ? 'border-primary shadow-[0_0_20px_rgba(var(--color-primary),0.15)] ring-2 ring-primary/20' 
+                                : 'border-app hover:border-primary/50'
+                            }`}
+                            style={{ backgroundColor: colors.surface }}
+                          >
+                            {isSelected && (
+                              <div className="absolute top-0 left-0 w-full h-1.5 bg-primary" />
+                            )}
+                            <span className="block text-base font-bold" style={{ color: colors.text }}>{palette.name}</span>
+                            <div className="flex gap-2.5 mt-auto">
+                              <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.primary }} />
+                              <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.secondary }} />
+                              <div className="w-8 h-8 rounded-full shadow-sm" style={{ backgroundColor: colors.accent }} />
+                              <div className="w-8 h-8 rounded-full shadow-sm border-2" style={{ backgroundColor: colors.bg, borderColor: colors.border }} />
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-5 border-t border-app bg-surface flex justify-end shrink-0">
+                  <button
+                    onClick={() => setIsThemeModalOpen(false)}
+                    className="px-8 py-3 bg-app text-surface rounded-xl font-bold transition-all hover:opacity-90 active:scale-95 shadow-md flex items-center gap-2"
+                  >
+                    <CheckCircle size={18} />
+                    Confirmar y Cerrar
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </ThemeModalLock>
         )}
       </AnimatePresence>
     </motion.div>

@@ -32,13 +32,15 @@ export function useUpdateOrderStatus() {
     mutationFn: ({ id, newStatus, currentOrder }) => 
       orderService.updateOrderStatus(id, newStatus, currentOrder),
     onSuccess: () => {
-      // Al actualizar un estado (especialmente si es Completado), invalidamos
-      // tanto los pedidos como el inventario, porque el stock pudo haber cambiado.
+      // Al actualizar un estado (especialmente si es Completado o Crédito Aprobado),
+      // invalidamos los pedidos, el inventario y los créditos.
       queryClient.invalidateQueries({ queryKey: KEYS.orders })
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['credits'] })
     },
   })
 }
+
 
 // ─── CLIENT HOOKS ────────────────────────────────────────────────────────────
 
@@ -71,6 +73,21 @@ export function useCreateOrder() {
         queryClient.invalidateQueries({ queryKey: KEYS.clientOrders(variables.cliente.celular) })
       }
       queryClient.invalidateQueries({ queryKey: KEYS.orders })
+    },
+  })
+}
+
+export function useCreatePhysicalOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ orderData, adminId }) => orderService.createPhysicalOrder(orderData, adminId),
+    onSuccess: (_, variables) => {
+      if (variables.orderData.cliente?.celular) {
+        queryClient.invalidateQueries({ queryKey: KEYS.clientOrders(variables.orderData.cliente.celular) })
+      }
+      queryClient.invalidateQueries({ queryKey: KEYS.orders })
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['credits'] })
     },
   })
 }

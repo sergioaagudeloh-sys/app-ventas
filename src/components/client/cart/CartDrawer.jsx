@@ -38,7 +38,7 @@ export default function CartDrawer() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeCart}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/50"
             />
 
             {/* Drawer */}
@@ -46,7 +46,7 @@ export default function CartDrawer() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
               className="relative w-full max-w-md bg-surface h-full shadow-2xl flex flex-col"
             >
               {/* Header */}
@@ -175,6 +175,13 @@ export default function CartDrawer() {
                     className="w-full h-14 bg-action text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-lg shadow-action"
                   >
                     Ir a Pagar <ArrowRight size={20} />
+                  </button>
+
+                  <button
+                    onClick={handleContinueShopping}
+                    className="w-full h-12 mt-3 bg-surface border border-app text-app rounded-2xl font-semibold text-sm hover:bg-surface-2 transition-colors active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    Seguir agregando productos
                   </button>
                 </div>
               )}

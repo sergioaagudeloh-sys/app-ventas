@@ -1,80 +1,364 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, MessageCircle, DollarSign } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
-import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_METHODS } from '../../constants'
+import { useCredits } from '../../hooks/useCredits'
+import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
+import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, WHOLESALE_STATES } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
+import * as orderService from '../../services/orderService'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
   [ORDER_STATES.COMPLETED]: CheckCircle,
   [ORDER_STATES.CANCELLED]: XCircle,
+  [ORDER_STATES.CREDIT_APPROVED]: CreditCard,
+}
+
+// ─── HELPER DEL DATE PICKER PREMIUM ──────────────────────────────────────────
+const DAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa']
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function CustomDatePickerPortal({ value, onChange, open, setOpen, triggerRef }) {
+  const today = new Date()
+  const selected = value ? new Date(value + 'T12:00:00') : null
+
+  const [viewYear, setViewYear] = useState(selected ? selected.getFullYear() : today.getFullYear())
+  const [viewMonth, setViewMonth] = useState(selected ? selected.getMonth() : today.getMonth())
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay()
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const selectDay = (d) => {
+    const mm = String(viewMonth + 1).padStart(2, '0')
+    const dd = String(d).padStart(2, '0')
+    onChange(`${viewYear}-${mm}-${dd}`)
+    setOpen(false)
+  }
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }
+
+  const isSelected = (d) => selected &&
+    selected.getDate() === d && selected.getMonth() === viewMonth && selected.getFullYear() === viewYear
+  const isToday = (d) =>
+    today.getDate() === d && today.getMonth() === viewMonth && today.getFullYear() === viewYear
+
+  if (!open) return null
+
+  const calendar = (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.1 }}
+        onClick={() => setOpen(false)}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.3)',
+          zIndex: 9998,
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          pointerEvents: 'none',
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
+          style={{
+            pointerEvents: 'auto',
+            width: 'min(320px, calc(100vw - 32px))',
+            background: 'var(--color-surface)',
+            borderRadius: '1.25rem',
+            border: '1px solid var(--color-border)',
+            boxShadow: '0 24px 80px -10px rgba(0,0,0,0.35)',
+            padding: '1.25rem',
+          }}
+        >
+          <div className="text-center mb-1">
+            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">Seleccionar fecha</p>
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
+              style={{ background: 'var(--color-surface-2)' }}
+            >
+              <ChevronDown size={18} className="rotate-90" />
+            </button>
+            <span className="text-sm font-bold text-app">
+              {MONTHS_ES[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
+              style={{ background: 'var(--color-surface-2)' }}
+            >
+              <ChevronDown size={18} className="-rotate-90" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 mb-2">
+            {DAYS_ES.map(d => (
+              <div key={d} className="text-center text-[11px] font-bold text-muted py-1">{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1">
+            {cells.map((d, i) => (
+              <div key={i} className="flex items-center justify-center">
+                {d ? (
+                  <button
+                    type="button"
+                    onClick={() => selectDay(d)}
+                    className={`w-9 h-9 rounded-xl text-xs font-semibold transition-all active:scale-90
+                      ${isSelected(d)
+                        ? 'text-white shadow-md font-bold'
+                        : isToday(d)
+                        ? 'font-bold ring-2'
+                        : 'text-app hover:opacity-80'
+                      }
+                    `}
+                    style={
+                      isSelected(d)
+                        ? { background: 'var(--color-primary)' }
+                        : isToday(d)
+                        ? { ringColor: 'var(--color-primary)', color: 'var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }
+                        : { background: 'transparent' }
+                    }
+                  >
+                    {d}
+                  </button>
+                ) : <div />}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-between items-center mt-4 pt-3 border-t border-app">
+            <button
+              type="button"
+              onClick={() => { onChange(''); setOpen(false) }}
+              className="text-xs text-muted font-medium px-3 py-1.5 rounded-lg transition-colors active:scale-95"
+              style={{ background: 'var(--color-surface-2)' }}
+            >
+              Borrar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const t = new Date()
+                const mm = String(t.getMonth()+1).padStart(2,'0')
+                const dd = String(t.getDate()).padStart(2,'0')
+                onChange(`${t.getFullYear()}-${mm}-${dd}`)
+                setOpen(false)
+              }}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-all active:scale-95"
+              style={{ background: 'var(--color-primary)' }}
+            >
+              Hoy
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>
+  )
+
+  return ReactDOM.createPortal(calendar, document.body)
 }
 
 const STATE_COLORS = {
   [ORDER_STATES.PENDING]: 'text-warning bg-warning/10 border-warning/20',
   [ORDER_STATES.COMPLETED]: 'text-success bg-success/10 border-success/20',
   [ORDER_STATES.CANCELLED]: 'text-red-500 bg-red-500/10 border-red-500/20',
+  [ORDER_STATES.CREDIT_APPROVED]: 'text-blue-500 bg-blue-500/10 border-blue-500/20',
 }
 
 const NEXT_STATES = {
   [ORDER_STATES.PENDING]: ORDER_STATES.COMPLETED,
   [ORDER_STATES.COMPLETED]: null,
   [ORDER_STATES.CANCELLED]: null,
+  [ORDER_STATES.CREDIT_APPROVED]: null,
 }
 
 export default function AdminOrders() {
   const { data: orders = [], isLoading } = useOrders()
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
   const { appName, appIcon, whatsappAdmin } = useAppConfigStore()
+  const { data: credits = [] } = useCredits('activo')
+  const { data: wholesaleRequests = [] } = useWholesaleRequests()
+  const { mutate: updateWholesaleStatus } = useUpdateWholesaleStatus()
+  const navigate = useNavigate()
   
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState('Todos')
+  const [showArchived, setShowArchived] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [filterDate, setFilterDate] = useState('')
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [showWholesaleModal, setShowWholesaleModal] = useState(false)
+  const triggerRef = useRef(null)
+
+  const pendingWholesaleCount = useMemo(() => {
+    return wholesaleRequests.filter(r => r.estado === 'pendiente').length
+  }, [wholesaleRequests])
+  
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [currentArchivedPage, setCurrentArchivedPage] = useState(1)
+  const ITEMS_PER_PAGE = 10
 
   // ─── Métricas Rápidas ──────────────────────────────────────────────────
   const metrics = useMemo(() => {
     let pendientes = 0
     let completados = 0
-    let totalCreditos = 0
+    const totalFiados = credits.reduce((sum, c) => sum + c.saldoPendiente, 0)
 
     orders.forEach(o => {
       if (o.estado === ORDER_STATES.PENDING) pendientes++
-      if (o.estado === ORDER_STATES.COMPLETED) {
-        completados++
-        if (o.metodoPago === PAYMENT_METHODS.CREDIT) totalCreditos += o.total
-      }
+      if (o.estado === ORDER_STATES.COMPLETED) completados++
     })
 
     return [
       { label: 'Pendientes', value: pendientes, icon: Clock, color: 'text-warning' },
       { label: 'Completados', value: completados, icon: CheckCircle, color: 'text-success' },
-      { label: 'Créditos', value: formatCurrency(totalCreditos), icon: DollarSign, color: 'text-primary' },
+      { label: 'Créditos', value: formatCurrency(totalFiados), icon: CreditCard, color: 'text-primary', path: '/admin/credito' },
     ]
-  }, [orders])
+  }, [orders, credits])
 
   // ─── Filtrado ──────────────────────────────────────────────────────────
-  const filters = ['Todos', ORDER_STATES.PENDING, ORDER_STATES.COMPLETED, ORDER_STATES.CANCELLED]
+  const filters = ['Todos', ORDER_STATES.PENDING, ORDER_STATES.COMPLETED, ORDER_STATES.CREDIT_APPROVED, ORDER_STATES.CANCELLED]
 
-  const filteredOrders = orders.filter(order => {
+  const matchesSearchAndFilter = (order) => {
     const matchesSearch = 
       order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.cliente?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.cliente?.celular?.includes(searchTerm)
     
-    const matchesFilter = activeFilter === 'Todos' || order.estado === activeFilter
+    let matchesFilter = false
+    if (activeFilter === 'Todos') {
+      matchesFilter = true
+    } else {
+      matchesFilter = order.estado === activeFilter
+    }
 
-    return matchesSearch && matchesFilter
-  })
+    // Filtrar adicionalmente por fecha si se seleccionó una y estamos en Completado
+    let matchesDate = true
+    if (activeFilter === ORDER_STATES.COMPLETED && filterDate) {
+      if (order.createdAt) {
+        const dateObj = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt)
+        const orderDateStr = dateObj.toISOString().split('T')[0] // Formato YYYY-MM-DD
+        matchesDate = orderDateStr === filterDate
+      } else {
+        matchesDate = false
+      }
+    }
+
+    return matchesSearch && matchesFilter && matchesDate
+  }
+
+  const { activeOrders, archivedOrders } = useMemo(() => {
+    const active = []
+    const archived = []
+    orders.forEach(order => {
+      if (matchesSearchAndFilter(order)) {
+        if (order.archivado === true) {
+          archived.push(order)
+        } else {
+          active.push(order)
+        }
+      }
+    })
+    return { activeOrders: active, archivedOrders: archived }
+  }, [orders, searchTerm, activeFilter, filterDate])
+
+  // Resetear páginas actuales si cambian los filtros o el término de búsqueda
+  useMemo(() => {
+    setCurrentPage(1)
+    setCurrentArchivedPage(1)
+  }, [searchTerm, activeFilter, filterDate])
+
+  // Obtener pedidos para la página actual
+  const paginatedActiveOrders = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    return activeOrders.slice(startIndex, endIndex)
+  }, [activeOrders, currentPage])
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(activeOrders.length / ITEMS_PER_PAGE)
+  }, [activeOrders])
+
+  // Obtener pedidos archivados para la página actual
+  const paginatedArchivedOrders = useMemo(() => {
+    const startIndex = (currentArchivedPage - 1) * ITEMS_PER_PAGE
+    const endIndex = startIndex + ITEMS_PER_PAGE
+    return archivedOrders.slice(startIndex, endIndex)
+  }, [archivedOrders, currentArchivedPage])
+
+  const totalArchivedPages = useMemo(() => {
+    return Math.ceil(archivedOrders.length / ITEMS_PER_PAGE)
+  }, [archivedOrders])
+
+  const handleArchiveCompleteds = async () => {
+    // Filtrar pedidos que sean de estado Completado o Cancelado y no estén archivados
+    const toArchive = orders.filter(o => 
+      (o.estado === ORDER_STATES.COMPLETED || o.estado === ORDER_STATES.CANCELLED) && 
+      !o.archivado
+    )
+
+    if (toArchive.length === 0) {
+      alert('No hay pedidos completados o cancelados activos para archivar.')
+      return
+    }
+
+    if (window.confirm(`¿Estás seguro de que deseas archivar ${toArchive.length} pedidos completados/cancelados?`)) {
+      try {
+        setIsArchiving(true)
+        await orderService.archiveOrders(toArchive)
+        alert('Pedidos archivados correctamente.')
+      } catch (err) {
+        console.error(err)
+        alert('Ocurrió un error al archivar los pedidos.')
+      } finally {
+        setIsArchiving(false)
+      }
+    }
+  }
 
   // ─── Acciones ──────────────────────────────────────────────────────────
   const handleStatusChange = (order, newStatus, e) => {
     if (e) e.stopPropagation()
     
     if (newStatus === ORDER_STATES.COMPLETED) {
-      const confirmMsg = `¿Estás seguro de marcar el pedido ${order.orderNumber} como Completado?\n\nEsta acción descontará definitivamente el stock del inventario${order.metodoPago === PAYMENT_METHODS.CREDIT ? ' y generará el crédito asociado' : ''}.`
+      const confirmMsg = `¿Estás seguro de marcar el pedido ${order.orderNumber} como Completado?\n\nEsta acción descontará definitivamente el stock del inventario.`
       setConfirmDialog({ 
         order, 
         newStatus, 
@@ -84,6 +368,18 @@ export default function AdminOrders() {
         iconBg: 'bg-green-500/10',
         iconBorder: 'border-green-500/20',
         btnBg: 'bg-green-500'
+      })
+    } else if (newStatus === ORDER_STATES.CREDIT_APPROVED) {
+      const confirmMsg = `¿Estás seguro de Aprobar el Crédito para el pedido ${order.orderNumber}?\n\nEsta acción descontará definitivamente el stock del inventario y generará la cuenta por cobrar en la pestaña de créditos.`
+      setConfirmDialog({ 
+        order, 
+        newStatus, 
+        message: confirmMsg, 
+        title: 'Aprobar Crédito', 
+        iconColor: 'text-blue-500', 
+        iconBg: 'bg-blue-500/10',
+        iconBorder: 'border-blue-500/20',
+        btnBg: 'bg-blue-500'
       })
     } else if (newStatus === ORDER_STATES.CANCELLED) {
       setConfirmDialog({ 
@@ -224,54 +520,308 @@ export default function AdminOrders() {
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank')
   }
 
+  const renderOrderCard = (order) => {
+    const StateIcon = STATE_ICONS[order.estado] || Clock
+    const stateColors = STATE_COLORS[order.estado] || STATE_COLORS[ORDER_STATES.PENDING]
+    const isExpanded = expandedOrderId === order.id
+    const nextStateName = order.estado === ORDER_STATES.PENDING
+      ? (order.metodoPago === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.COMPLETED)
+      : null
+
+    return (
+      <motion.div
+        key={order.id}
+        layout
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className={`bg-surface rounded-3xl border border-app shadow-sm overflow-hidden transition-opacity duration-300 ${
+          order.archivado ? 'opacity-65 hover:opacity-100' : ''
+        }`}
+      >
+        {/* Tarjeta Resumen */}
+        <div
+          onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+          className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:items-center justify-between cursor-pointer hover:bg-surface-2/50 transition-colors"
+        >
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+            <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 font-bold text-xs uppercase tracking-wider w-fit ${stateColors}`}>
+              <StateIcon size={14} />
+              {ORDER_STATE_LABELS[order.estado] || order.estado}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-app text-base">{order.orderNumber}</span>
+                <span className="text-muted text-xs px-2 py-0.5 bg-surface-2 rounded-full border border-app">
+                  {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
+                </span>
+                {order.archivado && (
+                  <span className="text-[10px] font-bold text-muted bg-surface-2 border border-app px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Archivado
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-medium text-app mt-1">
+                {order.cliente?.nombre} <span className="text-muted font-normal">• {order.cliente?.celular}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end gap-6 border-t border-app sm:border-0 pt-4 sm:pt-0 mt-4 sm:mt-0 w-full sm:w-auto">
+            <div className="text-left sm:text-right flex-1 sm:flex-none">
+              <p className="text-xs text-muted mb-0.5">{order.items?.length || 0} art(s).</p>
+              <p className="font-black text-primary text-lg">{formatCurrency(order.total)}</p>
+            </div>
+            <ChevronDown size={20} className={`flex-shrink-0 text-muted transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+          </div>
+        </div>
+
+        {/* Detalles Expandidos */}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-app bg-surface-2/30"
+            >
+              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Columna Info Cliente & Acciones */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin size={14}/> Envío y Fecha</h4>
+                    <p className="text-sm text-app font-medium">{order.cliente?.direccion || 'Recogida en tienda'}</p>
+                    {order.cliente?.barrio && <p className="text-sm text-muted">{order.cliente?.barrio}, {order.cliente?.ciudad}</p>}
+                    <p className="text-sm text-app mt-2">
+                      {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Reciente'}
+                    </p>
+                  </div>
+                  
+                  {order.notes && (
+                    <div>
+                      <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileText size={14}/> Notas</h4>
+                      <p className="text-sm text-app italic bg-surface-2/50 p-3 rounded-xl border border-app/30">{order.notas}</p>
+                    </div>
+                  )}
+
+                  {/* Acciones del Administrador */}
+                  <div className="bg-surface p-5 rounded-3xl border-0 shadow-sm">
+                    <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-4">Acciones Rápidas</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {order.metodoPago === 'credito' ? (
+                        // ─── DISEÑO ESPECIAL PARA PEDIDOS A CRÉDITO ───
+                        <>
+                          <button
+                            onClick={(e) => handleContactClient(order.cliente?.celular, order.orderNumber)}
+                            className="col-span-2 flex items-center justify-center gap-2 h-11 bg-green-500/10 text-green-600 border border-green-500/20 rounded-xl text-sm font-bold hover:bg-green-500/20 transition-colors"
+                          >
+                            <MessageCircle size={16} /> WhatsApp
+                          </button>
+
+                          {order.estado !== ORDER_STATES.COMPLETED && order.estado !== ORDER_STATES.CANCELLED && order.estado !== ORDER_STATES.CREDIT_APPROVED ? (
+                            <>
+                              <button
+                                onClick={(e) => handleStatusChange(order, ORDER_STATES.CANCELLED, e)}
+                                disabled={isPending}
+                                className="col-span-1 h-12 flex justify-center items-center bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-[13px] font-bold hover:bg-red-500/20 active:scale-95 disabled:opacity-50 transition-all"
+                              >
+                                Rechazar Crédito
+                              </button>
+                              <button
+                                onClick={(e) => handleStatusChange(order, ORDER_STATES.CREDIT_APPROVED, e)}
+                                disabled={isPending}
+                                className="col-span-1 h-12 flex justify-center items-center bg-blue-600 text-white rounded-xl text-[13px] font-bold shadow-md hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-all"
+                              >
+                                Aprobar Crédito
+                              </button>
+                            </>
+                          ) : order.estado === ORDER_STATES.CREDIT_APPROVED && (
+                            <div className="col-span-2 flex justify-center items-center h-11 bg-blue-500/10 text-blue-600 border border-blue-500/20 rounded-xl text-sm font-bold">
+                              ✓ Crédito Aprobado
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        // ─── DISEÑO ESTÁNDAR PARA OTROS MÉTODOS DE PAGO ───
+                        <>
+                          <button
+                            onClick={(e) => handleContactClient(order.cliente?.celular, order.orderNumber)}
+                            className="col-span-1 flex items-center justify-center gap-2 h-11 bg-green-500/10 text-green-600 border border-green-500/20 rounded-xl text-sm font-bold hover:bg-green-500/20 transition-colors"
+                          >
+                            <MessageCircle size={16} /> WhatsApp
+                          </button>
+
+                          {order.estado !== ORDER_STATES.COMPLETED && order.estado !== ORDER_STATES.CANCELLED ? (
+                            <>
+                              <button
+                                onClick={(e) => handleStatusChange(order, ORDER_STATES.CANCELLED, e)}
+                                disabled={isPending}
+                                className="col-span-1 h-11 flex justify-center items-center bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm font-bold hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                              >
+                                Cancelar
+                              </button>
+                              {nextStateName && (
+                                <button
+                                  onClick={(e) => handleStatusChange(order, nextStateName, e)}
+                                  disabled={isPending}
+                                  className="col-span-2 h-12 mt-1 flex justify-center items-center rounded-xl text-sm font-bold shadow-md hover:opacity-90 active:scale-95 disabled:opacity-50 transition-all text-white bg-primary"
+                                >
+                                  Mover a {ORDER_STATE_LABELS[nextStateName]}
+                                </button>
+                              )}
+                            </>
+                          ) : order.estado === ORDER_STATES.COMPLETED && order.metodoPago === PAYMENT_METHODS.TRANSFER && (
+                            <div className="col-span-1 flex justify-center items-center h-11 bg-success/10 text-success border border-success/20 rounded-xl text-sm font-bold">
+                              ✓ Pago Validado
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handlePrintReceipt(order) }}
+                        className="col-span-2 flex items-center justify-center gap-2 h-11 bg-surface border border-app rounded-xl text-sm font-bold hover:bg-surface-2 transition-colors mt-2"
+                      >
+                        <FileText size={16} /> Generar Factura PDF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Columna Productos */}
+                <div>
+                  <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5"><Package size={14}/> Productos</h4>
+                  <div className="space-y-2">
+                    {order.items?.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-app/50">
+                        <div className="w-12 h-12 bg-surface-2 rounded-lg flex-shrink-0 overflow-hidden border border-app/50 relative">
+                          {item.imagen || item.imageUrl ? (
+                            <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package size={16} className="text-muted absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-app leading-tight mb-0.5">{item.nombre}</p>
+                          <p className="text-xs text-muted leading-tight">
+                            {item.atributos && Object.values(item.atributos).length > 0
+                              ? Object.values(item.atributos).join(' • ')
+                              : item.talla || item.color 
+                                ? [item.talla, item.color].filter(Boolean).join(' • ')
+                                : 'Única'}
+                          </p>
+                        </div>
+                        <div className="text-right pr-2">
+                          <p className="text-xs text-muted mb-0.5">x{item.cantidad}</p>
+                          <p className="text-sm font-bold text-primary">{formatCurrency(item.precio)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    )
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-4 md:p-8 max-w-6xl mx-auto pb-24 overflow-x-hidden">
       
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center">
-          <ClipboardList size={20} className="text-white" />
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center">
+            <ClipboardList size={20} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-app truncate">Gestión de Pedidos</h1>
+            <p className="text-sm text-muted leading-tight mt-1">Administra y controla los pedidos del negocio.</p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-app truncate">Gestión de Pedidos</h1>
-          <p className="text-sm text-muted leading-tight mt-1">Administra y controla los pedidos del negocio.</p>
-        </div>
+        <button
+          onClick={() => setShowWholesaleModal(true)}
+          className="relative flex items-center gap-2 h-11 px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 flex-shrink-0"
+        >
+          <PackagePlus size={16} />
+          <span>Solicitudes por Encargo</span>
+          {pendingWholesaleCount > 0 && (
+            <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
+              {pendingWholesaleCount}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Métricas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+      {/* Métricas con Rediseño Simétrico */}
+      <div className="grid grid-cols-3 gap-3 md:gap-6 mb-6">
         {metrics.map((m, i) => {
           const Icon = m.icon
+          const isClickable = !!m.path
+          let iconBg = 'bg-warning/10 text-warning border-warning/20'
+          if (m.label === 'Completados') iconBg = 'bg-success/10 text-success border-success/20'
+          if (m.label === 'Créditos') iconBg = 'bg-primary/10 text-primary border-primary/20'
+
           return (
-            <div key={i} className="bg-surface border border-app rounded-2xl p-3 md:p-4 flex flex-col justify-between h-24 shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] md:text-xs font-bold text-muted uppercase tracking-wider truncate mr-1">{m.label}</span>
-                <Icon size={16} className={`flex-shrink-0 ${m.color}`} />
+            <div
+              key={i}
+              onClick={() => isClickable && navigate(m.path)}
+              className={`bg-surface border border-app rounded-2xl p-4 flex flex-col justify-center items-center min-h-[100px] md:min-h-[120px] shadow-sm relative transition-all duration-300 ${
+                isClickable 
+                  ? 'cursor-pointer hover:border-primary/50 hover:shadow-md hover:bg-surface-2/40 active:scale-98' 
+                  : ''
+              }`}
+            >
+              {/* Subtítulo centrado en la parte superior */}
+              <span className="text-[9px] md:text-xs font-black text-muted uppercase tracking-wider mb-2.5 md:mb-3.5 text-center leading-none">
+                {m.label}
+              </span>
+              
+              {/* Valor e Icono a la par en el centro */}
+              <div className="flex items-center justify-center gap-2 md:gap-3">
+                <span className={`text-base md:text-3xl font-black tracking-tight leading-none ${m.color}`}>
+                  {m.value}
+                </span>
+                <div className={`w-7 h-7 md:w-10 md:h-10 rounded-xl ${iconBg} border flex items-center justify-center flex-shrink-0`}>
+                  <Icon size={14} className="md:size-5" />
+                </div>
               </div>
-              <span className={`text-lg md:text-xl font-black truncate ${m.color}`}>{m.value}</span>
             </div>
           )
         })}
       </div>
 
       {/* Buscador y Filtros */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            type="text"
-            placeholder="Buscar por #pedido, nombre o celular..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full h-11 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors text-sm"
-          />
+      <div className="flex flex-col gap-4 mb-3">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              placeholder="Buscar por #pedido, nombre o celular..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-11 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors text-sm"
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-4 gap-1 sm:gap-2 w-full pb-2 md:pb-0">
+
+        <div className="flex flex-row overflow-x-auto scrollbar-none gap-2 pb-2 md:pb-0 max-w-full -mx-4 px-4 md:mx-0 md:px-0 scroll-smooth">
           {filters.map(f => (
             <button
               key={f}
-              onClick={() => setActiveFilter(f)}
-              className={`flex items-center justify-center text-center px-1 py-2 h-11 rounded-xl text-[10px] min-[360px]:text-[11px] sm:text-sm font-bold transition-all leading-none ${
+              onClick={() => { 
+                setActiveFilter(f); 
+                setShowArchived(false);
+                setCurrentPage(1);
+                setCurrentArchivedPage(1);
+                if (f !== ORDER_STATES.COMPLETED) setFilterDate('');
+              }}
+              className={`flex-shrink-0 px-4 py-2 h-11 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeFilter === f
                   ? 'bg-primary text-white shadow-md'
                   : 'bg-surface border border-app text-muted hover:text-app'
@@ -286,173 +836,227 @@ export default function AdminOrders() {
       {/* Lista */}
       {isLoading ? (
         <div className="text-center py-10 text-muted">Cargando pedidos...</div>
-      ) : filteredOrders.length === 0 ? (
+      ) : activeOrders.length === 0 && archivedOrders.length === 0 ? (
         <div className="text-center py-10 bg-surface rounded-3xl border border-app text-muted">No se encontraron pedidos.</div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          <AnimatePresence>
-            {filteredOrders.map(order => {
-              const StateIcon = STATE_ICONS[order.estado] || Clock
-              const stateColors = STATE_COLORS[order.estado] || STATE_COLORS[ORDER_STATES.PENDING]
-              const isExpanded = expandedOrderId === order.id
-              const nextStateName = NEXT_STATES[order.estado]
+        <div className="space-y-6">
+           {/* Lista de Pedidos Activos Paginados */}
+          {paginatedActiveOrders.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4">
+              <AnimatePresence>
+                {paginatedActiveOrders.map(order => renderOrderCard(order))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="text-center py-10 bg-surface rounded-3xl border border-app text-muted">
+              No hay pedidos activos en este estado.
+            </div>
+          )}
 
-              return (
-                <motion.div
-                  key={order.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden"
+          {/* Componente de Paginación Premium */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface border border-app p-4 rounded-2xl shadow-sm mt-4">
+              <span className="text-xs font-bold text-muted">
+                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, activeOrders.length)} de {activeOrders.length} pedidos
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 h-9 rounded-xl border border-app bg-surface hover:bg-surface-2 text-xs font-bold text-app transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 cursor-pointer"
                 >
-                  {/* Tarjeta Resumen */}
-                  <div
-                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="p-4 sm:p-5 flex flex-col sm:flex-row gap-4 sm:items-center justify-between cursor-pointer hover:bg-surface-2/50 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
-                      <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 font-bold text-xs uppercase tracking-wider w-fit ${stateColors}`}>
-                        <StateIcon size={14} />
-                        {ORDER_STATE_LABELS[order.estado] || order.estado}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-app text-base">{order.orderNumber}</span>
-                          <span className="text-muted text-xs px-2 py-0.5 bg-surface-2 rounded-full border border-app">
-                            {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-app mt-1">
-                          {order.cliente?.nombre} <span className="text-muted font-normal">• {order.cliente?.celular}</span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between sm:justify-end gap-6 border-t border-app sm:border-0 pt-4 sm:pt-0 mt-4 sm:mt-0 w-full sm:w-auto">
-                      <div className="text-left sm:text-right flex-1 sm:flex-none">
-                        <p className="text-xs text-muted mb-0.5">{order.items?.length || 0} art(s).</p>
-                        <p className="font-black text-primary text-lg">{formatCurrency(order.total)}</p>
-                      </div>
-                      <ChevronDown size={20} className={`flex-shrink-0 text-muted transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                    </div>
-                  </div>
-
-                  {/* Detalles Expandidos */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-app bg-surface-2/30"
+                  Anterior
+                </button>
+                
+                {Array.from({ length: totalPages }, (_, idx) => {
+                  const pageNum = idx + 1
+                  // Mostrar primera, última, y páginas adyacentes a la actual
+                  if (
+                    pageNum === 1 || 
+                    pageNum === totalPages || 
+                    Math.abs(pageNum - currentPage) <= 1
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-9 h-9 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
+                          currentPage === pageNum
+                            ? 'bg-primary text-white shadow-sm'
+                            : 'border border-app bg-surface hover:bg-surface-2 text-app'
+                        }`}
                       >
-                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          
-                          {/* Columna Info Cliente & Acciones */}
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin size={14}/> Envío y Fecha</h4>
-                              <p className="text-sm text-app font-medium">{order.cliente?.direccion || 'Recogida en tienda'}</p>
-                              {order.cliente?.barrio && <p className="text-sm text-muted">{order.cliente?.barrio}, {order.cliente?.ciudad}</p>}
-                              <p className="text-sm text-app mt-2">
-                                {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Reciente'}
-                              </p>
-                            </div>
-                            
-                            {order.notas && (
-                              <div>
-                                <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileText size={14}/> Notas</h4>
-                                <p className="text-sm text-app italic bg-surface p-3 rounded-xl border border-app/50">{order.notas}</p>
-                              </div>
-                            )}
+                        {pageNum}
+                      </button>
+                    )
+                  }
+                  
+                  // Mostrar elipsis para indicar páginas intermedias omitidas
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return <span key={pageNum} className="text-xs text-muted px-1">...</span>
+                  }
+                  
+                  return null
+                })}
 
-                            {/* Acciones del Administrador */}
-                            <div className="bg-surface p-4 rounded-2xl border border-app/50">
-                              <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-4">Acciones Rápidas</h4>
-                              <div className="grid grid-cols-2 gap-3">
-                                <button
-                                  onClick={(e) => handleContactClient(order.cliente?.celular, order.orderNumber)}
-                                  className="col-span-1 flex items-center justify-center gap-2 h-11 bg-green-500/10 text-green-600 border border-green-500/20 rounded-xl text-sm font-bold hover:bg-green-500/20 transition-colors"
-                                >
-                                  <MessageCircle size={16} /> WhatsApp
-                                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 h-9 rounded-xl border border-app bg-surface hover:bg-surface-2 text-xs font-bold text-app transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 cursor-pointer"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
 
-                                {order.estado !== ORDER_STATES.COMPLETED && order.estado !== ORDER_STATES.CANCELLED ? (
-                                  <>
-                                    <button
-                                      onClick={(e) => handleStatusChange(order, ORDER_STATES.CANCELLED, e)}
-                                      disabled={isPending}
-                                      className="col-span-1 h-11 flex justify-center items-center bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm font-bold hover:bg-red-500/20 transition-colors disabled:opacity-50"
-                                    >
-                                      Cancelar
-                                    </button>
-                                    {nextStateName && (
-                                      <button
-                                        onClick={(e) => handleStatusChange(order, nextStateName, e)}
-                                        disabled={isPending}
-                                        className="col-span-2 h-12 mt-1 flex justify-center items-center bg-primary text-white rounded-xl text-sm font-bold shadow-md hover:opacity-90 active:scale-95 disabled:opacity-50 transition-all"
-                                      >
-                                        Mover a {ORDER_STATE_LABELS[nextStateName]}
-                                      </button>
-                                    )}
-                                  </>
-                                ) : order.estado === ORDER_STATES.COMPLETED && order.metodoPago === PAYMENT_METHODS.TRANSFER && (
-                                  <div className="col-span-1 flex justify-center items-center h-11 bg-success/10 text-success border border-success/20 rounded-xl text-sm font-bold">
-                                    ✓ Pago Validado
-                                  </div>
-                                )}
+          {/* Contenedor de Botones de Archivados e Historial al final de la vista de listado - Exclusivo para COMPLETADOS */}
+          {activeFilter === ORDER_STATES.COMPLETED && (
+            <div className="flex flex-col items-center gap-4 mt-8 pt-4 border-t border-app/40 w-full">
+              <div className="flex flex-row flex-wrap justify-center items-center gap-3 w-full">
+                {/* Botón de Archivar Completados activos */}
+                <button
+                  onClick={handleArchiveCompleteds}
+                  disabled={isArchiving}
+                  className="flex items-center justify-center gap-2 h-11 px-5 bg-surface border border-app hover:bg-surface-2 text-app rounded-xl text-xs font-bold shadow-sm hover:border-primary transition-all active:scale-95 disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+                >
+                  <Archive size={14} className="text-muted" />
+                  <span>{isArchiving ? 'Archivando...' : 'Archivar Historial'}</span>
+                </button>
 
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handlePrintReceipt(order) }}
-                                  className="col-span-2 flex items-center justify-center gap-2 h-11 bg-surface-2 text-app border border-app rounded-xl text-sm font-bold hover:bg-surface transition-colors mt-2"
-                                >
-                                  <FileText size={16} /> Generar Factura PDF
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                {/* Botón "Ver archivados" con datepicker premium */}
+                <button
+                  ref={triggerRef}
+                  onClick={() => setPickerOpen(v => !v)}
+                  className={`flex items-center justify-center gap-2 h-11 px-5 rounded-xl text-xs font-bold shadow-sm border transition-all active:scale-95 cursor-pointer uppercase tracking-wider ${
+                    filterDate 
+                      ? 'bg-primary text-white border-primary' 
+                      : 'bg-surface border border-app hover:bg-surface-2 text-app hover:border-primary'
+                  }`}
+                >
+                  <Calendar size={14} />
+                  <span>
+                    {filterDate 
+                      ? `Archivados: ${new Date(filterDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
+                      : 'Ver archivados'}
+                  </span>
+                </button>
 
-                          {/* Columna Productos */}
-                          <div>
-                            <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5"><Package size={14}/> Productos</h4>
-                            <div className="space-y-2">
-                              {order.items?.map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-app/50">
-                                  <div className="w-12 h-12 bg-surface-2 rounded-lg flex-shrink-0 overflow-hidden border border-app/50 relative">
-                                    {item.imagen || item.imageUrl ? (
-                                      <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
-                                    ) : (
-                                      <Package size={16} className="text-muted absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                                    )}
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="text-sm font-bold text-app leading-tight mb-0.5">{item.nombre}</p>
-                                    <p className="text-xs text-muted leading-tight">
-                                      {item.atributos && Object.values(item.atributos).length > 0
-                                        ? Object.values(item.atributos).join(' • ')
-                                        : item.talla || item.color 
-                                          ? [item.talla, item.color].filter(Boolean).join(' • ')
-                                          : 'Única'}
-                                    </p>
-                                  </div>
-                                  <div className="text-right pr-2">
-                                    <p className="text-xs text-muted mb-0.5">x{item.cantidad}</p>
-                                    <p className="text-sm font-bold text-primary">{formatCurrency(item.precio)}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
+                <CustomDatePickerPortal
+                  open={pickerOpen}
+                  setOpen={setPickerOpen}
+                  value={filterDate}
+                  onChange={(val) => {
+                    setFilterDate(val)
+                    if (val) setShowArchived(true)
+                  }}
+                  triggerRef={triggerRef}
+                />
+
+                {/* Botón para limpiar filtro de fecha si hay uno seleccionado */}
+                {filterDate && (
+                  <button
+                    onClick={() => {
+                      setFilterDate('')
+                      setShowArchived(false)
+                    }}
+                    className="flex items-center justify-center gap-1.5 h-11 px-4 rounded-xl text-xs font-bold border border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
+                  >
+                    <span>Limpiar Fecha</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Listado de Pedidos Archivados (anteriores) filtrados */}
+              <AnimatePresence>
+                {(showArchived || filterDate) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="w-full space-y-4 overflow-hidden mt-4"
+                  >
+                    <div className="flex items-center gap-3 px-1 my-3">
+                      <div className="h-[1px] bg-app flex-1 opacity-20"></div>
+                      <span className="text-[10px] font-black text-muted uppercase tracking-widest">
+                        {filterDate 
+                          ? `Pedidos Archivados del ${new Date(filterDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                          : 'Todos los pedidos archivados'}
+                      </span>
+                      <div className="h-[1px] bg-app flex-1 opacity-20"></div>
+                    </div>
+
+                    {paginatedArchivedOrders.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
+                          {paginatedArchivedOrders.map(order => renderOrderCard(order))}
                         </div>
-                      </motion.div>
+
+                        {/* Paginador para Pedidos Archivados */}
+                        {totalArchivedPages > 1 && (
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface border border-app p-4 rounded-2xl shadow-sm mt-4">
+                            <span className="text-xs font-bold text-muted">
+                              Mostrando {((currentArchivedPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentArchivedPage * ITEMS_PER_PAGE, archivedOrders.length)} de {archivedOrders.length} archivados
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => setCurrentArchivedPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentArchivedPage === 1}
+                                className="px-3 h-9 rounded-xl border border-app bg-surface hover:bg-surface-2 text-xs font-bold text-app transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 cursor-pointer"
+                              >
+                                Anterior
+                              </button>
+                              
+                              {Array.from({ length: totalArchivedPages }, (_, idx) => {
+                                const pageNum = idx + 1
+                                if (
+                                  pageNum === 1 || 
+                                  pageNum === totalArchivedPages || 
+                                  Math.abs(pageNum - currentArchivedPage) <= 1
+                                ) {
+                                  return (
+                                    <button
+                                      key={pageNum}
+                                      onClick={() => setCurrentArchivedPage(pageNum)}
+                                      className={`w-9 h-9 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer ${
+                                        currentArchivedPage === pageNum
+                                          ? 'bg-primary text-white shadow-sm'
+                                          : 'border border-app bg-surface hover:bg-surface-2 text-app'
+                                      }`}
+                                    >
+                                      {pageNum}
+                                    </button>
+                                  )
+                                }
+                                
+                                if (pageNum === 2 || pageNum === totalArchivedPages - 1) {
+                                  return <span key={pageNum} className="text-xs text-muted px-1">...</span>
+                                }
+                                
+                                return null
+                              })}
+
+                              <button
+                                onClick={() => setCurrentArchivedPage(prev => Math.min(prev + 1, totalArchivedPages))}
+                                disabled={currentArchivedPage === totalArchivedPages}
+                                className="px-3 h-9 rounded-xl border border-app bg-surface hover:bg-surface-2 text-xs font-bold text-app transition-all disabled:opacity-40 disabled:pointer-events-none active:scale-95 cursor-pointer"
+                              >
+                                Siguiente
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-sm text-muted">
+                        No hay pedidos archivados para esta fecha.
+                      </div>
                     )}
-                  </AnimatePresence>
-                </motion.div>
-              )
-            })}
-          </AnimatePresence>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       )}
 
@@ -499,6 +1103,252 @@ export default function AdminOrders() {
         )}
       </AnimatePresence>
 
+      {/* Modal de Solicitudes al por Mayor */}
+      <WholesaleRequestsModal
+        isOpen={showWholesaleModal}
+        onClose={() => setShowWholesaleModal(false)}
+        requests={wholesaleRequests}
+        onUpdateStatus={(id, status) => updateWholesaleStatus({ id, newStatus: status })}
+      />
+
     </motion.div>
+  )
+}
+
+function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
+  const [filter, setFilter] = useState('Todos')
+  const [typeFilter, setTypeFilter] = useState('Todos')
+
+  // Bloquear scroll de la página trasera cuando está abierto
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'unset'
+    }
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [isOpen])
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter(r => {
+      const matchState = filter === 'Todos' || r.estado === filter
+      const isEncargo = r.tipo === 'encargo'
+      const matchType = typeFilter === 'Todos' || 
+                        (typeFilter === 'mayorista' && !isEncargo) ||
+                        (typeFilter === 'encargo' && isEncargo)
+      return matchState && matchType
+    })
+  }, [requests, filter, typeFilter])
+
+  if (!isOpen) return null
+
+  const getStatusBadge = (state) => {
+    switch (state) {
+      case 'pendiente':
+        return 'text-warning bg-warning/10 border-warning/20'
+      case 'revisando':
+        return 'text-blue-500 bg-blue-500/10 border-blue-500/20'
+      case 'aprobado':
+        return 'text-success bg-success/10 border-success/20'
+      case 'rechazado':
+        return 'text-red-500 bg-red-500/10 border-red-500/20'
+      default:
+        return 'text-muted bg-surface-2'
+    }
+  }
+
+  const getStatusLabel = (state) => {
+    switch (state) {
+      case 'pendiente': return 'Pendiente'
+      case 'revisando': return 'En Revisión'
+      case 'aprobado': return 'Aprobado'
+      case 'rechazado': return 'Rechazado'
+      default: return state
+    }
+  }
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-end">
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+      />
+
+      {/* Panel deslizable lateral */}
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+        className="relative w-full max-w-md h-full bg-surface border-l border-app shadow-2xl flex flex-col z-10"
+      >
+        {/* Cabecera */}
+        <div className="p-6 border-b border-app flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <PackagePlus size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-app">Solicitudes por Encargo</h2>
+              <p className="text-xs text-muted">Pedidos especiales y ventas al por mayor.</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors cursor-pointer"
+          >
+            <XCircle size={20} />
+          </button>
+        </div>
+
+        {/* Filtros de Tipo */}
+        <div className="px-4 pt-4 pb-2 border-b border-app flex flex-col gap-2 bg-surface-2/30">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Filtrar por tipo:</p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+            {[
+              { id: 'Todos', label: 'Todos los tipos' },
+              { id: 'mayorista', label: 'Al por Mayor' },
+              { id: 'encargo', label: 'Por Encargo (Sin Stock)' }
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTypeFilter(t.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                  typeFilter === t.id
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-surface border-app text-muted hover:text-app'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filtros de Estado */}
+        <div className="px-4 py-3 border-b border-app flex flex-col gap-2 bg-surface-2/10">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Filtrar por estado:</p>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+            {['Todos', 'pendiente', 'revisando', 'aprobado', 'rechazado'].map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
+                  filter === f
+                    ? 'bg-primary text-white border-primary shadow-xs'
+                    : 'bg-surface border-app text-muted hover:text-app'
+                }`}
+              >
+                {f === 'Todos' ? 'Todos' : getStatusLabel(f)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {filteredRequests.length === 0 ? (
+            <div className="text-center py-12 text-muted bg-surface-2/30 rounded-2xl border border-dashed border-app">
+              <p className="text-2xl mb-2">📦</p>
+              <p className="text-xs font-bold">No hay solicitudes en esta categoría.</p>
+            </div>
+          ) : (
+            filteredRequests.map(req => {
+              const formattedDate = req.createdAt
+                ? (req.createdAt.toDate ? req.createdAt.toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(req.createdAt).toLocaleDateString('es-ES'))
+                : 'Reciente'
+
+              const isEncargo = req.tipo === 'encargo'
+              const concept = isEncargo ? 'por encargo' : 'al por mayor'
+              const waMsg = encodeURIComponent(`Hola ${req.clienteNombre}, te escribo del soporte de la tienda sobre tu solicitud ${concept} del producto "${req.productoNombre}" (Cantidad: ${req.cantidad}).`)
+
+              return (
+                <div key={req.id} className="bg-surface-2/40 border border-app rounded-2xl p-4 shadow-xs relative space-y-3">
+                  
+                  {/* Fila superior: Tipo + Estado */}
+                  <div className="flex justify-between items-center">
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${
+                      isEncargo 
+                        ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' 
+                        : 'text-primary bg-primary/10 border-primary/20'
+                    }`}>
+                      {isEncargo ? 'Por Encargo' : 'Al Por Mayor'}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${getStatusBadge(req.estado)}`}>
+                      {getStatusLabel(req.estado)}
+                    </span>
+                  </div>
+
+                  {/* Detalle Producto */}
+                  <div>
+                    <h3 className="font-bold text-app text-sm leading-tight">{req.productoNombre}</h3>
+                    <p className="text-[10px] text-muted font-semibold mt-1">Solicitado: {formattedDate}</p>
+                  </div>
+
+                  {/* Cantidad y observaciones */}
+                  <div className="bg-surface border border-app rounded-xl p-3 space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted font-medium">Cantidad requerida:</span>
+                      <span className="font-black text-primary text-sm">{req.cantidad} unidades</span>
+                    </div>
+                    {req.observaciones && (
+                      <div className="pt-2 border-t border-app">
+                        <p className="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">Notas del cliente:</p>
+                        <p className="text-xs text-app leading-relaxed italic bg-surface-2 p-2 rounded-lg">"{req.observaciones}"</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fila de cliente y contacto */}
+                  <div className="flex items-center justify-between pt-2 border-t border-app">
+                    <div>
+                      <p className="text-xs font-bold text-app">{req.clienteNombre}</p>
+                      <p className="text-[10px] text-muted font-medium">Cel: {req.clienteCelular}</p>
+                    </div>
+                    <a
+                      href={`https://wa.me/${req.clienteCelular.replace(/\D/g, '')}?text=${waMsg}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors font-bold text-xs shadow-xs"
+                    >
+                      <Phone size={12} />
+                      Chat WhatsApp
+                    </a>
+                  </div>
+
+                  {/* Selector de estados para el admin */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-app">
+                    <span className="text-[10px] font-bold text-muted uppercase">Estado:</span>
+                    <div className="flex-1 grid grid-cols-3 gap-1">
+                      {['revisando', 'aprobado', 'rechazado'].map(st => (
+                        <button
+                          key={st}
+                          disabled={req.estado === st}
+                          onClick={() => onUpdateStatus(req.id, st)}
+                          className={`h-7 rounded-lg text-[9px] font-extrabold transition-all border cursor-pointer uppercase ${
+                            req.estado === st
+                              ? 'bg-app border-app text-muted opacity-50 pointer-events-none'
+                              : 'bg-surface border-app text-app hover:border-primary/50'
+                          }`}
+                        >
+                          {st === 'revisando' ? 'Revisar' : st === 'aprobado' ? 'Aprobar' : 'Rechazar'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </motion.div>
+    </div>,
+    document.body
   )
 }

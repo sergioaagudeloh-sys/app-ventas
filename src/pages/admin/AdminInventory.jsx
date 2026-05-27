@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, Eye, EyeOff, Image as ImageIcon } from 'lucide-react'
+import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, Eye, EyeOff, Image as ImageIcon, Check, AlertCircle } from 'lucide-react'
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useToggleProductStatus, useCategories } from '../../hooks/useInventory'
 import CategoryManager from '../../components/admin/inventory/CategoryManager'
 import ProductFormModal from '../../components/admin/inventory/ProductFormModal'
@@ -21,6 +21,9 @@ export default function AdminInventory() {
   // Modal de producto
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+
+  // Modal de confirmación de eliminación
+  const [productToDelete, setProductToDelete] = useState(null)
   
   // Toast de notificación
   const [toastMessage, setToastMessage] = useState(null)
@@ -185,7 +188,7 @@ export default function AdminInventory() {
                     {filteredProducts.map(product => {
                       const category = categories.find(c => c.id === product.categoriaId)
                       const totalStock = product.variantes.reduce((sum, v) => sum + v.stock, 0)
-                      const isLowStock = totalStock <= product.umbralAlerta
+                      const isLowStock = product.variantes.some(v => v.stock <= product.umbralAlerta)
 
                       return (
                         <tr key={product.id} className="hover:bg-surface-2/30 transition-colors group">
@@ -248,11 +251,7 @@ export default function AdminInventory() {
                                 <Edit2 size={16} />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (window.confirm(`¿Estás seguro de eliminar ${product.nombre}?`)) {
-                                    deleteProduct(product.id)
-                                  }
-                                }}
+                                onClick={() => setProductToDelete(product)}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                 title="Eliminar"
                               >
@@ -271,7 +270,7 @@ export default function AdminInventory() {
                   {filteredProducts.map(product => {
                     const category = categories.find(c => c.id === product.categoriaId)
                     const totalStock = product.variantes.reduce((sum, v) => sum + v.stock, 0)
-                    const isLowStock = totalStock <= product.umbralAlerta
+                    const isLowStock = product.variantes.some(v => v.stock <= product.umbralAlerta)
 
                     return (
                       <div key={product.id} className="bg-surface-2 p-4 rounded-2xl border border-app shadow-sm flex flex-col gap-4 relative">
@@ -285,11 +284,7 @@ export default function AdminInventory() {
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`¿Estás seguro de eliminar ${product.nombre}?`)) {
-                                deleteProduct(product.id)
-                              }
-                            }}
+                            onClick={() => setProductToDelete(product)}
                             className="w-8 h-8 flex items-center justify-center rounded-xl bg-surface border border-app text-muted hover:text-error transition-colors shadow-sm"
                           >
                             <Trash2 size={14} />
@@ -365,14 +360,69 @@ export default function AdminInventory() {
             initial={{ opacity: 0, y: 50, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: 20, x: '-50%' }}
-            className={`fixed bottom-6 left-1/2 px-6 py-3 rounded-full shadow-2xl font-bold text-sm z-[100] flex items-center gap-2 ${
+            className={`fixed bottom-6 left-1/2 px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 z-[100] text-sm font-extrabold transition-all duration-300 w-[90%] max-w-sm ${
               toastMessage.type === 'success' 
-                ? 'bg-success text-white' 
-                : 'bg-error text-white'
+                ? 'bg-surface/85 border-primary/20 text-app shadow-primary/10' 
+                : 'bg-surface/85 border-red-500/20 text-app shadow-red-500/10'
             }`}
           >
-            {toastMessage.msg}
+            {toastMessage.type === 'success' ? (
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Check size={14} className="stroke-[3]" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                <AlertCircle size={14} className="stroke-[3]" />
+              </div>
+            )}
+            <span className="text-app mt-0.5">{toastMessage.msg}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de confirmación de eliminación */}
+      <AnimatePresence>
+        {productToDelete && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setProductToDelete(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface border border-app p-6 rounded-3xl w-full max-w-sm relative z-10 shadow-2xl flex flex-col items-center text-center"
+            >
+              <div className="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-4">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-app mb-2">¿Eliminar Producto?</h3>
+              <p className="text-muted mb-6 leading-relaxed">
+                Estás a punto de eliminar <span className="font-bold text-app">{productToDelete.nombre}</span>. Esta acción no se puede deshacer.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setProductToDelete(null)}
+                  className="flex-1 py-3 rounded-xl font-bold text-app bg-surface-2 border border-app hover:bg-surface transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    deleteProduct(productToDelete.id)
+                    setProductToDelete(null)
+                  }}
+                  className="flex-1 py-3 rounded-xl font-bold text-white bg-error hover:bg-red-600 transition-colors shadow-lg shadow-error/20"
+                >
+                  Sí, eliminar
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </motion.div>

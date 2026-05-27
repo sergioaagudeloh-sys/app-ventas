@@ -52,8 +52,29 @@ export function useProducts(onlyActive = false) {
   return useQuery({
     queryKey: [...KEYS.products, { onlyActive }],
     queryFn: async () => {
-      const products = await inventoryService.getProducts(onlyActive)
+      const rawProducts = await inventoryService.getProducts(onlyActive)
       
+      // Enriquecer productos con descuento directo de inventario
+      const products = rawProducts.map(p => {
+        if (p.discountActive && (p.discountValue || 0) > 0) {
+          const base = p.precioBase || 0
+          const val = p.discountValue || 0
+          const finalPrice = Math.max(0, p.discountType === 'percentage' ? base - (base * val) / 100 : base - val)
+          
+          return {
+            ...p,
+            tienePromocion: true,
+            precioPromo: finalPrice,
+            promocion: {
+              discountType: p.discountType || 'percentage',
+              discountValue: val,
+              glowEffect: true // Activar efecto Glow premium de forma automática para el producto
+            }
+          }
+        }
+        return p
+      })
+
       // Pre-cargar imágenes en segundo plano silenciosamente
       if (typeof window !== 'undefined') {
         setTimeout(() => {

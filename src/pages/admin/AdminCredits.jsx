@@ -203,7 +203,7 @@ export default function AdminCredits() {
                           ) : (
                             <div className="space-y-3">
                               {credit.abonos.map((abono, idx) => (
-                                <div key={idx} className="flex justify-between items-center bg-surface p-3 rounded-xl border border-app/50">
+                                <div key={idx} className="flex justify-between items-center bg-surface p-3 rounded-xl border border-app">
                                   <div>
                                     <p className="text-sm font-bold text-success">+{formatCurrency(abono.monto)}</p>
                                     {abono.nota && <p className="text-xs text-muted mt-0.5">Nota: {abono.nota}</p>}
@@ -248,7 +248,7 @@ export default function AdminCredits() {
               </p>
 
               <form onSubmit={handleAddPayment} className="space-y-4">
-                <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex justify-between items-center">
+                <div className="bg-warning-soft border border-warning-soft rounded-2xl p-4 flex justify-between items-center">
                   <span className="text-sm font-semibold text-warning">Saldo Actual:</span>
                   <span className="text-xl font-black text-warning">
                     {formatCurrency(selectedCredit.saldoPendiente)}
@@ -261,7 +261,7 @@ export default function AdminCredits() {
                     type="number"
                     value={paymentMonto}
                     onChange={(e) => setPaymentMonto(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary text-lg font-bold"
+                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-primary-soft text-app focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-lg font-bold"
                     placeholder="Ej: 50000"
                   />
                   {paymentError && <p className="text-xs text-error mt-1">{paymentError}</p>}
@@ -273,7 +273,7 @@ export default function AdminCredits() {
                     type="text"
                     value={paymentNota}
                     onChange={(e) => setPaymentNota(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary text-sm"
+                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-primary-soft text-app focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all text-sm"
                     placeholder="Ej: Pago en efectivo en el local"
                   />
                 </div>

@@ -25,6 +25,14 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
     toggleFavorite(userId, product.id)
   }
 
+  // Estilos dinámicos para el efecto brillo (Glow) usando color-mix
+  const glowStyle = product.tienePromocion && product.promocion?.glowEffect
+    ? {
+        boxShadow: '0 0 15px color-mix(in srgb, var(--color-primary) 35%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--color-primary) 50%, transparent)',
+      }
+    : {}
+
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -32,6 +40,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
       className={`bg-surface rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer border border-app group ${
         layout === 'list' ? 'flex flex-row h-32' : 'flex flex-col'
       }`}
+      style={glowStyle}
       onClick={() => onOpenDetail(product)}
     >
       {/* Imagen */}
@@ -49,6 +58,22 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
             <ImageIcon size={32} className="opacity-50 mb-2" />
             <span className="text-xs">Sin imagen</span>
           </div>
+        )}
+
+        {/* Badge de Promoción / Descuento */}
+        {product.tienePromocion && (
+          <span 
+            className="absolute top-3 left-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-primary text-white shadow-md z-10 border border-primary-soft"
+            style={{ borderRadius: 'var(--radius-base)' }}
+          >
+            {product.isTemporal ? (
+              'COMBO'
+            ) : product.promocion?.discountType === 'percentage' ? (
+              `-${product.promocion.discountValue}%`
+            ) : (
+              'OFERTA'
+            )}
+          </span>
         )}
 
         {/* Botón Favorito Absoluto */}
@@ -74,20 +99,36 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
 
       {/* Info */}
       <div className={`p-4 flex-1 flex flex-col justify-between min-w-0`}>
-        <h3 className="font-bold text-app text-sm leading-tight mb-1 truncate" title={product.nombre}>
-          {layout === 'list' ? product.nombre : truncate(product.nombre, 40)}
-        </h3>
+        <div>
+          <h3 className="font-bold text-app text-sm leading-tight mb-1 truncate" title={product.nombre}>
+            {layout === 'list' ? product.nombre : truncate(product.nombre, 40)}
+          </h3>
+          <p className="text-xs text-muted mb-2">{product.categoria}</p>
+          
+          {layout === 'list' && (
+            <p className="text-xs text-muted line-clamp-2 mt-1 mb-2">
+              {product.descripcion || 'Sin descripción'}
+            </p>
+          )}
+        </div>
         
-        {layout === 'list' && (
-          <p className="text-xs text-muted line-clamp-2 mt-1 mb-2">
-            {product.descripcion || 'Sin descripción'}
-          </p>
-        )}
-        
-        <div className="flex items-end justify-between mt-auto">
-          <p className="font-bold text-primary text-base">
-            {formatCurrency(product.precioBase)}
-          </p>
+        <div className="flex items-center justify-between mt-auto pt-2 gap-2">
+          <div>
+            {product.tienePromocion && product.precioPromo < product.precioBase ? (
+              <>
+                <p className="text-xs text-muted line-through font-semibold leading-none mb-1">
+                  {formatCurrency(product.precioBase)}
+                </p>
+                <p className="font-bold text-primary text-base leading-none">
+                  {formatCurrency(product.precioPromo)}
+                </p>
+              </>
+            ) : (
+              <p className="font-bold text-primary text-base leading-none">
+                {formatCurrency(product.precioBase)}
+              </p>
+            )}
+          </div>
           <button
             className="w-8 h-8 rounded-full bg-action text-white flex items-center justify-center shadow-md shadow-action active:scale-90 transition-transform shrink-0"
             aria-label="Ver opciones"

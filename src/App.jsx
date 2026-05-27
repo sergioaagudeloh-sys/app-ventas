@@ -11,6 +11,7 @@ import useAppConfigStore from './store/appConfigStore'
 import useAppConfigSync from './hooks/useAppConfigSync'
 import useAuthInit from './hooks/useAuthInit'
 import { getActiveColors } from './constants/palettes'
+import { FONTS } from './constants/fonts'
 
 // ─── Cliente de TanStack Query (caché global, reintentos automáticos) ─────────
 const queryClient = new QueryClient({
@@ -43,15 +44,7 @@ function AppErrorFallback({ error }) {
   )
 }
 
-// ─── Fuentes disponibles para cargar dinámicamente ────────────────────────────
-const FONTS = {
-  inter: { name: 'Inter', url: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap' },
-  poppins: { name: 'Poppins', url: 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap' },
-  outfit: { name: 'Outfit', url: 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap' },
-  nunito: { name: 'Nunito', url: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap' },
-  playfair: { name: 'Playfair Display', url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&display=swap' },
-  roboto: { name: 'Roboto', url: 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap' },
-}
+// ─── FONTS se importa desde constants/fonts.js ────────────────────────────────
 
 // ─── Componente que aplica el tema y modo oscuro desde el store ───────────────
 function ThemeApplier() {

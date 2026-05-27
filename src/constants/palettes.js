@@ -20,186 +20,212 @@ const DEFAULT_DARK_BORDER = '#334155'
 
 // Estructura de paletas avanzadas
 export const ADVANCED_PALETTES = {
-  'minimal-dark': {
-    id: 'minimal-dark',
-    name: 'Minimal Dark',
+  'rosa-elegante': {
+    id: 'rosa-elegante',
+    name: 'Rosa Elegante',
     light: {
-      primary: '#334155',
-      secondary: '#475569',
-      accent: '#0f172a',
-      bg: '#f8fafc',
+      primary: '#e91e8c',
+      secondary: '#f48fb1',
+      accent: '#ff4081',
+      bg: '#fff5f9',
       surface: '#ffffff',
-      surface2: '#f1f5f9',
-      text: '#0f172a',
-      textMuted: '#64748b',
-      border: '#e2e8f0'
+      surface2: '#fce4ec',
+      text: '#1a0a12',
+      textMuted: '#6d4c5e',
+      border: '#f8bbd0'
     },
     dark: {
-      primary: '#e2e8f0',
-      secondary: '#cbd5e1',
-      accent: '#f8fafc',
-      bg: '#0f172a',
-      surface: '#1e293b',
-      surface2: '#334155',
-      text: '#f8fafc',
-      textMuted: '#94a3b8',
-      border: '#334155'
+      primary: '#e91e8c',
+      secondary: '#f48fb1',
+      accent: '#ff4081',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
+      border: '#333333'
     }
   },
-  'ocean-blue': {
-    id: 'ocean-blue',
-    name: 'Ocean Blue',
+  'lila-suave': {
+    id: 'lila-suave',
+    name: 'Lila Suave',
     light: {
-      primary: '#0ea5e9',
-      secondary: '#38bdf8',
-      accent: '#0284c7',
-      bg: '#f0f9ff',
+      primary: '#9c27b0',
+      secondary: '#ce93d8',
+      accent: '#e040fb',
+      bg: '#fdf6ff',
       surface: '#ffffff',
-      surface2: '#e0f2fe',
-      text: '#0c4a6e',
-      textMuted: '#0369a1',
-      border: '#bae6fd'
+      surface2: '#f3e5f5',
+      text: '#12001a',
+      textMuted: '#5e3570',
+      border: '#e1bee7'
     },
     dark: {
-      primary: '#0ea5e9',
-      secondary: '#38bdf8',
-      accent: '#7dd3fc',
-      bg: '#082f49',
-      surface: '#0c4a6e',
-      surface2: '#075985',
-      text: '#f0f9ff',
-      textMuted: '#bae6fd',
-      border: '#075985'
+      primary: '#9c27b0',
+      secondary: '#ce93d8',
+      accent: '#e040fb',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
+      border: '#333333'
     }
   },
-  'luxury-gold': {
-    id: 'luxury-gold',
-    name: 'Luxury Gold',
+  'azul-medianoche': {
+    id: 'azul-medianoche',
+    name: 'Azul Medianoche',
     light: {
-      primary: '#d4af37',
-      secondary: '#f3e5ab',
-      accent: '#aa8c2c',
-      bg: '#fdfbf7',
+      primary: '#1565c0',
+      secondary: '#64b5f6',
+      accent: '#2979ff',
+      bg: '#f0f4ff',
       surface: '#ffffff',
-      surface2: '#f9f6ed',
-      text: '#4a3f15',
-      textMuted: '#8a7a40',
-      border: '#f3e5ab'
+      surface2: '#e3f2fd',
+      text: '#00091a',
+      textMuted: '#2c4a7c',
+      border: '#bbdefb'
     },
     dark: {
-      primary: '#d4af37',
-      secondary: '#e5c158',
-      accent: '#f3e5ab',
-      bg: '#1a1814',
-      surface: '#2a261f',
-      surface2: '#3d382b',
-      text: '#fdfbf7',
-      textMuted: '#c5b894',
-      border: '#3d382b'
+      primary: '#1565c0',
+      secondary: '#64b5f6',
+      accent: '#2979ff',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
+      border: '#333333'
     }
   },
-  'modern-purple': {
-    id: 'modern-purple',
-    name: 'Modern Purple',
+  'verde-oliva': {
+    id: 'verde-oliva',
+    name: 'Verde Oliva',
     light: {
-      primary: '#7c3aed',
-      secondary: '#8b5cf6',
-      accent: '#6d28d9',
+      primary: '#558b2f',
+      secondary: '#aed581',
+      accent: '#76ff03',
+      bg: '#f4f8f0',
+      surface: '#ffffff',
+      surface2: '#f1f8e9',
+      text: '#0a1200',
+      textMuted: '#3e5229',
+      border: '#c5e1a5'
+    },
+    dark: {
+      primary: '#558b2f',
+      secondary: '#aed581',
+      accent: '#76ff03',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
+      border: '#333333'
+    }
+  },
+  'naranja-vibrante': {
+    id: 'naranja-vibrante',
+    name: 'Naranja Vibrante',
+    light: {
+      primary: '#e65100',
+      secondary: '#ffcc80',
+      accent: '#ff6d00',
+      bg: '#fff8f0',
+      surface: '#ffffff',
+      surface2: '#fff3e0',
+      text: '#1a0900',
+      textMuted: '#7c3c00',
+      border: '#ffcc80'
+    },
+    dark: {
+      primary: '#e65100',
+      secondary: '#ffcc80',
+      accent: '#ff6d00',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
+      border: '#333333'
+    }
+  },
+  'morado-premium': {
+    id: 'morado-premium',
+    name: 'Morado Premium',
+    light: {
+      primary: '#4527a0',
+      secondary: '#b39ddb',
+      accent: '#7c4dff',
       bg: '#f5f3ff',
       surface: '#ffffff',
-      surface2: '#ede9fe',
-      text: '#2e1065',
-      textMuted: '#5b21b6',
-      border: '#ddd6fe'
+      surface2: '#ede7f6',
+      text: '#0a0019',
+      textMuted: '#3a2060',
+      border: '#b39ddb'
     },
     dark: {
-      primary: '#8b5cf6',
-      secondary: '#a78bfa',
-      accent: '#c4b5fd',
-      bg: '#1e1b4b',
-      surface: '#2e1065',
-      surface2: '#4c1d95',
-      text: '#f5f3ff',
-      textMuted: '#c4b5fd',
-      border: '#4c1d95'
-    }
-  },
-  'soft-green': {
-    id: 'soft-green',
-    name: 'Soft Green',
-    light: {
-      primary: '#10b981',
-      secondary: '#34d399',
-      accent: '#059669',
-      bg: '#ecfdf5',
-      surface: '#ffffff',
-      surface2: '#d1fae5',
-      text: '#064e3b',
-      textMuted: '#047857',
-      border: '#a7f3d0'
-    },
-    dark: {
-      primary: '#10b981',
-      secondary: '#34d399',
-      accent: '#6ee7b7',
-      bg: '#064e3b',
-      surface: '#065f46',
-      surface2: '#047857',
-      text: '#ecfdf5',
-      textMuted: '#a7f3d0',
-      border: '#047857'
-    }
-  },
-  'sunset-orange': {
-    id: 'sunset-orange',
-    name: 'Sunset Orange',
-    light: {
-      primary: '#f97316',
-      secondary: '#fb923c',
-      accent: '#ea580c',
-      bg: '#fff7ed',
-      surface: '#ffffff',
-      surface2: '#ffedd5',
-      text: '#7c2d12',
-      textMuted: '#9a3412',
-      border: '#fed7aa'
-    },
-    dark: {
-      primary: '#f97316',
-      secondary: '#fb923c',
-      accent: '#fdba74',
-      bg: '#431407',
-      surface: '#7c2d12',
-      surface2: '#9a3412',
-      text: '#fff7ed',
-      textMuted: '#fed7aa',
-      border: '#9a3412'
-    }
-  },
-  'elegant-black': {
-    id: 'elegant-black',
-    name: 'Elegant Black',
-    light: {
-      primary: '#000000',
-      secondary: '#1a1a1a',
-      accent: '#333333',
-      bg: '#fafafa',
-      surface: '#ffffff',
-      surface2: '#f5f5f5',
-      text: '#000000',
-      textMuted: '#666666',
-      border: '#e5e5e5'
-    },
-    dark: {
-      primary: '#ffffff',
-      secondary: '#f5f5f5',
-      accent: '#e5e5e5',
-      bg: '#000000',
-      surface: '#121212',
-      surface2: '#1a1a1a',
-      text: '#ffffff',
-      textMuted: '#a3a3a3',
+      primary: '#4527a0',
+      secondary: '#b39ddb',
+      accent: '#7c4dff',
+      bg: '#0f0f0f',
+      surface: '#1a1a1a',
+      surface2: '#252525',
+      text: '#f0f0f0',
+      textMuted: '#a0a0a0',
       border: '#333333'
+    }
+  },
+  'carbon-oscuro': {
+    id: 'carbon-oscuro',
+    name: 'Carbón Oscuro',
+    light: {
+      primary: '#90caf9',
+      secondary: '#bbdefb',
+      accent: '#40c4ff',
+      bg: '#121212',
+      surface: '#1e1e1e',
+      surface2: '#2c2c2c',
+      text: '#e0e0e0',
+      textMuted: '#9e9e9e',
+      border: '#37474f'
+    },
+    dark: {
+      primary: '#90caf9',
+      secondary: '#bbdefb',
+      accent: '#40c4ff',
+      bg: '#121212',
+      surface: '#1e1e1e',
+      surface2: '#2c2c2c',
+      text: '#e0e0e0',
+      textMuted: '#9e9e9e',
+      border: '#37474f'
+    }
+  },
+  'esmeralda-profundo': {
+    id: 'esmeralda-profundo',
+    name: 'Esmeralda Profundo',
+    light: {
+      primary: '#69f0ae',
+      secondary: '#b9f6ca',
+      accent: '#00e676',
+      bg: '#0d1f18',
+      surface: '#132819',
+      surface2: '#1a3325',
+      text: '#e0f2f1',
+      textMuted: '#80cbc4',
+      border: '#1b5e20'
+    },
+    dark: {
+      primary: '#69f0ae',
+      secondary: '#b9f6ca',
+      accent: '#00e676',
+      bg: '#0d1f18',
+      surface: '#132819',
+      surface2: '#1a3325',
+      text: '#e0f2f1',
+      textMuted: '#80cbc4',
+      border: '#1b5e20'
     }
   }
 }
@@ -211,7 +237,7 @@ export function getActiveColors(themeConfig, isDarkMode) {
 
   if (typeof themeConfig === 'string') {
     // Es una paleta predefinida o fallback
-    const palette = ADVANCED_PALETTES[themeConfig] || ADVANCED_PALETTES['modern-purple'];
+    const palette = ADVANCED_PALETTES[themeConfig] || ADVANCED_PALETTES['rosa-elegante'];
     baseColors = isDarkMode ? palette.dark : palette.light;
   } else if (themeConfig && typeof themeConfig === 'object') {
     // Es una paleta personalizada
@@ -222,15 +248,15 @@ export function getActiveColors(themeConfig, isDarkMode) {
 
   // Fallback de seguridad
   if (!baseColors) {
-    baseColors = ADVANCED_PALETTES['modern-purple'].light;
+    baseColors = ADVANCED_PALETTES['rosa-elegante'].light;
   }
 
   return {
-    '--color-primary': baseColors.primary || '#7c3aed',
-    '--color-primary-light': baseColors.secondary || '#a78bfa',
-    '--color-primary-dark': baseColors.accent || '#6d28d9',
-    '--color-secondary': baseColors.secondary || '#8b5cf6',
-    '--color-accent': baseColors.accent || '#c084fc',
+    '--color-primary': baseColors.primary || '#e91e8c',
+    '--color-primary-light': baseColors.secondary || '#f48fb1',
+    '--color-primary-dark': baseColors.accent || '#ff4081',
+    '--color-secondary': baseColors.secondary || '#f8bbd9',
+    '--color-accent': baseColors.accent || '#ff4081',
     '--color-bg': baseColors.bg || (isDarkMode ? DEFAULT_DARK_BG : DEFAULT_LIGHT_BG),
     '--color-surface': baseColors.surface || (isDarkMode ? DEFAULT_DARK_SURFACE : DEFAULT_LIGHT_SURFACE),
     '--color-surface-2': baseColors.surface2 || (isDarkMode ? DEFAULT_DARK_SURFACE_2 : DEFAULT_LIGHT_SURFACE_2),
