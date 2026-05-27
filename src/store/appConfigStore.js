@@ -51,6 +51,32 @@ const useAppConfigStore = create(
       },
       guidedModeEnabled: true, // Toggle global de asistencia
       loginTrustMessage: '',  // Mensaje de confianza personalizable
+      deliverySettings: {
+        pickup: {
+          enabled: true,
+          address: '',
+          instructions: 'Recoge tu pedido directamente en nuestro local.'
+        },
+        shipping: {
+          enabled: true,
+          cost: 0,
+          estimatedTime: '30 a 60 min',
+          instructions: 'Recibe tu pedido en la comodidad de tu casa.'
+        },
+        digital: {
+          enabled: false,
+          instructions: 'Entrega digital o prestación de servicio presencial.'
+        }
+      },
+      hasMultipleEmployees: false,
+      employeeCount: 0,
+      employees: [],
+      wholesaleSettings: {
+        enabled: true,
+        minQuantity: 12,
+        discountType: 'percentage', // 'percentage' | 'fixed'
+        discountValue: 15
+      },
       isLoaded: false,
 
       // ─── Acciones ─────────────────────────────────────────────────────────
@@ -91,6 +117,11 @@ const useAppConfigStore = create(
         actionColor: state.actionColor,
         animationsEnabled: state.animationsEnabled,
         loginTrustMessage: state.loginTrustMessage,
+        hasMultipleEmployees: state.hasMultipleEmployees,
+        employeeCount: state.employeeCount,
+        employees: state.employees,
+        deliverySettings: state.deliverySettings,
+        wholesaleSettings: state.wholesaleSettings,
       }),
     }
   )

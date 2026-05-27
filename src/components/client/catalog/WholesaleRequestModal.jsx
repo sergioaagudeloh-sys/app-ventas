@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, PackagePlus, Send } from 'lucide-react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../config/firebaseConfig'
-import { COLLECTIONS, WHOLESALE_STATES } from '../../../constants'
+import { COLLECTIONS, WHOLESALE_STATES, SUPPORT_WHATSAPP } from '../../../constants'
 import useAuthStore from '../../../store/authStore'
+import useAppConfigStore from '../../../store/appConfigStore'
 
 export default function WholesaleRequestModal({ product, type, isOpen, onClose }) {
   const { user } = useAuthStore()
+  const { whatsappAdmin } = useAppConfigStore()
   const [cantidad, setCantidad] = useState('')
   const [observaciones, setObservaciones] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -25,9 +27,11 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
     }
   }, [isOpen])
 
+  const isWholesale = type === 'mayorista'
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const minQty = type === 'mayorista' ? 12 : 1
+    const minQty = isWholesale ? 12 : 1
     if (!cantidad || Number(cantidad) < minQty) {
       alert(`La cantidad mínima para esta solicitud es de ${minQty} unidad(es).`)
       return
@@ -49,6 +53,23 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
         createdAt: serverTimestamp(),
       })
       setSuccess(true)
+
+      // WhatsApp redirection
+      const qty = Number(cantidad)
+      const unitPrice = isWholesale && product.precioMayorista ? Number(product.precioMayorista) : Number(product.precioBase)
+      const totalEstimate = qty * unitPrice
+      const messageText = `¡Hola! Me interesa realizar una solicitud ${isWholesale ? 'al por mayor' : 'por encargo'}:
+*Producto:* ${product.nombre}
+*Cantidad:* ${qty} unidades
+*Precio Unitario:* $${unitPrice.toLocaleString()} COP
+*Total Estimado:* $${totalEstimate.toLocaleString()} COP
+*Observaciones:* ${observaciones.trim() || 'Ninguna'}`
+
+      const adminPhone = whatsappAdmin || SUPPORT_WHATSAPP
+      const cleanPhone = adminPhone.replace(/\D/g, '')
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
+      window.open(whatsappUrl, '_blank')
+
       setTimeout(() => {
         setSuccess(false)
         onClose()
@@ -62,8 +83,6 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
   }
 
   if (!isOpen || !product) return null
-
-  const isWholesale = type === 'mayorista'
 
   return (
     <AnimatePresence>
@@ -89,7 +108,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
               </div>
               <h2 className="text-xl font-bold text-app mb-2">¡Solicitud Enviada!</h2>
               <p className="text-muted text-sm">
-                Hemos recibido tu solicitud para <strong>{product.nombre}</strong>. 
+                Hemos recibido tu solicitud para <strong>{product.nombre}</strong> y te hemos redirigido a WhatsApp. 
                 El administrador la revisará y se comunicará contigo.
               </p>
             </div>
@@ -112,12 +131,42 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                 </button>
               </div>
 
-              <div className="mb-6 bg-surface-2 p-3 rounded-xl border border-app">
+              <div className="mb-4 bg-surface-2 p-3 rounded-xl border border-app">
                 <p className="text-sm font-semibold text-app line-clamp-1">{product.nombre}</p>
                 {isWholesale && product.precioMayorista && (
                   <p className="text-xs text-primary font-bold mt-1">
-                    Precio especial disponible
+                    Precio especial al por mayor disponible
                   </p>
+                )}
+              </div>
+
+              {/* Desglose de precios en tiempo real */}
+              <div className="mb-4 bg-surface-2 p-4 rounded-xl border border-app space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted">Precio Detal (unidad):</span>
+                  <span className="text-app font-medium">${Number(product.precioBase || 0).toLocaleString()} COP</span>
+                </div>
+                {isWholesale && product.precioMayorista && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted">Precio Mayorista (unidad):</span>
+                    <span className="text-primary font-bold">${Number(product.precioMayorista).toLocaleString()} COP</span>
+                  </div>
+                )}
+                {isWholesale && product.precioMayorista && Number(cantidad) >= 12 && (
+                  <div className="pt-2 border-t border-app flex justify-between items-center">
+                    <span className="text-xs font-bold text-app">Cotización Estimada ({cantidad} uds):</span>
+                    <span className="text-sm font-black text-primary">
+                      ${(Number(cantidad) * Number(product.precioMayorista)).toLocaleString()} COP
+                    </span>
+                  </div>
+                )}
+                {!isWholesale && Number(cantidad) > 0 && (
+                  <div className="pt-2 border-t border-app flex justify-between items-center">
+                    <span className="text-xs font-bold text-app">Valor Estimado ({cantidad} uds):</span>
+                    <span className="text-sm font-black text-primary">
+                      ${(Number(cantidad) * Number(product.precioBase)).toLocaleString()} COP
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -133,7 +182,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                     value={cantidad}
                     onChange={(e) => setCantidad(e.target.value)}
                     className="w-full h-12 px-4 rounded-xl bg-surface border border-app text-app focus:outline-none focus:border-primary text-center font-bold text-lg"
-                    placeholder={isWholesale ? "Ej: 50" : "Ej: 3"}
+                    placeholder={isWholesale ? "Ej: 12" : "Ej: 3"}
                   />
                 </div>
                 
@@ -152,7 +201,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
 
                 <div className="bg-primary/5 p-3 rounded-xl mt-2">
                   <p className="text-xs text-primary leading-relaxed">
-                    <strong>Nota:</strong> Esta solicitud es especial, no descontará inventario automáticamente y requiere validación manual por parte de la tienda.
+                    <strong>Nota:</strong> Esta solicitud abrirá WhatsApp para enviar el desglose de tu cotización y se guardará en tu historial de pedidos especiales.
                   </p>
                 </div>
 
@@ -164,7 +213,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
-                    'Enviar solicitud'
+                    'Enviar solicitud y chatear'
                   )}
                 </button>
               </form>

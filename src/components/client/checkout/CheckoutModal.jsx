@@ -61,10 +61,51 @@ const STEP_TITLES = {
 export default function CheckoutModal({ isOpen, onClose }) {
   const { items, getTotal, clearCart } = useCartStore()
   const { user } = useAuthStore()
-  const { bankInfo, bankInfo2, whatsappAdmin, appName } = useAppConfigStore()
+  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings } = useAppConfigStore()
   const { mutateAsync: createOrder, isPending } = useCreateOrder()
   const { completedSteps, markStepCompleted } = useGuidedStore()
   const { data: coupons = [] } = useCoupons()
+
+  // Construcción dinámica de métodos de entrega
+  const activeDeliveryOptions = []
+  const currentSettings = deliverySettings || {
+    pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+    shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+    digital: { enabled: false, instructions: '' }
+  }
+
+  if (currentSettings.pickup?.enabled !== false) {
+    activeDeliveryOptions.push({
+      id: 'retiro',
+      icon: Store,
+      title: 'Retiro en Tienda',
+      description: currentSettings.pickup?.instructions || 'Recoge tu pedido directamente en nuestro local.',
+      badge: 'Gratis',
+      badgeColor: 'bg-success/10 text-success',
+    })
+  }
+
+  if (currentSettings.shipping?.enabled !== false) {
+    activeDeliveryOptions.push({
+      id: 'domicilio',
+      icon: Truck,
+      title: 'Domicilio',
+      description: currentSettings.shipping?.instructions || 'Recibe tu pedido en la comodidad de tu casa. Te contactaremos para coordinar.',
+      badge: currentSettings.shipping?.cost > 0 ? `+ ${formatCurrency(currentSettings.shipping.cost)}` : 'Gratis',
+      badgeColor: 'bg-primary/10 text-primary',
+    })
+  }
+
+  if (currentSettings.digital?.enabled === true) {
+    activeDeliveryOptions.push({
+      id: 'digital',
+      icon: CheckCircle2,
+      title: 'Entrega Digital / Servicio',
+      description: currentSettings.digital?.instructions || 'Servicios presenciales o productos virtuales.',
+      badge: 'Sin envío',
+      badgeColor: 'bg-info/10 text-info',
+    })
+  }
 
   // step: 1=Entrega, 2=Datos, 3=Pago, 4=Éxito
   const [step, setStep] = useState(1)
@@ -84,7 +125,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
   const [formData, setFormData] = useState({
     nombre: '',
     celular: '',
-    tipoEntrega: '',   // 'retiro' | 'domicilio'
+    tipoEntrega: '',   // 'retiro' | 'domicilio' | 'digital'
     direccion: '',
     barrio: '',
     ciudad: '',
@@ -108,7 +149,10 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      setStep(1)
+      const hasOnlyOneOption = activeDeliveryOptions.length === 1
+      const initialDeliveryType = hasOnlyOneOption ? activeDeliveryOptions[0].id : ''
+
+      setStep(hasOnlyOneOption ? 2 : 1)
       setErrors({})
       setOrderSnapshot(null)
       isSubmittingRef.current = false
@@ -119,7 +163,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       setFormData({
         nombre: user?.nombre || '',
         celular: user?.celular || '',
-        tipoEntrega: '',
+        tipoEntrega: initialDeliveryType,
         direccion: '',
         barrio: '',
         ciudad: '',
@@ -221,10 +265,18 @@ export default function CheckoutModal({ isOpen, onClose }) {
     }
   }
 
+  const getShippingCost = () => {
+    if (formData.tipoEntrega === 'domicilio') {
+      return currentSettings.shipping?.cost || 0
+    }
+    return 0
+  }
+
   const getFinalTotal = () => {
     const subtotal = getTotal()
     const discount = calculateDiscount()
-    return Math.max(0, subtotal - discount)
+    const shippingCost = getShippingCost()
+    return Math.max(0, subtotal - discount + shippingCost)
   }
 
   // ── Paso 3: confirmar pedido ──────────────────────────────────────────────
@@ -248,6 +300,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       setErrors({})
       const isDomicilio = formData.tipoEntrega === 'domicilio'
       const finalDiscount = calculateDiscount()
+      const currentShippingCost = getShippingCost()
 
       const orderData = {
         cliente: {
@@ -260,6 +313,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
           }),
         },
         tipoEntrega: formData.tipoEntrega,
+        costoEnvio: currentShippingCost,
         metodoPago: formData.metodoPago,
         ...(formData.metodoPago === 'transferencia' && {
           bancoElegido: selectedBank === 2 && bankInfo2?.activa ? bankInfo2.banco : bankInfo?.banco,
@@ -317,6 +371,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
     const snap = orderSnapshot
     const num = snap?.numero || orderNumber
     const isDomicilio = snap?.tipoEntrega === 'domicilio'
+    const isDigital = snap?.tipoEntrega === 'digital'
 
     const e = {
       carrito:   String.fromCodePoint(0x1F6D2),
@@ -331,6 +386,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       nota:      String.fromCodePoint(0x1F4DD),
       camion:    String.fromCodePoint(0x1F69A),
       cupon:     String.fromCodePoint(0x1F39F),
+      digital:   String.fromCodePoint(0x1F4F2),
     }
 
     const metodosLabel = { efectivo: 'Efectivo', transferencia: 'Transferencia', credito: 'Crédito (Fiado)' }
@@ -343,9 +399,15 @@ export default function CheckoutModal({ isOpen, onClose }) {
       return `  ${e.item} ${item.nombre}${variant} x${item.cantidad} — ${formatCurrency(item.precio * item.cantidad)}`
     }).join('\n')
 
-    const entregaLine = isDomicilio
-      ? `${e.camion} *Entrega:* Domicilio\n${e.ubicacion} *Dirección:* ${snap?.cliente?.direccion || ''}, ${snap?.cliente?.barrio || ''}, ${snap?.cliente?.ciudad || ''}`
-      : `${e.tienda} *Entrega:* Retiro en Tienda`
+    let entregaLine = ''
+    if (isDomicilio) {
+      entregaLine = `${e.camion} *Entrega:* Domicilio\n${e.ubicacion} *Dirección:* ${snap?.cliente?.direccion || ''}, ${snap?.cliente?.barrio || ''}, ${snap?.cliente?.ciudad || ''}`
+    } else if (isDigital) {
+      entregaLine = `${e.digital} *Entrega:* Digital / Servicios`
+    } else {
+      const addressText = currentSettings.pickup?.address ? ` (${currentSettings.pickup.address})` : ''
+      entregaLine = `${e.tienda} *Entrega:* Retiro en Tienda${addressText}`
+    }
 
     const notasLine = snap?.notas ? `\n\n${e.nota} *Notas:* ${snap.notas}` : ''
 
@@ -353,9 +415,11 @@ export default function CheckoutModal({ isOpen, onClose }) {
       ? `\n${e.cupon} *Cupón Aplicado:* ${snap.couponCode} (- ${formatCurrency(snap.descuento)})` 
       : ''
 
-    const subtotalLine = snap?.couponCode
-      ? `\nSubtotal: ${formatCurrency(snap.subtotal)}`
+    const shippingLine = snap?.costoEnvio > 0 
+      ? `\n${e.camion} *Envío:* ${formatCurrency(snap.costoEnvio)}`
       : ''
+
+    const subtotalLine = `\nSubtotal: ${formatCurrency(snap?.subtotal || getTotal())}`
 
     const bancoLine = bancoInfo
       ? `\n🏦 *Banco elegido:* ${bancoInfo.banco} · ${bancoInfo.numeroCuenta}${bancoInfo.titular ? ` · ${bancoInfo.titular}` : ''}`
@@ -370,8 +434,7 @@ ${entregaLine}
 
 ${e.caja} *Productos:*
 ${itemsText}
-${couponLine}
-${subtotalLine}
+${subtotalLine}${couponLine}${shippingLine}
 ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodoPago}${bancoLine}
 ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
 
@@ -470,7 +533,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                 </div>
 
                 <div className="space-y-3">
-                  {DELIVERY_OPTIONS.map(({ id, icon: Icon, title, description, badge, badgeColor }) => (
+                  {activeDeliveryOptions.map(({ id, icon: Icon, title, description, badge, badgeColor }) => (
                     <motion.button
                       key={id}
                       whileHover={{ scale: 1.01 }}
@@ -509,13 +572,17 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   className="flex items-center gap-2 p-3 rounded-xl mb-2"
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)' }}
                 >
-                  {isDomicilio ? <Truck size={16} className="text-primary shrink-0" /> : <Store size={16} className="text-primary shrink-0" />}
-                  <span className="text-xs font-bold text-primary">
-                    {isDomicilio ? 'Entrega a domicilio' : 'Retiro en tienda'}
+                  {formData.tipoEntrega === 'domicilio' && <Truck size={16} className="text-primary shrink-0" />}
+                  {formData.tipoEntrega === 'retiro' && <Store size={16} className="text-primary shrink-0" />}
+                  {formData.tipoEntrega === 'digital' && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                  <span className="text-xs font-bold text-primary capitalize">
+                    {formData.tipoEntrega === 'domicilio' ? 'Entrega a domicilio' : formData.tipoEntrega === 'retiro' ? 'Retiro en tienda' : 'Entrega digital / servicio'}
                   </span>
-                  <button onClick={() => setStep(1)} className="ml-auto text-xs text-muted hover:text-primary underline underline-offset-2">
-                    Cambiar
-                  </button>
+                  {activeDeliveryOptions.length > 1 && (
+                    <button onClick={() => setStep(1)} className="ml-auto text-xs text-muted hover:text-primary underline underline-offset-2">
+                      Cambiar
+                    </button>
+                  )}
                 </div>
 
                 {/* Nombre */}
@@ -722,10 +789,26 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   <p className="text-sm text-error font-medium mt-2 text-center">{errors.metodoPago}</p>
                 )}
 
-                <div className="mt-8 pt-6 border-t border-app">
-                  <div className="flex justify-between items-center mb-6">
+                <div className="mt-8 pt-6 border-t border-app space-y-3">
+                  <div className="flex justify-between items-center text-sm text-muted">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(getTotal())}</span>
+                  </div>
+                  {calculateDiscount() > 0 && (
+                    <div className="flex justify-between items-center text-sm text-success">
+                      <span>Descuento cupón:</span>
+                      <span>- {formatCurrency(calculateDiscount())}</span>
+                    </div>
+                  )}
+                  {getShippingCost() > 0 && (
+                    <div className="flex justify-between items-center text-sm text-muted">
+                      <span>Costo de envío:</span>
+                      <span>+ {formatCurrency(getShippingCost())}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2 border-t border-app/60 mb-6">
                     <span className="text-app font-semibold">Total a pagar:</span>
-                    <span className="text-2xl font-black text-primary">{formatCurrency(getTotal())}</span>
+                    <span className="text-2xl font-black text-primary">{formatCurrency(getFinalTotal())}</span>
                   </div>
 
                   <button
@@ -774,10 +857,9 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-6"
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}
                 >
-                  {orderSnapshot?.tipoEntrega === 'domicilio'
-                    ? <><Truck size={13} /> Entrega a domicilio</>
-                    : <><Store size={13} /> Retiro en tienda</>
-                  }
+                  {orderSnapshot?.tipoEntrega === 'domicilio' && <><Truck size={13} /> Domicilio</>}
+                  {orderSnapshot?.tipoEntrega === 'retiro' && <><Store size={13} /> Retiro en Tienda</>}
+                  {orderSnapshot?.tipoEntrega === 'digital' && <><CheckCircle2 size={13} /> Digital / Servicio</>}
                 </div>
 
                 {whatsappAdmin ? (

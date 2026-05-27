@@ -445,7 +445,7 @@ export default function AdminSales() {
         <div className={`md:col-span-7 xl:col-span-8 flex flex-col gap-4 ${activeTab !== 'products' ? 'hidden md:flex' : 'flex'}`}>
           
           {/* Buscador y categorías */}
-          <div className="bg-surface rounded-3xl p-4 border border-app shadow-sm space-y-4">
+          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm space-y-4">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
                 <Search size={18} />
@@ -566,11 +566,11 @@ export default function AdminSales() {
           )}
         </div>
 
-        {/* ─── PANEL DERECHO: CARRITO, CLIENTE Y CHECKOUT (visible en desktop o si activeTab === 'cart') ─── */}
-        <div className={`md:col-span-5 xl:col-span-4 flex flex-col gap-6 ${activeTab !== 'cart' ? 'hidden md:flex' : 'flex'}`}>
-          
-          {/* ─── CLIENTE ─── */}
-          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm space-y-4">
+        {/* ─── PANEL DERECHO: CLIENTE Y CHECKOUT UNIFICADO (visible en desktop o si activeTab === 'cart') ─── */}
+        <div className={`md:col-span-5 xl:col-span-4 ${activeTab !== 'cart' ? 'hidden md:flex' : 'flex'}`}>
+          <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col divide-y divide-app w-full overflow-hidden">
+            {/* ─── CLIENTE ─── */}
+            <div className="p-5 space-y-4">
             <h3 className="font-bold text-sm text-app flex items-center gap-2">
               <User size={16} className="text-primary" />
               Búsqueda / Registro de Cliente
@@ -586,7 +586,7 @@ export default function AdminSales() {
                     onChange={(e) => setCelular(e.target.value.replace(/\D/g, ''))}
                     maxLength={10}
                     placeholder="Ej. 3001234567"
-                    className="w-full h-11 pl-4 pr-10 rounded-xl bg-surface-2 border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                    className="w-full h-11 pl-4 pr-10 rounded-2xl bg-surface-2 border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
                   />
                   {clientSearchStatus === 'searching' && (
                     <span className="absolute right-3.5 top-1/2 -translate-y-1/2">
@@ -633,7 +633,7 @@ export default function AdminSales() {
                         value={clientName}
                         onChange={(e) => setClientName(e.target.value)}
                         placeholder="Nombre completo del cliente"
-                        className="w-full h-10 px-3 rounded-lg bg-surface border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
                       />
                     </div>
                     <button
@@ -652,10 +652,10 @@ export default function AdminSales() {
                 )}
               </AnimatePresence>
             </div>
-          </div>
+            </div>
 
-          {/* ─── CARRITO DE LA VENTA ─── */}
-          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm flex flex-col gap-4">
+            {/* ─── CARRITO DE LA VENTA ─── */}
+            <div className="p-5 flex flex-col gap-4">
             <h3 className="font-bold text-sm text-app flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <ShoppingCart size={16} className="text-primary" />
@@ -808,6 +808,7 @@ export default function AdminSales() {
                 </>
               )}
             </button>
+          </div>
           </div>
         </div>
       </div>

@@ -37,10 +37,13 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
     <motion.div
       whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className={`bg-surface rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer border border-app group ${
+      className={`bg-surface overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer border border-app group ${
         layout === 'list' ? 'flex flex-row h-32' : 'flex flex-col'
       }`}
-      style={glowStyle}
+      style={{
+        ...glowStyle,
+        borderRadius: 'var(--radius-base)'
+      }}
       onClick={() => onOpenDetail(product)}
     >
       {/* Imagen */}

@@ -12,13 +12,14 @@ import WholesaleRequestModal from '../../components/client/catalog/WholesaleRequ
 import ClientFilterModal from '../../components/client/catalog/ClientFilterModal'
 import CatalogBanner from '../../components/client/catalog/CatalogBanner'
 import { SUPPORT_WHATSAPP } from '../../constants'
+import { fuzzyMatch } from '../../utils/search'
 
 export default function ClientCatalog() {
   // Datos
   const { data: allProducts = [], isLoading: isLoadingProducts } = useProducts(true) // Solo activos
   const { data: allCategories = [] } = useCategories()
   const { data: ads = [] } = useAds()
-  const { catalogFilters, catalogLayout } = useAppConfigStore()
+  const { catalogFilters, catalogLayout, wholesaleSettings } = useAppConfigStore()
   
   // Estado local
   const [searchTerm, setSearchTerm] = useState('')
@@ -132,14 +133,13 @@ export default function ClientCatalog() {
     }
 
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase().trim()
       result = result.filter(p => {
-        const inName = p.nombre.toLowerCase().includes(term)
-        const inDesc = p.descripcion?.toLowerCase().includes(term)
+        const inName = fuzzyMatch(p.nombre, searchTerm)
+        const inDesc = fuzzyMatch(p.descripcion, searchTerm)
         let inAttrs = false
         if (p.atributos) {
           inAttrs = Object.values(p.atributos).some(val => 
-            String(val).toLowerCase().includes(term)
+            fuzzyMatch(String(val), searchTerm)
           )
         }
         return inName || inDesc || inAttrs
@@ -378,6 +378,12 @@ export default function ClientCatalog() {
                 {!product.isTemporal && (() => {
                   const totalStock = product.variantes?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
                   const isOutOfStock = totalStock <= 0
+                  
+                  // Si no está agotado y las solicitudes al por mayor están desactivadas globalmente, no mostramos el botón
+                  if (!isOutOfStock && !(wholesaleSettings?.enabled ?? true)) {
+                    return null
+                  }
+
                   return (
                     <button
                       onClick={() => setWholesaleRequest({ product, type: isOutOfStock ? 'encargo' : 'mayorista' })}

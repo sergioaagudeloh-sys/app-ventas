@@ -10,6 +10,7 @@ import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD
 import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
 import * as orderService from '../../services/orderService'
+import { fuzzyMatch } from '../../utils/search'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -258,9 +259,9 @@ export default function AdminOrders() {
 
   const matchesSearchAndFilter = (order) => {
     const matchesSearch = 
-      order.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.cliente?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.cliente?.celular?.includes(searchTerm)
+      fuzzyMatch(order.orderNumber, searchTerm) ||
+      fuzzyMatch(order.cliente?.nombre, searchTerm) ||
+      fuzzyMatch(order.cliente?.celular, searchTerm)
     
     let matchesFilter = false
     if (activeFilter === 'Todos') {
@@ -764,26 +765,58 @@ export default function AdminOrders() {
           const isClickable = !!m.path
           let iconBg = 'bg-warning/10 text-warning border-warning/20'
           if (m.label === 'Completados') iconBg = 'bg-success/10 text-success border-success/20'
-          if (m.label === 'Créditos') iconBg = 'bg-primary/10 text-primary border-primary/20'
+
+          if (m.label === 'Créditos') {
+            return (
+              <motion.button
+                key={i}
+                whileHover={{ scale: 1.03, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                animate={{
+                  boxShadow: [
+                    "0 0 6px rgba(124, 58, 237, 0.25)",
+                    "0 0 18px rgba(124, 58, 237, 0.55)",
+                    "0 0 6px rgba(124, 58, 237, 0.25)"
+                  ]
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                onClick={() => navigate(m.path)}
+                className="bg-surface border border-primary/30 rounded-2xl p-4 flex flex-col justify-center items-center min-h-[100px] md:min-h-[120px] relative overflow-hidden group text-center w-full select-none cursor-pointer"
+              >
+                {/* Degradado suave de fondo en hover */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                <span className="text-[9px] md:text-xs font-bold text-primary uppercase tracking-wider mb-2 text-center leading-none">
+                  {m.label}
+                </span>
+                
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <div className="w-8 h-8 md:w-11 md:h-11 rounded-xl bg-primary text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-primary/20 transition-transform duration-300 group-hover:scale-110">
+                    <Icon size={16} className="md:size-5" />
+                  </div>
+                  <span className="text-[9px] md:text-[11px] font-bold text-muted mt-1 leading-tight group-hover:text-primary transition-colors">
+                    Ver Créditos
+                  </span>
+                </div>
+              </motion.button>
+            )
+          }
 
           return (
             <div
               key={i}
-              onClick={() => isClickable && navigate(m.path)}
-              className={`bg-surface border border-app rounded-2xl p-4 flex flex-col justify-center items-center min-h-[100px] md:min-h-[120px] shadow-sm relative transition-all duration-300 ${
-                isClickable 
-                  ? 'cursor-pointer hover:border-primary/50 hover:shadow-md hover:bg-surface-2/40 active:scale-98' 
-                  : ''
-              }`}
+              className={`bg-surface border border-app rounded-2xl p-4 flex flex-col justify-center items-center min-h-[100px] md:min-h-[120px] shadow-sm relative text-center w-full`}
             >
-              {/* Subtítulo centrado en la parte superior */}
-              <span className="text-[9px] md:text-xs font-black text-muted uppercase tracking-wider mb-2.5 md:mb-3.5 text-center leading-none">
+              <span className="text-[9px] md:text-xs font-bold text-muted uppercase tracking-wider mb-3.5 text-center leading-none">
                 {m.label}
               </span>
               
-              {/* Valor e Icono a la par en el centro */}
               <div className="flex items-center justify-center gap-2 md:gap-3">
-                <span className={`text-base md:text-3xl font-black tracking-tight leading-none ${m.color}`}>
+                <span className={`text-xl md:text-3xl font-black tracking-tight leading-none ${m.color}`}>
                   {m.value}
                 </span>
                 <div className={`w-7 h-7 md:w-10 md:h-10 rounded-xl ${iconBg} border flex items-center justify-center flex-shrink-0`}>

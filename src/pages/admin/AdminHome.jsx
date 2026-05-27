@@ -114,19 +114,28 @@ export default function AdminHome() {
         .pulse-red-alert { animation: pulse-red 2.2s infinite ease-in-out !important; }
       `}} />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-app">
-        <div className="flex items-center gap-3.5">
-          <div 
-            className="w-11 h-11 rounded-2xl text-white font-black text-lg flex items-center justify-center shrink-0 select-none shadow-md"
-            style={{ 
-              background: 'linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 85%, #000000))',
-              textShadow: '0 1px 2px rgba(0,0,0,0.15)'
-            }}
-          >
-            {(appName || 'V').charAt(0).toUpperCase()}
-          </div>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8 pb-6 border-b border-app">
+        <div className="flex items-center gap-4">
+          {appIcon ? (
+            <img 
+              src={appIcon} 
+              alt={appName || 'Logo'} 
+              className="h-[84px] w-auto max-w-[150px] object-contain shrink-0 hover:scale-105 transition-all duration-300 select-none"
+            />
+          ) : (
+            <div 
+              className="w-14 h-14 rounded-2xl text-white font-black text-2xl flex items-center justify-center shrink-0 select-none shadow-lg"
+              style={{ 
+                background: 'linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 85%, #000000))',
+                textShadow: '0 1px 2px rgba(0,0,0,0.15)'
+              }}
+            >
+              {(appName || 'V').charAt(0).toUpperCase()}
+            </div>
+          )}
           <div>
-            <span className="text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/10">
+            <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/10">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               Panel de Administración
             </span>
             <h1 className="text-xl md:text-2xl font-black text-app mt-1 tracking-tight leading-tight">
@@ -135,15 +144,15 @@ export default function AdminHome() {
                 if (hour < 12) return 'Buenos días'
                 if (hour < 18) return 'Buenas tardes'
                 return 'Buenas noches'
-              })()}, <span className="text-primary">{sellerName || 'Mónica Henao'}</span>
+              })()}, <span className="text-primary font-black">{sellerName || 'Mónica Henao'}</span>
             </h1>
           </div>
         </div>
-        <div className="text-left sm:text-right shrink-0 flex flex-col justify-center sm:items-end">
-          <p className="text-xs font-bold text-app uppercase tracking-wider">
+        <div className="text-left md:text-right shrink-0 flex flex-col justify-center md:items-end">
+          <p className="text-xs font-black text-app uppercase tracking-widest text-primary/80">
             {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
           </p>
-          <p className="text-[11px] text-muted mt-0.5">Monitoreo y resumen de tu negocio</p>
+          <p className="text-[11px] text-muted mt-1 leading-relaxed">Monitoreo y resumen de tu negocio en tiempo real</p>
         </div>
       </div>
 

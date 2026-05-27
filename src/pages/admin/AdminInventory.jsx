@@ -5,6 +5,7 @@ import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useT
 import CategoryManager from '../../components/admin/inventory/CategoryManager'
 import ProductFormModal from '../../components/admin/inventory/ProductFormModal'
 import { formatCurrency } from '../../utils/formatters'
+import { fuzzyMatch } from '../../utils/search'
 
 export default function AdminInventory() {
   const { data: products = [], isLoading: isLoadingProducts } = useProducts()
@@ -33,11 +34,11 @@ export default function AdminInventory() {
     setTimeout(() => setToastMessage(null), 3000)
   }
 
-  // Filtrado de productos en frontend
-  const filteredProducts = products.filter(p => 
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    categories.find(c => c.id === p.categoriaId)?.nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filtrado de productos en frontend con búsqueda difusa
+  const filteredProducts = products.filter(p => {
+    const catName = categories.find(c => c.id === p.categoriaId)?.nombre || ''
+    return fuzzyMatch(p.nombre, searchTerm) || fuzzyMatch(catName, searchTerm)
+  })
 
   const handleSaveProduct = (data) => {
     if (editingProduct) {
@@ -116,7 +117,7 @@ export default function AdminInventory() {
       </div>
 
       {/* Tabs */}
-      <div className="flex p-1.5 gap-1 bg-surface-2 rounded-2xl mb-6 max-w-sm">
+      <div className="flex p-1.5 gap-1 bg-surface-2 rounded-2xl mb-6 w-full">
         <button
           onClick={() => setActiveTab('productos')}
           className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${

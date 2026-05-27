@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -412,6 +412,7 @@ export default function AdminSettings() {
 
   // Navegación de secciones (null = menú principal)
   const [activeSection, setActiveSection] = useState(null)
+  const [activeSubSection, setActiveSubSection] = useState(null) // null | 'empleados' | 'entregas'
   const { metrics: billingMetrics, isLoading: billingLoading, savePercent, isSaving: billingIsSaving } = useBilling()
   const [commissionInput, setCommissionInput] = useState(null)
   const [animatedValues, setAnimatedValues] = useState({ totalMes: 0, comisionMes: 0, pedidosMes: 0, comisionHistorica: 0 })
@@ -420,6 +421,7 @@ export default function AdminSettings() {
   useEffect(() => {
     const handleReset = () => {
       setActiveSection(null)
+      setActiveSubSection(null)
     }
     window.addEventListener('reset-settings-menu', handleReset)
     return () => {
@@ -639,6 +641,21 @@ export default function AdminSettings() {
     guidedModeEnabled: true,
     actionColor: '',
     loginTrustMessage: '',
+    hasMultipleEmployees: false,
+    employeeCount: 0,
+    employees: [],
+    deliverySettings: {
+      pickup: { enabled: true, address: '', instructions: '' },
+      shipping: { enabled: true, cost: 0, estimatedTime: '', instructions: '' },
+      digital: { enabled: false, instructions: '' }
+    },
+    wholesaleSettings: {
+      enabled: true,
+      minQuantity: 12,
+      discountType: 'percentage', // 'percentage' | 'fixed'
+      discountValue: 15
+    },
+    catalogMode: 'standard'
   })
 
   // Sincronizar store local con formulario al cargar
@@ -680,6 +697,21 @@ export default function AdminSettings() {
         actionColor: config.actionColor || '',
         welcomeWavesEnabled: config.welcomeWavesEnabled ?? true,
         loginTrustMessage: config.loginTrustMessage || '',
+        hasMultipleEmployees: config.hasMultipleEmployees ?? false,
+        employeeCount: config.employeeCount ?? 0,
+        employees: config.employees ?? [],
+        deliverySettings: config.deliverySettings || {
+          pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+          shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+          digital: { enabled: false, instructions: 'Entrega digital o prestación de servicio presencial.' }
+        },
+        wholesaleSettings: config.wholesaleSettings || {
+          enabled: true,
+          minQuantity: 12,
+          discountType: 'percentage', // 'percentage' | 'fixed'
+          discountValue: 15
+        },
+        catalogMode: config.catalogMode || 'standard'
       })
     }
   }, [
@@ -699,7 +731,13 @@ export default function AdminSettings() {
     config.animationsEnabled,
     config.guidedModeEnabled,
     config.actionColor,
-    config.welcomeWavesEnabled
+    config.welcomeWavesEnabled,
+    config.hasMultipleEmployees,
+    config.employeeCount,
+    config.employees,
+    config.deliverySettings,
+    config.wholesaleSettings,
+    config.catalogMode
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -997,6 +1035,14 @@ export default function AdminSettings() {
       iconColor: 'text-blue-500',
     },
     {
+      id: 'personalizar',
+      label: 'Personalizar Tienda',
+      description: 'Configura el personal de ventas y opciones de la tienda',
+      icon: Sparkles,
+      iconBg: 'bg-amber-500/10',
+      iconColor: 'text-amber-500',
+    },
+    {
       id: 'apariencia',
       label: 'Apariencia y Colores',
       description: 'Tema, paleta y modo oscuro',
@@ -1247,7 +1293,11 @@ export default function AdminSettings() {
       initial={{ opacity: 0, x: activeSection ? 30 : -30 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
-      className="p-4 md:p-8 max-w-2xl mx-auto pb-24 overflow-x-hidden relative"
+      className={`p-4 md:p-8 mx-auto pb-24 overflow-x-hidden relative ${
+        activeSection 
+          ? (activeSection === 'marca' || activeSection === 'apariencia' ? 'max-w-6xl' : 'max-w-3xl') 
+          : 'max-w-2xl'
+      }`}
     >
       {/* Toast de guardado */}
       <AnimatePresence>
@@ -1280,9 +1330,15 @@ export default function AdminSettings() {
       <div className="flex items-center gap-3 mb-8">
         {activeSection ? (
           <button
-            onClick={() => setActiveSection(null)}
+            onClick={() => {
+              if (activeSubSection) {
+                setActiveSubSection(null)
+              } else {
+                setActiveSection(null)
+              }
+            }}
             className="w-10 h-10 rounded-2xl bg-surface-2 border border-app flex items-center justify-center text-app hover:bg-primary hover:text-white hover:border-primary transition-all active:scale-95 shrink-0"
-            aria-label="Volver al menú"
+            aria-label="Volver"
           >
             <ArrowLeft size={20} />
           </button>
@@ -1293,10 +1349,24 @@ export default function AdminSettings() {
         )}
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-app">
-            {activeSection ? activeInfo?.label : 'Configuración'}
+            {activeSection 
+              ? (activeSubSection === 'empleados' 
+                  ? 'Gestión de Personal' 
+                  : activeSubSection === 'entregas' 
+                    ? 'Métodos de Entrega' 
+                    : activeInfo?.label)
+              : 'Configuración'
+            }
           </h1>
           <p className="text-sm text-muted">
-            {activeSection ? activeInfo?.description : 'Ajustes de tu tienda'}
+            {activeSection 
+              ? (activeSubSection === 'empleados' 
+                  ? 'Configura el personal de ventas' 
+                  : activeSubSection === 'entregas' 
+                    ? 'Opciones de entrega y retiro físico o digital' 
+                    : activeInfo?.description)
+              : 'Ajustes de tu tienda'
+            }
           </p>
         </div>
       </div>
@@ -1436,6 +1506,445 @@ export default function AdminSettings() {
           </div>
           {renderMobilePreview()}
         </div>
+      )}
+
+      {/* ─── VISTA: PERSONALIZAR TIENDA ────────────────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {activeSection === 'personalizar' && (
+          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden flex flex-col">
+            
+            {/* SUBSECCIÓN MENU: Cuadrícula de Tarjetas Selectoras */}
+            {activeSubSection === null && (
+              <div className="p-6 space-y-6">
+                <p className="text-sm text-muted">Selecciona una categoría para comenzar a personalizar tu tienda:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Tarjeta Empleados */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('empleados')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <User size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Gestión de Personal</p>
+                      <p className="text-xs text-muted leading-relaxed">Configura empleados, vendedores y el registro de ventas en el POS.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                  </motion.button>
+
+                  {/* Tarjeta Métodos de Entrega */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('entregas')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <Truck size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Métodos de Entrega</p>
+                      <p className="text-xs text-muted leading-relaxed">Establece retiros en local, envíos a domicilio, costos y entregas digitales.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                  </motion.button>
+
+                  {/* Tarjeta Venta al por Mayor */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('mayorista')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <Percent size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Ventas al por Mayor</p>
+                      <p className="text-xs text-muted leading-relaxed">Configura la cantidad mínima, el tipo de descuento y el valor de mayoreo.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            {/* SUBSECCIÓN FORM: Gestión de Personal */}
+            {activeSubSection === 'empleados' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-5">
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Múltiples Empleados</p>
+                      <p className="text-xs text-muted mt-0.5">Activa esta opción si tu negocio cuenta con personal de ventas además de ti</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.hasMultipleEmployees}
+                        onChange={(e) => setFormData({ ...formData, hasMultipleEmployees: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {formData.hasMultipleEmployees && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <label className="block text-sm font-bold text-app mb-2">Número de Empleados</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={formData.employeeCount || ''}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value) || 0);
+                            const newEmployees = [...formData.employees];
+                            if (newEmployees.length < val) {
+                              while (newEmployees.length < val) {
+                                newEmployees.push('');
+                              }
+                            } else if (newEmployees.length > val) {
+                              newEmployees.splice(val);
+                            }
+                            setFormData({
+                              ...formData,
+                              employeeCount: val,
+                              employees: newEmployees
+                            });
+                          }}
+                          placeholder="Ej. 3"
+                          className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+
+                      {formData.employeeCount > 0 && (
+                        <div className="space-y-3 pt-2">
+                          <p className="text-xs font-bold text-muted uppercase tracking-widest">Nombres del Personal de Ventas</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {Array.from({ length: formData.employeeCount }).map((_, idx) => (
+                              <div key={idx}>
+                                <label className="block text-xs font-semibold text-muted mb-1">Empleado #{idx + 1}</label>
+                                <input
+                                  type="text"
+                                  value={formData.employees[idx] || ''}
+                                  onChange={(e) => {
+                                    const newEmployees = [...formData.employees];
+                                    newEmployees[idx] = e.target.value;
+                                    setFormData({ ...formData, employees: newEmployees });
+                                  }}
+                                  placeholder={`Nombre de Empleado ${idx + 1}`}
+                                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (formData.hasMultipleEmployees) {
+                          if (!formData.employeeCount || formData.employeeCount <= 0) {
+                            setSaveMessage({ type: 'error', text: 'Debes definir al menos 1 empleado.' })
+                            return;
+                          }
+                          const hasEmpty = formData.employees.some(name => !name.trim());
+                          if (hasEmpty) {
+                            setSaveMessage({ type: 'error', text: 'Por favor ingresa los nombres de todos los empleados.' })
+                            return;
+                          }
+                        }
+
+                        await updateAppConfig({ 
+                          hasMultipleEmployees: formData.hasMultipleEmployees, 
+                          employeeCount: formData.hasMultipleEmployees ? formData.employeeCount : 0, 
+                          employees: formData.hasMultipleEmployees ? formData.employees : []
+                        })
+                        setSaveMessage({ type: 'success', text: 'Configuración de personal guardada correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Configuración de Personal
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SUBSECCIÓN FORM: Métodos de Entrega */}
+            {activeSubSection === 'entregas' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-5">
+                  {/* Retiro en Local */}
+                  <div className="p-4 bg-surface-2/60 rounded-2xl border border-app space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-app">Retiro en Tienda / Local</p>
+                        <p className="text-xs text-muted">Permite al cliente retirar el pedido físicamente</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" className="sr-only peer"
+                          checked={formData.deliverySettings?.pickup?.enabled ?? true}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            deliverySettings: {
+                              ...formData.deliverySettings,
+                              pickup: { ...(formData.deliverySettings?.pickup || {}), enabled: e.target.checked }
+                            }
+                          })} />
+                        <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                      </label>
+                    </div>
+
+                    {(formData.deliverySettings?.pickup?.enabled ?? true) && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-muted mb-1">Dirección de Retiro</label>
+                          <input
+                            type="text"
+                            value={formData.deliverySettings?.pickup?.address || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              deliverySettings: {
+                                ...formData.deliverySettings,
+                                pickup: { ...(formData.deliverySettings?.pickup || {}), address: e.target.value }
+                              }
+                            })}
+                            placeholder="Ej. Calle 10 # 4-50, Centro"
+                            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-muted mb-1">Instrucciones de recogida</label>
+                          <input
+                            type="text"
+                            value={formData.deliverySettings?.pickup?.instructions || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              deliverySettings: {
+                                ...formData.deliverySettings,
+                                pickup: { ...(formData.deliverySettings?.pickup || {}), instructions: e.target.value }
+                              }
+                            })}
+                            placeholder="Ej. Acercarse a caja con el número de pedido"
+                            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Domicilio / Envío */}
+                  <div className="p-4 bg-surface-2/60 rounded-2xl border border-app space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-app">Envío a Domicilio</p>
+                        <p className="text-xs text-muted">Permite despachar pedidos a la dirección del cliente</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" className="sr-only peer"
+                          checked={formData.deliverySettings?.shipping?.enabled ?? true}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            deliverySettings: {
+                              ...formData.deliverySettings,
+                              shipping: { ...(formData.deliverySettings?.shipping || {}), enabled: e.target.checked }
+                            }
+                          })} />
+                        <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                      </label>
+                    </div>
+
+                    {(formData.deliverySettings?.shipping?.enabled ?? true) && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 pt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-muted mb-1">Costo de Envío ($)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formData.deliverySettings?.shipping?.cost ?? 0}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                deliverySettings: {
+                                  ...formData.deliverySettings,
+                                  shipping: { ...(formData.deliverySettings?.shipping || {}), cost: Math.max(0, parseInt(e.target.value) || 0) }
+                                }
+                              })}
+                              className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-muted mb-1">Tiempo Estimado</label>
+                            <input
+                              type="text"
+                              value={formData.deliverySettings?.shipping?.estimatedTime || ''}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                deliverySettings: {
+                                  ...formData.deliverySettings,
+                                  shipping: { ...(formData.deliverySettings?.shipping || {}), estimatedTime: e.target.value }
+                                }
+                              })}
+                              placeholder="Ej. 30 a 60 min, o 24-48 horas"
+                              className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-muted mb-1">Instrucciones de Envío</label>
+                          <input
+                            type="text"
+                            value={formData.deliverySettings?.shipping?.instructions || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              deliverySettings: {
+                                ...formData.deliverySettings,
+                                shipping: { ...(formData.deliverySettings?.shipping || {}), instructions: e.target.value }
+                              }
+                            })}
+                            placeholder="Ej. Recibe en la comodidad de tu casa"
+                            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Entrega Digital */}
+                  <div className="p-4 bg-surface-2/60 rounded-2xl border border-app space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-app">Servicios / Entrega Digital</p>
+                        <p className="text-xs text-muted">Adecuado para servicios presenciales o productos virtuales</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" className="sr-only peer"
+                          checked={formData.deliverySettings?.digital?.enabled ?? false}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            deliverySettings: {
+                              ...formData.deliverySettings,
+                              digital: { ...(formData.deliverySettings?.digital || {}), enabled: e.target.checked }
+                            }
+                          })} />
+                        <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                      </label>
+                    </div>
+
+                    {(formData.deliverySettings?.digital?.enabled ?? false) && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-muted mb-1">Instrucciones</label>
+                          <input
+                            type="text"
+                            value={formData.deliverySettings?.digital?.instructions || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              deliverySettings: {
+                                ...formData.deliverySettings,
+                                digital: { ...(formData.deliverySettings?.digital || {}), instructions: e.target.value }
+                              }
+                            })}
+                            placeholder="Ej. Te enviaremos el enlace por WhatsApp"
+                            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const pEnabled = formData.deliverySettings?.pickup?.enabled ?? true;
+                        const sEnabled = formData.deliverySettings?.shipping?.enabled ?? true;
+                        const dEnabled = formData.deliverySettings?.digital?.enabled ?? false;
+                        if (!pEnabled && !sEnabled && !dEnabled) {
+                          setSaveMessage({ type: 'error', text: 'Debes habilitar al menos un método de entrega.' })
+                          return;
+                        }
+
+                        await updateAppConfig({ 
+                          deliverySettings: formData.deliverySettings || null
+                        })
+                        setSaveMessage({ type: 'success', text: 'Métodos de entrega guardados correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Métodos de Entrega
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SUBSECCIÓN FORM: Ventas al por Mayor */}
+            {activeSubSection === 'mayorista' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-5">
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Activar Solicitudes al por Mayor</p>
+                      <p className="text-xs text-muted mt-0.5">Permite a los clientes solicitar cotizaciones y precios mayoristas en el catálogo</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.wholesaleSettings?.enabled ?? true}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          wholesaleSettings: {
+                            ...(formData.wholesaleSettings || {}),
+                            enabled: e.target.checked
+                          }
+                        })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateAppConfig({ 
+                          wholesaleSettings: {
+                            enabled: formData.wholesaleSettings?.enabled ?? true
+                          }
+                        })
+                        setSaveMessage({ type: 'success', text: 'Configuración de venta al por mayor guardada correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar la configuración.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Configuración de Mayoreo
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -1626,11 +2135,10 @@ export default function AdminSettings() {
               <div className="p-4 bg-surface-2 rounded-2xl border border-app">
                 <p className="text-sm font-bold text-app mb-1">Diseño del Catálogo</p>
                 <p className="text-xs text-muted mb-3">Columnas en la vista del cliente</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {[
                     { id: 'list', label: 'Lista' },
-                    { id: 'grid2', label: '2 Columnas' },
-                    { id: 'grid3', label: '3 Columnas' }
+                    { id: 'grid2', label: '2 Columnas' }
                   ].map((layout) => (
                     <button
                       key={layout.id}
@@ -1642,52 +2150,11 @@ export default function AdminSettings() {
                       <div className="flex gap-1 h-5">
                         {layout.id === 'list' && <div className="w-10 h-full bg-current rounded-sm opacity-50" />}
                         {layout.id === 'grid2' && <><div className="w-4 h-full bg-current rounded-sm opacity-50"/><div className="w-4 h-full bg-current rounded-sm opacity-50"/></>}
-                        {layout.id === 'grid3' && <><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/><div className="w-3 h-full bg-current rounded-sm opacity-50"/></>}
                       </div>
                       <span className="text-xs font-semibold">{layout.label}</span>
                     </button>
                   ))}
                 </div>
-              </div>
-
-              {/* ── Banner del Catálogo ── */}
-              <div className="p-4 bg-surface-2 rounded-2xl border border-app">
-                <p className="text-sm font-bold text-app mb-1">Banner Principal</p>
-                <p className="text-xs text-muted mb-3">Cabecera en la tienda del cliente</p>
-                
-                <div className="flex bg-surface border border-app rounded-lg overflow-hidden h-9 mb-4">
-                  <button 
-                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'none' } })}
-                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'none' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                  >Oculto</button>
-                  <div className="w-px bg-app opacity-20"></div>
-                  <button 
-                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'gradient' } })}
-                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'gradient' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                  >Degradado</button>
-                  <div className="w-px bg-app opacity-20"></div>
-                  <button 
-                    onClick={() => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, type: 'image' } })}
-                    className={`flex-1 text-xs font-bold transition-colors ${formData.catalogBanner.type === 'image' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}
-                  >Imagen</button>
-                </div>
-
-                {formData.catalogBanner.type === 'image' && (
-                  <div className="mt-3">
-                    <input 
-                      type="url" 
-                      placeholder="URL de la imagen (https://...)" 
-                      value={formData.catalogBanner.value}
-                      onChange={(e) => setFormData({ ...formData, catalogBanner: { ...formData.catalogBanner, value: e.target.value } })}
-                      className="w-full h-11 px-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" 
-                    />
-                    {formData.catalogBanner.value && (
-                      <div className="mt-3 w-full h-24 rounded-xl border border-app overflow-hidden bg-surface flex items-center justify-center">
-                        <img src={formData.catalogBanner.value} alt="Preview" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none' }} />
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
               
             </div>

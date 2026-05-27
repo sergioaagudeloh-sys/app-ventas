@@ -34,6 +34,29 @@ const DEFAULT_SETTINGS = {
   catalogLayout: 'grid2',
   animationsEnabled: true,
   actionColor: '',
+  deliverySettings: {
+    pickup: {
+      enabled: true,
+      address: '',
+      instructions: 'Recoge tu pedido directamente en nuestro local.'
+    },
+    shipping: {
+      enabled: true,
+      cost: 0,
+      estimatedTime: '30 a 60 min',
+      instructions: 'Recibe tu pedido en la comodidad de tu casa.'
+    },
+    digital: {
+      enabled: false,
+      instructions: 'Entrega digital o prestación de servicio presencial.'
+    }
+  },
+  wholesaleSettings: {
+    enabled: true,
+    minQuantity: 12,
+    discountType: 'percentage', // 'percentage' | 'fixed'
+    discountValue: 15
+  },
   updatedAt: null,
 }
 

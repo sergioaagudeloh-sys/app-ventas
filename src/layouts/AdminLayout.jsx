@@ -157,7 +157,7 @@ export default function AdminLayout() {
                 aria-label={label}
               >
                 {({ isActive }) => (
-                  <div className="flex flex-col items-center justify-center -translate-y-2.5">
+                  <div className="flex flex-col items-center justify-center -translate-y-3">
                     <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 active:scale-90 border-4 border-surface bg-primary ${
                       isActive 
                         ? 'text-white scale-105' 
@@ -165,11 +165,6 @@ export default function AdminLayout() {
                     }`}>
                       <Icon size={26} aria-hidden="true" />
                     </div>
-                    <span className={`text-[9px] font-bold mt-1 uppercase tracking-wider transition-colors duration-300 ${
-                      isActive ? 'text-primary' : 'text-muted'
-                     }`}>
-                      {label}
-                    </span>
                   </div>
                 )}
               </NavLink>
