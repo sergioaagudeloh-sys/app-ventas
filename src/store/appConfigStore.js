@@ -23,6 +23,7 @@ const useAppConfigStore = create(
       activeSeasonalEvent: 'none', // Evento estacional activo ('none', 'navidad', 'halloween', 'madre', 'padre')
       whatsappAdmin: '',
       claimsEnabled: false,
+      orderTrackingEnabled: false,
       bankInfo: {
         numeroCuenta: '',
         banco: '',
@@ -136,6 +137,7 @@ const useAppConfigStore = create(
         wholesaleSettings: state.wholesaleSettings,
         whatsappAdmin: state.whatsappAdmin,
         claimsEnabled: state.claimsEnabled,
+        orderTrackingEnabled: state.orderTrackingEnabled,
       }),
     }
   )
