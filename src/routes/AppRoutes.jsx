@@ -27,6 +27,7 @@ const ClientFavorites = lazy(() => import('../pages/client/ClientFavorites'))
 const ClientOrders = lazy(() => import('../pages/client/ClientOrders'))
 const ClientCredits = lazy(() => import('../pages/client/ClientCredits'))
 const ClientProfile = lazy(() => import('../pages/client/ClientProfile'))
+const OrderTracking = lazy(() => import('../pages/client/OrderTracking'))
 
 // ─── Guard de rutas por rol ───────────────────────────────────────────────────
 function RequireAuth({ children, allowedRole }) {
@@ -85,7 +86,8 @@ export default function AppRoutes() {
           <Route path="perfil" element={<ClientProfile />} />
         </Route>
 
-        {/* ─── Ruta raíz: Bienvenida ───────────────────────────────────── */}
+        {/* ─── Ruta raíz: Bienvenida y Seguimiento Público ────────────────── */}
+        <Route path="/pedido/status" element={<OrderTracking />} />
         <Route path="/" element={<WelcomePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
