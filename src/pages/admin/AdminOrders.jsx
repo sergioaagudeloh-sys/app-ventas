@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
 import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
@@ -11,6 +11,7 @@ import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
 import * as orderService from '../../services/orderService'
 import { fuzzyMatch } from '../../utils/search'
+import { subscribeToClaims } from '../../services/claimsService'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -217,6 +218,16 @@ export default function AdminOrders() {
   const navigate = useNavigate()
   
   const [searchTerm, setSearchTerm] = useState('')
+  const [pendingClaimsCount, setPendingClaimsCount] = useState(0)
+
+  useEffect(() => {
+    const unsubscribe = subscribeToClaims((claimsList) => {
+      const pendingCount = claimsList.filter(c => c.status === 'PENDING').length
+      setPendingClaimsCount(pendingCount)
+    })
+    return () => unsubscribe()
+  }, [])
+
   const [activeFilter, setActiveFilter] = useState('Todos')
   const [showArchived, setShowArchived] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState(null)
@@ -744,18 +755,32 @@ export default function AdminOrders() {
             <p className="text-sm text-muted leading-tight mt-1">Administra y controla los pedidos del negocio.</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowWholesaleModal(true)}
-          className="relative flex items-center gap-2 h-11 px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 flex-shrink-0"
-        >
-          <PackagePlus size={16} />
-          <span>Solicitudes por Encargo</span>
-          {pendingWholesaleCount > 0 && (
-            <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
-              {pendingWholesaleCount}
-            </span>
-          )}
-        </button>
+        <div className="flex gap-3 w-full sm:w-auto">
+          <button
+            onClick={() => navigate('/admin/reclamos')}
+            className="relative flex-1 sm:flex-initial flex items-center justify-center gap-2 h-[50px] px-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 min-w-0"
+          >
+            <ShieldAlert size={16} className="shrink-0" />
+            <span className="truncate">Garantías y Reclamos</span>
+            {pendingClaimsCount > 0 && (
+              <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
+                {pendingClaimsCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setShowWholesaleModal(true)}
+            className="relative flex-1 sm:flex-initial flex items-center justify-center gap-2 h-[50px] px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 min-w-0"
+          >
+            <PackagePlus size={16} className="shrink-0" />
+            <span className="truncate">Solicitudes por Encargo</span>
+            {pendingWholesaleCount > 0 && (
+              <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
+                {pendingWholesaleCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Métricas con Rediseño Simétrico */}

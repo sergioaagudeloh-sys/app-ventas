@@ -11,6 +11,7 @@ service cloud.firestore {
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
       allow read, write: if true;
+      allow delete: if request.auth != null;
       
       match /favorites/{favoriteId} {
         allow read, write: if true;
@@ -20,11 +21,11 @@ service cloud.firestore {
     // Catálogo e Inventario
     match /products/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write, update, delete: if true;
     }
     match /categories/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write, delete: if request.auth != null;
     }
 
     // Pedidos (Retail y Mayoristas)
@@ -50,13 +51,31 @@ service cloud.firestore {
     // Créditos / Fiados
     match /credits/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write, delete: if request.auth != null;
     }
 
     // Publicidad y Promociones
     match /ads/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write, delete: if request.auth != null;
+    }
+
+    // Cupones
+    match /coupons/{document} {
+      allow read: if true;
+      allow write, delete: if request.auth != null;
+    }
+
+    // Garantías y Reclamos
+    match /claims/{document} {
+      allow read, create: if true;
+      allow update, delete: if request.auth != null;
+    }
+
+    // Notificaciones
+    match /notifications/{document} {
+      allow read, create: if true;
+      allow update, delete: if request.auth != null;
     }
   }
 }

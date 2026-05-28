@@ -37,6 +37,7 @@ export default function CartDrawer() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               onClick={closeCart}
               className="absolute inset-0 bg-black/50"
             />
@@ -46,7 +47,7 @@ export default function CartDrawer() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               className="relative w-full max-w-md bg-surface h-full shadow-2xl flex flex-col"
             >
               {/* Header */}

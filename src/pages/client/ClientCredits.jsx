@@ -7,6 +7,8 @@ import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import { SUPPORT_WHATSAPP } from '../../constants'
 
+import { createCreditNotification } from '../../services/creditService'
+
 export default function ClientCredits() {
   const { user } = useAuthStore()
   const { whatsappAdmin } = useAppConfigStore()
@@ -56,10 +58,19 @@ export default function ClientCredits() {
 
   const totalDeuda = activos.reduce((sum, c) => sum + c.saldoPendiente, 0)
 
-  const handleContactStore = () => {
-    const text = `Hola, quiero consultar el estado de mis créditos/fiados. Mi número es ${user?.celular}.`
-    const phone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank')
+  const handleSendPagoTotalWhatsApp = async (credit) => {
+    const cleanPhone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
+    const mensaje = `Hola, deseo realizar el pago total de mi crédito correspondiente al pedido *#${credit.orderNumber}* por un valor de *${formatCurrency(credit.saldoPendiente)}*. Mi número de celular es ${user?.celular}.`
+    
+    await createCreditNotification({
+      type: 'pago_total',
+      clienteNombre: user?.nombre || 'Cliente',
+      clienteCelular: user?.celular || '',
+      monto: credit.saldoPendiente,
+      orderNumber: credit.orderNumber
+    })
+
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`, '_blank')
   }
 
   const handleOpenAbonar = (credit) => {
@@ -68,7 +79,7 @@ export default function ClientCredits() {
     setAbonoError('')
   }
 
-  const handleSendAbonoWhatsApp = (e) => {
+  const handleSendAbonoWhatsApp = async (e) => {
     e.preventDefault()
     const monto = Number(abonoMonto)
     
@@ -83,8 +94,16 @@ export default function ClientCredits() {
     }
 
     const cleanPhone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
-    const mensaje = `Hola, quiero informar que deseo realizar un abono de *${formatCurrency(monto)}* para mi crédito del pedido *#${selectedCredit.orderNumber}* (Saldo pendiente actual: ${formatCurrency(selectedCredit.saldoPendiente)}). Mi número de celular es ${user?.celular}.`
+    const mensaje = `Hola, deseo registrar un abono de *${formatCurrency(monto)}* a mi crédito activo correspondiente al pedido *#${selectedCredit.orderNumber}* (el cual tiene un saldo pendiente de ${formatCurrency(selectedCredit.saldoPendiente)}). Mi número de celular es ${user?.celular}.`
     
+    await createCreditNotification({
+      type: 'abono',
+      clienteNombre: user?.nombre || 'Cliente',
+      clienteCelular: user?.celular || '',
+      monto: monto,
+      orderNumber: selectedCredit.orderNumber
+    })
+
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`, '_blank')
     setSelectedCredit(null)
   }
@@ -112,15 +131,6 @@ export default function ClientCredits() {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              {totalDeuda > 0 && (
-                <button
-                  onClick={handleContactStore}
-                  className="w-full sm:w-auto px-5 py-3 bg-surface-2 border border-app text-app rounded-xl font-bold transition-all active:scale-95 hover:border-primary/50 text-sm"
-                >
-                  Acordar Pago
-                </button>
-              )}
-              
               {pagadosNoArchivados.length > 0 && (
                 <button
                   onClick={() => {
@@ -157,7 +167,12 @@ export default function ClientCredits() {
                 <h3 className="text-lg font-bold text-app mb-4 ml-2">Créditos Activos</h3>
                 <div className="grid gap-4">
                   {activos.map(credit => (
-                    <CreditCardItem key={credit.id} credit={credit} onAbonar={handleOpenAbonar} />
+                    <CreditCardItem 
+                      key={credit.id} 
+                      credit={credit} 
+                      onAbonar={handleOpenAbonar} 
+                      onPagoTotal={handleSendPagoTotalWhatsApp} 
+                    />
                   ))}
                 </div>
               </section>
@@ -282,7 +297,7 @@ export default function ClientCredits() {
   )
 }
 
-function CreditCardItem({ credit, isPaid, onAbonar, onArchive, isArchived }) {
+function CreditCardItem({ credit, isPaid, onAbonar, onPagoTotal, onArchive, isArchived }) {
   const [showPayments, setShowPayments] = useState(false)
 
   return (
@@ -303,19 +318,29 @@ function CreditCardItem({ credit, isPaid, onAbonar, onArchive, isArchived }) {
         </div>
 
         {!isPaid ? (
-          <div className="grid grid-cols-2 gap-3 w-full sm:max-w-[320px] mt-2 sm:mt-0">
-            <div className="bg-warning-soft p-3 rounded-2xl border border-warning-soft flex flex-col justify-center items-center text-center">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+            <div className="bg-warning-soft px-4 py-2.5 rounded-2xl border border-warning-soft flex flex-col justify-center items-center text-center min-w-[120px]">
               <p className="text-[10px] font-bold text-warning uppercase tracking-wider mb-1 leading-none">Saldo Pendiente</p>
               <p className="text-xl font-black text-warning leading-none">{formatCurrency(credit.saldoPendiente)}</p>
             </div>
-            {onAbonar && (
-              <button
-                onClick={() => onAbonar(credit)}
-                className="w-full h-full bg-primary text-white rounded-2xl text-sm font-bold shadow-md hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                Abonar
-              </button>
-            )}
+            <div className="grid grid-cols-2 gap-2 w-full sm:w-[180px]">
+              {onAbonar && (
+                <button
+                  onClick={() => onAbonar(credit)}
+                  className="h-11 bg-surface-2 border border-app text-app rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+                >
+                  Abono
+                </button>
+              )}
+              {onPagoTotal && (
+                <button
+                  onClick={() => onPagoTotal(credit)}
+                  className="h-11 bg-primary text-white rounded-xl text-xs font-bold shadow-md hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+                >
+                  Pago Total
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           isArchived && onArchive && (

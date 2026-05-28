@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Store, Smartphone, Shield, Mail, Lock, ArrowLeft } from 'lucide-react'
+import { Store, Smartphone, Shield, Mail, Lock, ArrowLeft, User } from 'lucide-react'
 import { auth, db } from '../config/firebaseConfig'
 import useAuthStore from '../store/authStore'
 import useAppConfigStore from '../store/appConfigStore'
@@ -25,11 +25,13 @@ export default function LoginPage() {
   const [celular, setCelular] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
+  const [adminSellerName, setAdminSellerName] = useState('')
+  const [adminWhatsapp, setAdminWhatsapp] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
   const { role, setAdmin, setClient, isLoading: isAuthLoading } = useAuthStore()
-  const { appName, appIcon, adminRegistered, primaryColor, welcomeWavesEnabled, loginTrustMessage, slogan, isLoaded } = useAppConfigStore()
+  const { appName, appIcon, adminRegistered, primaryColor, welcomeWavesEnabled, loginTrustMessage, slogan, isLoaded, setConfig } = useAppConfigStore()
   const navigate = useNavigate()
 
   // Leer color primario real desde CSS en runtime
@@ -69,6 +71,21 @@ export default function LoginPage() {
       return
     }
 
+    if (!adminRegistered) {
+      if (!adminSellerName.trim()) {
+        setError('Por favor, ingresa el nombre del vendedor.')
+        return
+      }
+      if (!adminWhatsapp.trim()) {
+        setError('Por favor, ingresa el número de WhatsApp.')
+        return
+      }
+      if (adminWhatsapp.replace(/\D/g, '').length < 7) {
+        setError('Por favor, ingresa un número de WhatsApp válido.')
+        return
+      }
+    }
+
     setIsLoading(true)
     setError('')
 
@@ -80,14 +97,25 @@ export default function LoginPage() {
       } else {
         // Registro por primera vez
         userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword)
-        await updateAppConfig({ adminRegistered: true })
+        const cleanWhatsapp = adminWhatsapp.replace(/\D/g, '')
+        const configUpdates = {
+          adminRegistered: true,
+          sellerName: adminSellerName.trim(),
+          whatsappAdmin: cleanWhatsapp
+        }
+        await updateAppConfig(configUpdates)
+        // Actualizar store local de configuración
+        setConfig({
+          ...useAppConfigStore.getState(),
+          ...configUpdates
+        })
       }
       
       const user = userCredential.user
       setAdmin({
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || 'Administrador',
+        displayName: user.displayName || adminSellerName.trim() || 'Administrador',
         photoURL: user.photoURL || null,
       })
       navigate('/admin/inicio', { replace: true })
@@ -456,6 +484,34 @@ export default function LoginPage() {
                         required
                       />
                     </div>
+
+                    {!adminRegistered && (
+                      <>
+                        <div className="relative">
+                          <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+                          <input
+                            type="text"
+                            value={adminSellerName}
+                            onChange={(e) => setAdminSellerName(e.target.value)}
+                            placeholder="Nombre del Vendedor / Dueño"
+                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            required
+                          />
+                        </div>
+
+                        <div className="relative">
+                          <Smartphone size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+                          <input
+                            type="tel"
+                            value={adminWhatsapp}
+                            onChange={(e) => setAdminWhatsapp(e.target.value)}
+                            placeholder="Número de WhatsApp (Ej: 573001234567)"
+                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            required
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {error && (

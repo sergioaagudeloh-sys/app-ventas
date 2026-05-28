@@ -9,12 +9,16 @@ import {
   serverTimestamp,
   orderBy,
   runTransaction,
-  onSnapshot
+  onSnapshot,
+  limit,
+  startAfter,
+  addDoc
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
 
 const creditsRef = collection(db, COLLECTIONS.CREDITS)
+const notificationsRef = collection(db, 'notifications')
 
 /**
  * Obtener todos los créditos (Para el Admin)
@@ -112,3 +116,56 @@ export function subscribeToClientCredits(celular, onUpdate) {
     onUpdate(sorted)
   })
 }
+
+/**
+ * Obtener créditos paginados e indexados (Para el Admin)
+ */
+export async function getCreditsPaged(estado = 'activo', limitSize = 10, startAfterDoc = null) {
+  const constraints = [
+    where('estado', '==', estado),
+    orderBy('createdAt', 'desc'),
+    limit(limitSize)
+  ]
+  
+  if (startAfterDoc) {
+    constraints.push(startAfter(startAfterDoc))
+  }
+  
+  const q = query(creditsRef, ...constraints)
+  const snap = await getDocs(q)
+  
+  const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  return {
+    credits,
+    lastDoc: snap.docs[snap.docs.length - 1] || null
+  }
+}
+
+/**
+ * Registra una notificación de abono/pago de crédito en Firestore
+ */
+export async function createCreditNotification(notificationData) {
+  try {
+    await addDoc(notificationsRef, {
+      ...notificationData,
+      createdAt: serverTimestamp(),
+      leida: false
+    })
+  } catch (error) {
+    console.error('Error al crear notificación de crédito:', error)
+  }
+}
+
+/**
+ * Se suscribe a las notificaciones en tiempo real (para el Admin)
+ */
+export function subscribeToNotifications(onUpdate) {
+  const q = query(notificationsRef, orderBy('createdAt', 'desc'))
+  return onSnapshot(q, (snap) => {
+    const notifications = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    onUpdate(notifications)
+  }, (error) => {
+    console.error('Error suscribiendo a notificaciones:', error)
+  })
+}
+

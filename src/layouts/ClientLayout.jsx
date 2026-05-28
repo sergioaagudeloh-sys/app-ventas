@@ -1,17 +1,20 @@
-import { Outlet, NavLink } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { ShoppingBag, Heart, Package, CreditCard, User, Tag } from 'lucide-react'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ShoppingCart, Heart, Package, CreditCard, User, Tag, X, Bell } from 'lucide-react'
 import useAppConfigStore from '../store/appConfigStore'
 import useCartStore from '../store/cartStore'
 import useAuthStore from '../store/authStore'
 import useFavoritesStore from '../store/favoritesStore'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import useInactivityTimer from '../hooks/useInactivityTimer'
 import SmartHint from '../components/client/guided/SmartHint'
 import ClientCouponsModal from '../components/client/coupons/ClientCouponsModal'
+import { subscribeToClientOrders } from '../services/orderService'
+import { subscribeToClientCredits } from '../services/creditService'
+import { playClientSound } from '../utils/audio'
 
 const NAV_ITEMS_LEFT = [
-  { path: '/tienda/catalogo', icon: ShoppingBag, label: 'Catálogo' },
+  { path: '/tienda/catalogo', icon: ShoppingCart, label: 'Catálogo' },
   { path: '/tienda/favoritos', icon: Heart, label: 'Favoritos' },
 ]
 
@@ -21,7 +24,7 @@ const NAV_ITEMS_RIGHT = [
 ]
 
 const ALL_NAV_ITEMS = [
-  { path: '/tienda/catalogo', icon: ShoppingBag, label: 'Catálogo' },
+  { path: '/tienda/catalogo', icon: ShoppingCart, label: 'Catálogo' },
   { path: '/tienda/favoritos', icon: Heart, label: 'Favoritos' },
   { path: '/tienda/pedidos', icon: Package, label: 'Pedidos' },
   { path: '/tienda/creditos', icon: CreditCard, label: 'Créditos' },
@@ -39,13 +42,88 @@ export default function ClientLayout() {
   const { getCount, openCart, isOpen: isCartOpen } = useCartStore()
   const { user } = useAuthStore()
   const { subscribe, unsubscribe } = useFavoritesStore()
+  const navigate = useNavigate()
   
   const [isCouponsOpen, setIsCouponsOpen] = useState(false)
+  const [toasts, setToasts] = useState([])
+  const [notifications, setNotifications] = useState([])
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [isRinging, setIsRinging] = useState(false)
   const cartCount = getCount()
   const userId = user?.celular || user?.uid
 
   // Inactividad: 10s si hay items pero el carrito está cerrado
   const { isInactive: isCartInactive } = useInactivityTimer(10000, cartCount > 0 && !isCartOpen)
+
+  // Tracker de notificaciones
+  const prevStatuses = useRef({})
+  const prevAbonosCounts = useRef({})
+  const isFirstLoadOrders = useRef(true)
+  const isFirstLoadCredits = useRef(true)
+
+  const triggerToast = (message, type = 'status', orderId = null) => {
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, message, type, orderId }])
+    setNotifications(prev => [{ id, message, type, orderId }, ...prev])
+    playClientSound()
+    setIsRinging(true)
+    setTimeout(() => setIsRinging(false), 2000)
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 5000)
+  }
+
+  // Listener en tiempo real de cambios de estado y abonos
+  useEffect(() => {
+    if (!user?.celular) return
+
+    const unsubOrders = subscribeToClientOrders(user.celular, (orders) => {
+      if (isFirstLoadOrders.current) {
+        orders.forEach(o => {
+          prevStatuses.current[o.id] = o.estado
+        })
+        isFirstLoadOrders.current = false
+        return
+      }
+
+      orders.forEach(o => {
+        const prevStatus = prevStatuses.current[o.id]
+        if (prevStatus !== undefined && prevStatus !== o.estado) {
+          triggerToast(`Tu pedido ${o.orderNumber || ''} cambió a ${o.estado.toUpperCase()}`, 'status', o.id)
+        }
+        prevStatuses.current[o.id] = o.estado
+      })
+    })
+
+    const unsubCredits = subscribeToClientCredits(user.celular, (credits) => {
+      if (isFirstLoadCredits.current) {
+        credits.forEach(c => {
+          prevAbonosCounts.current[c.id] = c.abonos?.length || 0
+        })
+        isFirstLoadCredits.current = false
+        return
+      }
+
+      credits.forEach(c => {
+        const prevCount = prevAbonosCounts.current[c.id]
+        const currentCount = c.abonos?.length || 0
+        if (prevCount !== undefined && currentCount > prevCount) {
+          const lastAbono = c.abonos[c.abonos.length - 1]
+          if (lastAbono) {
+            triggerToast(`Se aplicó un abono de $${lastAbono.monto.toLocaleString()} a tu crédito`, 'abono', c.orderId)
+          }
+        }
+        prevAbonosCounts.current[c.id] = currentCount
+      })
+    })
+
+    return () => {
+      unsubOrders()
+      unsubCredits()
+      isFirstLoadOrders.current = true
+      isFirstLoadCredits.current = true
+    }
+  }, [user?.celular])
 
   useEffect(() => {
     if (userId) {
@@ -54,6 +132,15 @@ export default function ClientLayout() {
       unsubscribe()
     }
   }, [userId, subscribe, unsubscribe])
+
+  const handleNotificationClick = (n) => {
+    setIsNotificationsOpen(false)
+    if (n.orderId) {
+      navigate('/tienda/pedidos', { state: { highlightOrderId: n.orderId } })
+    } else {
+      navigate('/tienda/pedidos')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-app flex w-full max-w-[100vw] overflow-x-hidden">
@@ -64,19 +151,79 @@ export default function ClientLayout() {
         aria-label="Navegación del cliente"
       >
         {/* Header del sidebar */}
-        <div className="flex items-center gap-3 p-6 border-b border-app">
-          {appIcon ? (
-            <img
-              src={appIcon}
-              alt={`Logo ${appName}`}
-              className="w-[54px] h-[54px] rounded-2xl object-cover"
-            />
-          ) : (
-            <div className="w-[54px] h-[54px] rounded-2xl bg-primary flex items-center justify-center">
-              <ShoppingBag size={26} className="text-white" aria-hidden="true" />
-            </div>
-          )}
-          <p className="font-bold text-sm text-app">{appName}</p>
+        <div className="flex items-center justify-between p-6 border-b border-app">
+          <div className="flex items-center gap-3">
+            {appIcon ? (
+              <img
+                src={appIcon}
+                alt={`Logo ${appName}`}
+                className="w-[54px] h-[54px] rounded-2xl object-cover"
+              />
+            ) : (
+              <div className="w-[54px] h-[54px] rounded-2xl bg-primary flex items-center justify-center">
+                <ShoppingCart size={26} className="text-white" aria-hidden="true" />
+              </div>
+            )}
+            <p className="font-bold text-sm text-app">{appName}</p>
+          </div>
+
+          {/* Campana de notificaciones (Desktop Sidebar) */}
+          <div className="relative">
+            <button
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="relative w-8 h-8 rounded-lg bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+              aria-label="Notificaciones"
+            >
+              <motion.div
+                animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
+                transition={{ duration: 0.6, ease: 'easeInOut' }}
+              >
+                <Bell size={14} />
+              </motion.div>
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+            <AnimatePresence>
+              {isNotificationsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                  className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-50 p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between border-b border-app pb-2">
+                    <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
+                    {notifications.length > 0 && (
+                      <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
+                    )}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                      {notifications.map(n => (
+                        <div 
+                          key={n.id} 
+                          onClick={() => handleNotificationClick(n)}
+                          className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
+                              {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
+                            </span>
+                          </div>
+                          <p className="text-muted leading-tight">{n.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Navegación */}
@@ -131,7 +278,7 @@ export default function ClientLayout() {
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-white text-sm font-semibold transition-all duration-300 active:scale-95 hover:opacity-90 ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
             aria-label={`Ver carrito con ${cartCount} productos`}
           >
-            <ShoppingBag size={18} aria-hidden="true" />
+            <ShoppingCart size={18} aria-hidden="true" />
             <span>Mi carrito</span>
             {cartCount > 0 && (
               <span className="ml-auto bg-white text-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
@@ -156,7 +303,7 @@ export default function ClientLayout() {
             />
           ) : (
             <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-              <ShoppingBag size={22} className="text-white" aria-hidden="true" />
+              <ShoppingCart size={22} className="text-white" aria-hidden="true" />
             </div>
           )}
           <p className="font-bold text-sm text-app">{appName}</p>
@@ -176,22 +323,100 @@ export default function ClientLayout() {
             <User size={20} />
           </NavLink>
 
-          <button
+          {/* Campana de notificaciones en header mobile */}
+          <div className="relative">
+            <button
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 text-muted hover:text-app"
+              aria-label="Notificaciones"
+            >
+              <motion.div
+                animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
+                transition={{ duration: 0.6, ease: 'easeInOut' }}
+              >
+                <Bell size={20} />
+              </motion.div>
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse border-2 border-surface">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+            <AnimatePresence>
+              {isNotificationsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                  className="absolute right-0 top-12 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-50"
+                >
+                  <div className="flex items-center justify-between border-b border-app pb-2">
+                    <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
+                    {notifications.length > 0 && (
+                      <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
+                    )}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
+                  ) : (
+                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                      {notifications.map(n => (
+                        <div 
+                          key={n.id} 
+                          onClick={() => handleNotificationClick(n)}
+                          className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
+                              {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
+                            </span>
+                          </div>
+                          <p className="text-muted leading-tight">{n.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <motion.button
             onClick={openCart}
-            className={`relative w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
+            animate={{
+              scale: cartCount > 0 ? [1, 1.08, 1] : 1,
+              boxShadow: cartCount > 0 
+                ? [
+                    '0 4px 10px rgba(var(--color-primary-rgb, 124, 58, 237), 0.2)',
+                    '0 4px 20px rgba(var(--color-primary-rgb, 124, 58, 237), 0.5)',
+                    '0 4px 10px rgba(var(--color-primary-rgb, 124, 58, 237), 0.2)'
+                  ] 
+                : 'none'
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            whileTap={{ scale: 0.95 }}
+            className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${
+              cartCount > 0 
+                ? 'bg-primary text-white' 
+                : 'bg-surface-2 text-muted hover:text-primary'
+            } ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
             aria-label={`Abrir carrito con ${cartCount} productos`}
           >
-            <ShoppingBag size={20} className="text-primary" aria-hidden="true" />
+            <ShoppingCart size={20} className={cartCount > 0 ? 'text-white' : 'text-primary'} aria-hidden="true" />
             {cartCount > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center"
+                className="absolute -top-1 -right-1 bg-white text-primary text-[10px] font-black rounded-full w-4.5 h-4.5 flex items-center justify-center border border-primary shadow-sm"
               >
                 {cartCount}
               </motion.span>
             )}
-          </button>
+          </motion.button>
           
           <SmartHint 
             stepId="cart_inactivity" 
@@ -360,6 +585,46 @@ export default function ClientLayout() {
         isOpen={isCouponsOpen}
         onClose={() => setIsCouponsOpen(false)}
       />
+
+      {/* Contenedor de Toasts de Notificaciones del Cliente */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4">
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              onClick={() => {
+                setToasts(prev => prev.filter(item => item.id !== t.id))
+                if (t.orderId) {
+                  navigate('/tienda/pedidos', { state: { highlightOrderId: t.orderId } })
+                } else {
+                  navigate('/tienda/pedidos')
+                }
+              }}
+              className="bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
+            >
+              <div className={`p-2 rounded-xl ${t.type === 'abono' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-primary/10 text-primary'}`}>
+                {t.type === 'abono' ? <CreditCard size={18} /> : <Package size={18} />}
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-bold text-app">Notificación</p>
+                <p className="text-xs text-muted mt-0.5 leading-relaxed">{t.message}</p>
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setToasts(prev => prev.filter(item => item.id !== t.id))
+                }}
+                className="text-muted hover:text-app transition-colors p-1"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   )
 }

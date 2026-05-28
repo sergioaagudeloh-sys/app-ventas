@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -412,6 +412,7 @@ export default function AdminSettings() {
   const [isDevAuthenticated, setIsDevAuthenticated] = useState(false)
   const [devPasswordInput, setDevPasswordInput] = useState('')
   const [devPasswordError, setDevPasswordError] = useState(false)
+  const [confirmRestoreText, setConfirmRestoreText] = useState('')
 
   // Navegación de secciones (null = menú principal)
   const [activeSection, setActiveSection] = useState(null)
@@ -866,7 +867,8 @@ export default function AdminSettings() {
       discountValue: 15
     },
     catalogMode: 'standard',
-    activeSeasonalEvent: 'none'
+    activeSeasonalEvent: 'none',
+    claimsEnabled: false
   })
 
   // Sincronizar store local con formulario al cargar
@@ -929,7 +931,8 @@ export default function AdminSettings() {
           discountType: 'percentage', // 'percentage' | 'fixed'
           discountValue: 15
         },
-        catalogMode: config.catalogMode || 'standard'
+        catalogMode: config.catalogMode || 'standard',
+        claimsEnabled: config.claimsEnabled ?? false
       })
     }
   }, [
@@ -959,7 +962,8 @@ export default function AdminSettings() {
     config.deliverySettings,
     config.wholesaleSettings,
     config.catalogMode,
-    config.activeSeasonalEvent
+    config.activeSeasonalEvent,
+    config.claimsEnabled
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -1138,67 +1142,29 @@ export default function AdminSettings() {
     })
   }
 
-  // Developer Zone handlers
-  const handleInjectData = async () => {
-    if (!window.confirm('¿Seguro que quieres inyectar datos de prueba? Esto llenará tu base de datos con productos, pedidos y clientes ficticios.')) return
-    
+  // Developer Zone handlers - Restauración real de la aplicación a cero
+  const handleFullReset = async () => {
+    if (confirmRestoreText !== 'RESTAURAR') return
+    if (!window.confirm('¿Estás COMPLETAMENTE SEGURO de restaurar la aplicación? Se eliminarán de forma REAL y permanente todos los productos, categorías, pedidos, créditos, cupones, anuncios y usuarios (excepto tu cuenta de administrador actual). Esta acción no se puede deshacer.')) return
+
     setLoading(true)
-    setMessage('Inyectando datos...')
-    
-    try {
-      const batch = writeBatch(db)
-
-      SEED_CATEGORIES.forEach(cat => {
-        const ref = doc(db, COLLECTIONS.CATEGORIES, cat.id)
-        batch.set(ref, { ...cat, isSeedData: true, createdAt: serverTimestamp() })
-      })
-
-      SEED_PRODUCTS.forEach(prod => {
-        const ref = doc(db, COLLECTIONS.PRODUCTS, prod.id)
-        batch.set(ref, { ...prod, isSeedData: true, createdAt: serverTimestamp() })
-      })
-
-      SEED_USERS.forEach(user => {
-        const ref = doc(db, COLLECTIONS.USERS, user.id)
-        batch.set(ref, { ...user, isSeedData: true, createdAt: serverTimestamp() })
-      })
-
-      SEED_ORDERS.forEach(order => {
-        const ref = doc(db, COLLECTIONS.ORDERS, order.id)
-        batch.set(ref, { ...order, isSeedData: true, createdAt: serverTimestamp() })
-      })
-
-      await batch.commit()
-      setMessage({ type: 'success', text: '¡Datos de prueba inyectados correctamente! Ve al Catálogo o a Pedidos para verlos.' })
-    } catch (error) {
-      console.error(error)
-      setMessage({ type: 'error', text: 'Error al inyectar datos: ' + error.message })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRemoveData = async () => {
-    if (!window.confirm('¿Estás SEGURO de eliminar TODOS los datos de prueba? No tocará tus datos reales.')) return
-    
-    setLoading(true)
-    setMessage('Eliminando datos de prueba...')
+    setMessage({ type: 'success', text: 'Restaurando base de datos a cero (borrado real)...' })
 
     try {
       const collectionsToClean = [
-        COLLECTIONS.CATEGORIES, 
-        COLLECTIONS.PRODUCTS, 
-        COLLECTIONS.USERS, 
+        COLLECTIONS.PRODUCTS,
+        COLLECTIONS.CATEGORIES,
         COLLECTIONS.ORDERS,
-        COLLECTIONS.CREDITS
+        COLLECTIONS.CREDITS,
+        'coupons',
+        'ads'
       ]
 
       let deletedCount = 0
 
+      // 1. Borrar colecciones estándar
       for (const colName of collectionsToClean) {
-        const q = query(collection(db, colName), where('isSeedData', '==', true))
-        const snapshot = await getDocs(q)
-        
+        const snapshot = await getDocs(collection(db, colName))
         const batches = []
         let currentBatch = writeBatch(db)
         let operationCount = 0
@@ -1207,7 +1173,7 @@ export default function AdminSettings() {
           currentBatch.delete(document.ref)
           deletedCount++
           operationCount++
-          
+
           if (operationCount === 500) {
             batches.push(currentBatch.commit())
             currentBatch = writeBatch(db)
@@ -1222,10 +1188,38 @@ export default function AdminSettings() {
         await Promise.all(batches)
       }
 
-      setMessage({ type: 'success', text: `¡Limpieza completada! Se eliminaron ${deletedCount} registros ficticios.` })
+      // 2. Borrar usuarios no administradores de Firestore (dejar solo el administrador actual)
+      const userSnapshot = await getDocs(collection(db, COLLECTIONS.USERS))
+      const userBatches = []
+      let userBatch = writeBatch(db)
+      let userOpCount = 0
+
+      userSnapshot.docs.forEach((userDoc) => {
+        const userData = userDoc.data()
+        // Mantener al usuario administrador actual (usualmente marcado con role: 'admin' o con su email específico)
+        if (userData.role !== 'admin' && userData.email !== 'sergioaagudeloh@gmail.com') {
+          userBatch.delete(userDoc.ref)
+          deletedCount++
+          userOpCount++
+
+          if (userOpCount === 500) {
+            userBatches.push(userBatch.commit())
+            userBatch = writeBatch(db)
+            userOpCount = 0
+          }
+        }
+      })
+
+      if (userOpCount > 0) {
+        userBatches.push(userBatch.commit())
+      }
+      await Promise.all(userBatches)
+
+      setConfirmRestoreText('')
+      setMessage({ type: 'success', text: `¡Restauración exitosa! Se eliminaron un total de ${deletedCount} registros de negocio de forma permanente. La aplicación está lista en cero.` })
     } catch (error) {
       console.error(error)
-      setMessage({ type: 'error', text: 'Error al limpiar datos: ' + error.message })
+      setMessage({ type: 'error', text: 'Error al restaurar la aplicación: ' + error.message })
     } finally {
       setLoading(false)
     }
@@ -1274,28 +1268,12 @@ export default function AdminSettings() {
       iconColor: 'text-purple-500',
     },
     {
-      id: 'filtros',
-      label: 'Filtros del Catálogo',
-      description: 'Filtros y atributos de productos',
-      icon: Filter,
-      iconBg: 'bg-indigo-500/10',
-      iconColor: 'text-indigo-500',
-    },
-    {
       id: 'ventas',
       label: 'Ventas y Transferencias',
       description: 'WhatsApp y datos bancarios',
       icon: Smartphone,
       iconBg: 'bg-green-500/10',
       iconColor: 'text-green-500',
-    },
-    {
-      id: 'facturacion',
-      label: 'Facturación',
-      description: 'Comisiones y métricas de ventas',
-      icon: Receipt,
-      iconBg: 'bg-emerald-500/10',
-      iconColor: 'text-emerald-500',
     },
     {
       id: 'seguridad',
@@ -1307,9 +1285,9 @@ export default function AdminSettings() {
     },
     {
       id: 'developer',
-      label: 'Herramientas de Pruebas',
-      description: 'Datos ficticios y limpieza de BD',
-      icon: Database,
+      label: 'Herramientas de Desarrollador',
+      description: 'Facturación, restauración y filtros avanzados del catálogo',
+      icon: Settings,
       iconBg: 'bg-red-500/10',
       iconColor: 'text-red-500',
     },
@@ -1602,26 +1580,86 @@ export default function AdminSettings() {
       {/* ─── VISTA: MENÚ PRINCIPAL ─────────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {!activeSection && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
-          {MENU_SECTIONS.map((section, idx) => {
-            const Icon = section.icon
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left ${idx !== MENU_SECTIONS.length - 1 ? 'border-b border-app' : ''}`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${section.iconBg}`}>
-                  <Icon size={20} className={section.iconColor} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-app">{section.label}</p>
-                  <p className="text-xs text-muted mt-0.5 truncate">{section.description}</p>
-                </div>
-                <ChevronRight size={18} className="text-muted shrink-0" />
-              </button>
-            )
-          })}
+        <div className="flex flex-col gap-4">
+
+          {/* ── Tarjeta 1: Tienda ─────────────────────────────────── */}
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+            <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Tienda</p>
+            {['cupones', 'publicidad', 'marca', 'personalizar', 'apariencia'].map((id) => {
+              const section = MENU_SECTIONS.find(s => s.id === id)
+              if (!section) return null
+              const Icon = section.icon
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${section.iconBg}`}>
+                    <Icon size={20} className={section.iconColor} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-app">{section.label}</p>
+                    <p className="text-xs text-muted mt-0.5 truncate">{section.description}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-muted shrink-0" />
+                </button>
+              )
+            })}
+          </div>
+
+          {/* ── Tarjeta 2: Gestión ────────────────────────────────── */}
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+            <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Gestión</p>
+            {['ventas', 'seguridad'].map((id) => {
+              const section = MENU_SECTIONS.find(s => s.id === id)
+              if (!section) return null
+              const Icon = section.icon
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${section.iconBg}`}>
+                    <Icon size={20} className={section.iconColor} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-app">{section.label}</p>
+                    <p className="text-xs text-muted mt-0.5 truncate">{section.description}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-muted shrink-0" />
+                </button>
+              )
+            })}
+          </div>
+
+          {/* ── Tarjeta 3: Sistema ────────────────────────────────── */}
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+            <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Sistema</p>
+            {['developer', 'pwa'].map((id) => {
+              const section = MENU_SECTIONS.find(s => s.id === id)
+              if (!section) return null
+              const Icon = section.icon
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className="w-full flex items-center gap-4 px-5 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${section.iconBg}`}>
+                    <Icon size={20} className={section.iconColor} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-app">{section.label}</p>
+                    <p className="text-xs text-muted mt-0.5 truncate">{section.description}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-muted shrink-0" />
+                </button>
+              )
+            })}
+          </div>
+
         </div>
       )}
 
@@ -1643,7 +1681,7 @@ export default function AdminSettings() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'marca' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
             <div className="p-5 sm:p-6 space-y-5">
               <div>
                 <label className="block text-sm font-bold text-app mb-2">Nombre del Negocio</label>
@@ -1662,6 +1700,19 @@ export default function AdminSettings() {
                   value={formData.sellerName}
                   onChange={(e) => setFormData({ ...formData, sellerName: e.target.value })}
                   placeholder="Ej. Sergio"
+                  className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-app mb-2 flex items-center gap-2">
+                  WhatsApp para Pedidos
+                  <span className="text-xs font-normal text-muted bg-surface-2 px-2 py-0.5 rounded-full border border-app">Sin el "+"</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.whatsappAdmin}
+                  onChange={(e) => setFormData({ ...formData, whatsappAdmin: e.target.value })}
+                  placeholder="Ej. 573001234567"
                   className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
@@ -1810,6 +1861,7 @@ export default function AdminSettings() {
                       appIcon: formData.appIcon, 
                       appName: formData.appName, 
                       sellerName: formData.sellerName,
+                      whatsappAdmin: formData.whatsappAdmin || '',
                       welcomeWavesEnabled: formData.welcomeWavesEnabled ?? true,
                       loginTrustMessage: formData.loginTrustMessage || '',
                       slogan: formData.slogan || '',
@@ -1848,7 +1900,7 @@ export default function AdminSettings() {
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setActiveSubSection('empleados')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
                       <User size={22} className="text-muted group-hover:text-primary transition-colors" />
@@ -1857,7 +1909,7 @@ export default function AdminSettings() {
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Gestión de Personal</p>
                       <p className="text-xs text-muted leading-relaxed">Configura empleados, vendedores y el registro de ventas en el POS.</p>
                     </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
 
                   {/* Tarjeta Métodos de Entrega */}
@@ -1865,7 +1917,7 @@ export default function AdminSettings() {
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setActiveSubSection('entregas')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
                       <Truck size={22} className="text-muted group-hover:text-primary transition-colors" />
@@ -1874,7 +1926,7 @@ export default function AdminSettings() {
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Métodos de Entrega</p>
                       <p className="text-xs text-muted leading-relaxed">Establece retiros en local, envíos a domicilio, costos y entregas digitales.</p>
                     </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
 
                   {/* Tarjeta Venta al por Mayor */}
@@ -1882,7 +1934,7 @@ export default function AdminSettings() {
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setActiveSubSection('mayorista')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
                       <Percent size={22} className="text-muted group-hover:text-primary transition-colors" />
@@ -1891,7 +1943,7 @@ export default function AdminSettings() {
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Ventas al por Mayor</p>
                       <p className="text-xs text-muted leading-relaxed">Configura la cantidad mínima, el tipo de descuento y el valor de mayoreo.</p>
                     </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
 
                   {/* Tarjeta Eventos por Temporada */}
@@ -1899,7 +1951,7 @@ export default function AdminSettings() {
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setActiveSubSection('temporada')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
                       <Calendar size={22} className="text-muted group-hover:text-primary transition-colors" />
@@ -1908,7 +1960,24 @@ export default function AdminSettings() {
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Eventos por Temporada</p>
                       <p className="text-xs text-muted leading-relaxed">Activa temas visuales especiales (Navidad, Halloween, Día de la Madre/Padre).</p>
                     </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
+                  </motion.button>
+
+                  {/* Tarjeta Garantías y Reclamos */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('garantias')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <Shield size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Garantías y Reclamos</p>
+                      <p className="text-xs text-muted leading-relaxed">Permite a tus clientes iniciar reclamos o solicitar cambios sobre pedidos completados.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
                 </div>
               </div>
@@ -2344,7 +2413,7 @@ export default function AdminSettings() {
                               {evt.colors.map((c, i) => (
                                 <span 
                                   key={i} 
-                                  className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-sm shrink-0"
+                                  className="w-3.5 h-3.5 rounded-full border border-app/30 shadow-sm shrink-0"
                                   style={{ backgroundColor: c }}
                                 />
                               ))}
@@ -2390,6 +2459,48 @@ export default function AdminSettings() {
               </>
             )}
 
+            {/* SUBSECCIÓN FORM: Garantías y Reclamos */}
+            {activeSubSection === 'garantias' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-5">
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Activar Garantías y Reclamos</p>
+                      <p className="text-xs text-muted mt-0.5">Permite a tus clientes iniciar reclamos o solicitar cambios sobre sus pedidos completados</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.claimsEnabled ?? false}
+                        onChange={(e) => setFormData({ ...formData, claimsEnabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateAppConfig({ 
+                          claimsEnabled: formData.claimsEnabled ?? false
+                        })
+                        config.setConfig({
+                          claimsEnabled: formData.claimsEnabled ?? false
+                        })
+                        setSaveMessage({ type: 'success', text: 'Configuración de garantías guardada correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Configuración de Garantías
+                  </button>
+                </div>
+              </>
+            )}
+
           </div>
       )}
 
@@ -2398,7 +2509,7 @@ export default function AdminSettings() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'apariencia' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden lg:col-span-7 flex flex-col">
             <div className="p-5 sm:p-6 flex flex-col gap-5">
               {/* ── Modo Oscuro ── */}
               <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
@@ -2665,7 +2776,7 @@ export default function AdminSettings() {
 
           {/* FORMULARIO DE CREAR/EDITAR */}
           {showAdForm && (
-            <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+            <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
               <div className="p-5 sm:p-6 border-b border-app bg-surface-2/30 flex justify-between items-center">
                 <p className="font-bold text-app text-sm">
                   {editingAdId ? 'Editar Anuncio' : 'Nuevo Anuncio / Promoción'}
@@ -3201,7 +3312,7 @@ export default function AdminSettings() {
 
           {/* LISTADO DE ANUNCIOS */}
           {!showAdForm && (
-            <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+            <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
               {isLoadingAds ? (
                 <div className="p-8 text-center text-muted">Cargando anuncios...</div>
               ) : ads.length === 0 ? (
@@ -3811,7 +3922,7 @@ export default function AdminSettings() {
       {/* ─── VISTA: VENTAS Y TRANSFERENCIAS ────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'ventas' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-6 space-y-6">
             <div>
               <label className="block text-sm font-bold text-app mb-2 flex items-center gap-2">
@@ -4002,7 +4113,7 @@ export default function AdminSettings() {
       {/* ─── VISTA: FILTROS DEL CATÁLOGO ───────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'filtros' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-6">
             {formData.catalogFilters && (
               <>
@@ -4093,52 +4204,473 @@ export default function AdminSettings() {
         !isDevAuthenticated ? (
           renderDeveloperGate()
         ) : (
-          <div className="bg-surface rounded-3xl border border-red-500/20 shadow-sm overflow-hidden">
-            <div className="p-5 sm:p-6 border-b border-red-500/10 bg-red-500/5 flex items-center justify-between flex-wrap gap-3">
-              <p className="text-sm text-app/70">Usa estas herramientas para probar la aplicación con datos falsos de forma segura.</p>
-              <button
-                onClick={() => {
-                  setIsDevAuthenticated(false)
-                  setDevPasswordInput('')
-                }}
-                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
-              >
-                <Lock size={12} /> Bloquear Sección
-              </button>
-            </div>
-          <div className="p-5 sm:p-6">
-            {message && (
-              <div className={`p-4 rounded-xl mb-6 flex items-start gap-3 ${message.type === 'error' ? 'bg-red-500/10 text-red-500' : 'bg-success/10 text-success'}`}>
-                {message.type === 'error' ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
-                <p className="text-sm font-bold mt-0.5">{message.text}</p>
+          <div>
+            {/* SUBSECCIÓN MENU: Listado de Herramientas de Desarrollador */}
+            {activeSubSection === null && (
+              <div className="space-y-4">
+                {/* Cabecera superior simple y limpia */}
+                <div className="flex items-center justify-between px-1 py-1 flex-wrap gap-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted">Módulos de desarrollo</p>
+                  <button
+                    onClick={() => {
+                      setIsDevAuthenticated(false)
+                      setDevPasswordInput('')
+                    }}
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Lock size={12} /> Bloquear Sección
+                  </button>
+                </div>
+
+                {/* Grid o lista de tarjetas independientes y premium */}
+                <div className="grid grid-cols-1 gap-4">
+                  {[
+                    {
+                      id: 'dev-filtros',
+                      label: 'Filtros del Catálogo',
+                      description: 'Filtros y atributos personalizados de productos',
+                      icon: Filter,
+                      iconBg: 'bg-indigo-500/10 hover:bg-indigo-500/15',
+                      iconColor: 'text-indigo-500'
+                    },
+                    {
+                      id: 'dev-facturacion',
+                      label: 'Facturación',
+                      description: 'Comisiones y métricas de ventas en tiempo real',
+                      icon: Receipt,
+                      iconBg: 'bg-emerald-500/10 hover:bg-emerald-500/15',
+                      iconColor: 'text-emerald-500'
+                    },
+                    {
+                      id: 'dev-restauracion',
+                      label: 'Restauración de la aplicación',
+                      description: 'Limpia la base de datos a cero y valores por defecto (Borrado Real)',
+                      icon: Trash2,
+                      iconBg: 'bg-red-500/10 hover:bg-red-500/15',
+                      iconColor: 'text-red-500'
+                    }
+                  ].map(tool => {
+                    const ToolIcon = tool.icon
+                    return (
+                      <motion.button
+                        key={tool.id}
+                        whileHover={{ scale: 1.015, y: -2 }}
+                        whileTap={{ scale: 0.985 }}
+                        onClick={() => setActiveSubSection(tool.id)}
+                        className="w-full flex items-center gap-4 p-5 bg-surface rounded-2xl transition-all text-left shadow-sm hover:shadow-md cursor-pointer group"
+                      >
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${tool.iconBg}`}>
+                          <ToolIcon size={22} className={tool.iconColor} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-extrabold text-app group-hover:text-primary transition-colors">{tool.label}</p>
+                          <p className="text-xs text-muted mt-1 leading-relaxed">{tool.description}</p>
+                        </div>
+                        <ChevronRight size={18} className="text-muted shrink-0 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                      </motion.button>
+                    )
+                  })}
+                </div>
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-surface-2 rounded-2xl p-5 border border-app">
-                <h3 className="font-bold text-app mb-2">1. Llenar con datos ficticios</h3>
-                <button onClick={handleInjectData} disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 h-11 bg-app text-surface rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50">
-                  <Database size={16} /> Inyectar Datos Semilla
-                </button>
+
+            {/* 1. Subsección: Filtros del Catálogo */}
+            {activeSubSection === 'dev-filtros' && (
+              <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+                <div className="p-5 sm:p-6">
+                  {formData.catalogFilters && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {[
+                          { key: 'categories', label: 'Categorías', desc: 'Permite filtrar por categorías en el inicio.' },
+                          { key: 'sizes', label: 'Tallas', desc: 'Se asignan por cada variante de producto.' },
+                          { key: 'colors', label: 'Colores', desc: 'Selector de color por variante.' }
+                        ].map(filterObj => (
+                          <div key={filterObj.key} className="flex items-start gap-3 p-4 rounded-xl border border-app bg-surface-2">
+                            <div className="flex-1">
+                              <h3 className="text-sm font-bold text-app">{filterObj.label}</h3>
+                              <p className="text-xs text-muted mt-1">{filterObj.desc}</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                              <input type="checkbox" className="sr-only peer"
+                                checked={formData.catalogFilters[filterObj.key]}
+                                onChange={(e) => setFormData({ ...formData, catalogFilters: { ...formData.catalogFilters, [filterObj.key]: e.target.checked } })} />
+                              <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-8 border-t border-app pt-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <h3 className="font-bold text-app">Atributos Personalizados</h3>
+                            <p className="text-xs text-muted">Crea campos extra para tus productos (Ej: Sabor, Marca).</p>
+                          </div>
+                          <button type="button" onClick={handleAddCustomAttribute}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-semibold hover:bg-primary/20 transition-colors">
+                            <Plus size={16} /> Añadir
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {formData.catalogFilters.customAttributes?.map((attr, index) => (
+                            <div key={attr.id} className="flex flex-col sm:flex-row sm:items-start gap-3 p-3 bg-surface-2 border border-app rounded-xl">
+                              <div className="flex-1 w-full">
+                                <input type="text" placeholder="Nombre (Ej. Marca)" value={attr.name}
+                                  onChange={(e) => handleCustomAttributeChange(index, 'name', e.target.value)}
+                                  className="w-full h-10 px-3 rounded-lg border border-app bg-surface text-sm focus:border-primary outline-none" />
+                              </div>
+                              <div className="w-full sm:w-auto flex bg-surface border border-app rounded-lg overflow-hidden h-10 shrink-0">
+                                <button type="button" onClick={() => handleCustomAttributeChange(index, 'type', 'text')}
+                                  className={`flex-1 px-3 text-xs font-bold transition-colors ${attr.type === 'text' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}>Texto</button>
+                                <div className="w-px bg-app opacity-20"></div>
+                                <button type="button" onClick={() => handleCustomAttributeChange(index, 'type', 'select')}
+                                  className={`flex-1 px-3 text-xs font-bold transition-colors ${attr.type === 'select' ? 'bg-primary text-white' : 'text-muted hover:bg-surface-2'}`}>Opciones</button>
+                              </div>
+                              {attr.type === 'select' && (
+                                <div className="flex-[1.5] w-full">
+                                  <input type="text" placeholder="Opciones (Ej: Nike, Adidas)"
+                                    value={attr.options ? attr.options.join(', ') : ''}
+                                    onChange={(e) => handleCustomAttributeChange(index, 'options', e.target.value)}
+                                    className="w-full h-10 px-3 rounded-lg border border-app bg-surface text-sm focus:border-primary outline-none" />
+                                  <p className="text-[10px] text-muted mt-1 px-1">Separa las opciones con comas.</p>
+                                </div>
+                              )}
+                              <button onClick={() => handleRemoveCustomAttribute(index)}
+                                className="w-full sm:w-10 h-10 flex items-center justify-center shrink-0 rounded-lg text-muted hover:bg-red-50 hover:text-red-500 border border-transparent hover:border-red-500/20 transition-colors">
+                                <Trash2 size={16} /> <span className="sm:hidden text-sm ml-2">Eliminar</span>
+                              </button>
+                            </div>
+                          ))}
+                          {(!formData.catalogFilters.customAttributes || formData.catalogFilters.customAttributes.length === 0) && (
+                            <div className="text-center py-6 text-muted text-sm border border-dashed border-app rounded-xl">
+                              No has creado ningún atributo personalizado aún.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="p-5 border-t border-app bg-surface">
+                  <button onClick={handleSaveConfig} disabled={isSaving}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+                    <Save size={18} /> Guardar Filtros
+                  </button>
+                </div>
               </div>
-              <div className="bg-surface-2 rounded-2xl p-5 border border-red-500/10">
-                <h3 className="font-bold text-red-500 mb-2">2. Limpiar base de datos</h3>
-                <button onClick={handleRemoveData} disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 h-11 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl font-bold text-sm hover:bg-red-500/20 transition-all disabled:opacity-50">
-                  <Trash2 size={16} /> Remover Datos Ficticios
-                </button>
+            )}
+
+            {/* 2. Subsección: Facturación */}
+            {activeSubSection === 'dev-facturacion' && (() => {
+              const currentPercent = billingMetrics?.commissionPercent ?? 1
+              const inputVal = commissionInput !== null ? commissionInput : String(currentPercent)
+              const fmt = (v) => `$${Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+
+              return (
+                <div className="space-y-4">
+                  <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-surface to-teal-500/5 p-5">
+                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-emerald-500/5 -translate-y-8 translate-x-8" />
+                    <div className="relative flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+                        <Receipt size={24} className="text-emerald-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-app mb-1">Módulo de Facturación</p>
+                        <p className="text-xs text-muted leading-relaxed">
+                          Inicialmente ya hiciste tu pago para iniciar el proyecto. Gracias por contribuir a mejorar tu negocio.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {billingLoading ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="bg-surface-2 border border-app rounded-2xl p-4 animate-pulse">
+                          <div className="h-3 bg-app/20 rounded-full w-16 mb-3" />
+                          <div className="h-7 bg-app/20 rounded-full w-24" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                            <ShoppingBag size={14} className="text-blue-500" />
+                          </div>
+                          <p className="text-xs text-muted font-medium">Ventas del mes</p>
+                        </div>
+                        <p className="text-xl font-black text-app">{fmt(billingMetrics?.totalMes)}</p>
+                      </div>
+
+                      <div className="bg-surface-2 border border-emerald-500/20 rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                            <Wallet size={14} className="text-emerald-500" />
+                          </div>
+                          <p className="text-xs text-muted font-medium">Mi comisión del mes</p>
+                        </div>
+                        <p className="text-xl font-black text-emerald-500">{fmt(billingMetrics?.comisionMes)}</p>
+                      </div>
+
+                      <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                            <TrendingUp size={14} className="text-purple-500" />
+                          </div>
+                          <p className="text-xs text-muted font-medium">Pedidos completados</p>
+                        </div>
+                        <p className="text-xl font-black text-app">{billingMetrics?.pedidosMes ?? 0}</p>
+                        <p className="text-xs text-muted mt-0.5">este mes</p>
+                      </div>
+
+                      <div className="bg-surface-2 border border-app rounded-2xl p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                            <BarChart3 size={14} className="text-amber-500" />
+                          </div>
+                          <p className="text-xs text-muted font-medium">Comisión acumulada</p>
+                        </div>
+                        <p className="text-xl font-black text-app">{fmt(billingMetrics?.comisionHistorica)}</p>
+                        <p className="text-xs text-muted mt-0.5">histórico total</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-surface rounded-2xl border border-app overflow-hidden">
+                    <div className="px-5 pt-5 pb-4">
+                      <p className="text-sm font-bold text-app mb-1">Porcentaje de comisión</p>
+                      <p className="text-xs text-muted mb-4">Se aplica sobre el total de cada pedido completado.</p>
+                      <div className="flex gap-3 items-end">
+                        <div className="flex-1">
+                          <label className="text-xs font-bold text-app mb-1.5 block">Comisión por venta (%)</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={inputVal}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/[^0-9.]/g, '')
+                                const parts = raw.split('.')
+                                const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : raw
+                                setCommissionInput(cleaned)
+                              }}
+                              onBlur={(e) => {
+                                if (e.target.value.trim() === '') {
+                                  setCommissionInput(String(currentPercent))
+                                } else {
+                                  const num = parseFloat(e.target.value)
+                                  setCommissionInput(isNaN(num) ? String(currentPercent) : String(num))
+                                }
+                              }}
+                              className="w-full h-11 pl-3 pr-8 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted">%</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const num = parseFloat(inputVal)
+                            if (!isNaN(num) && num >= 0) {
+                              try {
+                                await savePercent(num)
+                                setCommissionInput(null)
+                                setSaveMessage({ type: 'success', text: `Comisión actualizada al ${num}%` })
+                                setTimeout(() => setSaveMessage(null), 3000)
+                              } catch (error) {
+                                setSaveMessage({ type: 'error', text: 'Error al actualizar la comisión.' })
+                                setTimeout(() => setSaveMessage(null), 3000)
+                              }
+                            }
+                          }}
+                          disabled={billingIsSaving}
+                          className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
+                          style={{ background: 'var(--color-primary)', color: 'white' }}
+                        >
+                          {billingIsSaving ? (
+                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Save size={16} />
+                          )}
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!billingLoading && billingMetrics && (
+                    <>
+                      <div className="bg-surface rounded-2xl border border-app overflow-hidden">
+                        <div className="px-5 py-4 border-b border-app">
+                          <p className="text-sm font-bold text-app">Resumen de comisiones</p>
+                          <p className="text-xs text-muted">Totales calculados sobre pedidos completados</p>
+                        </div>
+                        <div className="divide-y divide-app">
+                          {[
+                            { label: 'Ventas del mes', value: fmt(billingMetrics.totalMes), sub: `${billingMetrics.pedidosMes} pedidos completados` },
+                            { label: 'Comisión del mes', value: fmt(billingMetrics.comisionMes), highlight: true },
+                            { label: 'Total ventas histórico', value: fmt(billingMetrics.totalHistorico), sub: 'Todos los tiempos' },
+                            { label: 'Comisión histórica acumulada', value: fmt(billingMetrics.comisionHistorica), highlight: true },
+                          ].map((row, i) => (
+                            <div key={i} className="flex items-center justify-between px-5 py-3.5">
+                              <div>
+                                <p className="text-xs font-semibold text-app">{row.label}</p>
+                                {row.sub && <p className="text-[10px] text-muted mt-0.5">{row.sub}</p>}
+                              </div>
+                              <p className={`text-sm font-black ${row.highlight ? 'text-emerald-500' : 'text-app'}`}>{row.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-surface rounded-2xl shadow-sm p-5 space-y-4">
+                        <div>
+                          <p className="text-sm font-bold text-app mb-1">Generar Recibo y Firma de Conformidad</p>
+                          <p className="text-xs text-muted leading-relaxed">
+                            Genera el recibo detallado de comisiones mensuales para que el cliente lo firme y lo exporte en PDF.
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <button
+                            onClick={() => {
+                              setIsSignatureModalOpen(true)
+                              setTimeout(() => clearCanvas(), 50)
+                            }}
+                            className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer shadow-sm"
+                          >
+                            <Receipt size={16} />
+                            Firmar y Exportar Recibo del Mes
+                          </button>
+                        </div>
+                      </div>
+
+                      <AnimatePresence>
+                        {isSignatureModalOpen && (
+                          <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              onClick={() => setIsSignatureModalOpen(false)}
+                              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                            />
+                            <motion.div
+                              initial={{ scale: 0.95, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.95, opacity: 0 }}
+                              className="bg-surface rounded-3xl p-6 shadow-2xl relative max-w-sm w-full mx-4 space-y-4"
+                            >
+                              <div className="flex items-center justify-between border-b border-primary/5 pb-3">
+                                <div>
+                                  <h3 className="text-sm font-bold text-app">Firma de Conformidad</h3>
+                                  <p className="text-[10px] text-muted">Dibuja la firma táctil del cliente en el recuadro</p>
+                                </div>
+                                <button
+                                  onClick={() => setIsSignatureModalOpen(false)}
+                                  className="w-8 h-8 rounded-xl bg-surface-2 hover:bg-surface-3 flex items-center justify-center text-muted cursor-pointer"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+
+                              <div className="bg-surface-2 rounded-2xl overflow-hidden flex flex-col items-center p-2 shadow-inner">
+                                <canvas
+                                  ref={canvasRef}
+                                  width={300}
+                                  height={150}
+                                  onMouseDown={startDrawing}
+                                  onMouseMove={draw}
+                                  onMouseUp={stopDrawing}
+                                  onMouseLeave={stopDrawing}
+                                  onTouchStart={startDrawing}
+                                  onTouchMove={draw}
+                                  onTouchEnd={stopDrawing}
+                                  className="bg-white rounded-xl cursor-crosshair max-w-full"
+                                  style={{ display: 'block', touchAction: 'none' }}
+                                />
+                              </div>
+
+                              <div className="flex gap-3 pt-2">
+                                <button
+                                  onClick={clearCanvas}
+                                  className="flex-1 h-11 rounded-xl font-bold text-xs bg-surface-2 hover:bg-surface-3 text-app active:scale-95 transition-all cursor-pointer"
+                                >
+                                  Limpiar Firma
+                                </button>
+                                <button
+                                  onClick={exportDeveloperReceiptPDF}
+                                  className="flex-1 h-11 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all cursor-pointer"
+                                >
+                                  Generar PDF
+                                </button>
+                              </div>
+                            </motion.div>
+                          </div>
+                        )}
+                      </AnimatePresence>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* 3. Subsección: Restauración de la aplicación */}
+            {activeSubSection === 'dev-restauracion' && (
+              <div className="bg-surface rounded-3xl border border-red-500/20 shadow-sm overflow-hidden">
+                <div className="p-5 sm:p-6 bg-red-500/5">
+                  <p className="text-sm text-app/70">Restaura la aplicación a sus valores iniciales eliminando todos los datos de negocio de forma real.</p>
+                </div>
+                <div className="p-5 sm:p-6">
+                  {message && (
+                    <div className={`p-4 rounded-xl mb-6 flex items-start gap-3 ${message.type === 'error' ? 'bg-red-500/10 text-red-500' : 'bg-success/10 text-success'}`}>
+                      {message.type === 'error' ? <AlertTriangle size={20} /> : <CheckCircle size={20} />}
+                      <p className="text-sm font-bold mt-0.5">{message.text}</p>
+                    </div>
+                  )}
+                  <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 mb-6">
+                    <h3 className="font-bold text-red-500 mb-2 flex items-center gap-2">
+                      <AlertTriangle size={18} /> ¡ADVERTENCIA DE ACCIÓN DESTRUCTIVA!
+                    </h3>
+                    <p className="text-sm text-app/80 mb-4">
+                      Esta acción eliminará de forma <strong>permanente y real</strong> todos los productos, categorías, cupones, anuncios, pedidos, créditos y usuarios (excepto tu cuenta de administrador actual). Esto dejará la base de datos totalmente vacía para poder entregar o replicar la aplicación en otro cliente.
+                    </p>
+                    
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-app/60 uppercase mb-2">
+                        Escribe <span className="text-red-500 font-extrabold">RESTAURAR</span> para confirmar:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Escribe aquí..."
+                        id="confirmRestoreInput"
+                        value={confirmRestoreText}
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-red-500/20 text-app focus:outline-none focus:border-red-500 font-bold tracking-wider"
+                        onChange={(e) => setConfirmRestoreText(e.target.value)}
+                      />
+                    </div>
+
+                    <button
+                      id="btnExecuteRestore"
+                      onClick={handleFullReset}
+                      disabled={confirmRestoreText !== 'RESTAURAR' || loading}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 min-h-12 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-all disabled:opacity-30 disabled:hover:bg-red-500 text-center"
+                    >
+                      <Trash2 size={16} className="shrink-0" /> <span>Restaurar Aplicación a Cero (Borrado Real)</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        </div>
-      )
-    )}
+        )
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ─── VISTA: SEGURIDAD Y ACCESOS ────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'seguridad' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
           <div className="p-5 md:p-6 bg-surface-2">
             <div className="bg-surface border border-orange-500/20 rounded-2xl p-5 md:p-6">
               <form onSubmit={handleUpdateCredentials} className="space-y-6">
@@ -4202,7 +4734,7 @@ export default function AdminSettings() {
 
       {/* ─── VISTA: DESCARGAR APLICACIÓN (PWA) ────────────────────────────────── */}
       {activeSection === 'pwa' && (
-        <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
           <div className="p-6 text-center flex flex-col items-center">
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-4 text-primary relative shadow-inner">
               {config.appIcon ? (

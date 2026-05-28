@@ -19,6 +19,7 @@ const AdminStockAlerts = lazy(() => import('../pages/admin/AdminStockAlerts'))
 const AdminOrders = lazy(() => import('../pages/admin/AdminOrders'))
 const AdminCredits = lazy(() => import('../pages/admin/AdminCredits'))
 const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'))
+const AdminClaims = lazy(() => import('../pages/admin/AdminClaims'))
 
 // Páginas Cliente
 const ClientCatalog = lazy(() => import('../pages/client/ClientCatalog'))
@@ -64,6 +65,7 @@ export default function AppRoutes() {
           <Route path="pedidos" element={<AdminOrders />} />
           <Route path="credito" element={<AdminCredits />} />
           <Route path="configuracion" element={<AdminSettings />} />
+          <Route path="reclamos" element={<AdminClaims />} />
         </Route>
 
         {/* ─── Rutas del Cliente ───────────────────────────────────────── */}

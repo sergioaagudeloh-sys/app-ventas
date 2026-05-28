@@ -14,8 +14,11 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
   
   const isFav = favoriteIds.includes(product.id)
 
+  // Verificar si el producto está completamente agotado (todas las variantes en 0)
+  const isOutOfStock = product.variantes?.length > 0 && product.variantes.every(v => v.stock <= 0)
+
   const handleFavoriteClick = (e) => {
-    e.stopPropagation() // Evitar abrir el modal de detalle
+    e.stopPropagation()
     
     if (!userId) {
       navigate('/login')
@@ -39,7 +42,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={`bg-surface overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer border border-app group ${
         layout === 'list' ? 'flex flex-row h-32' : 'flex flex-col'
-      }`}
+      } ${isOutOfStock ? 'opacity-70' : ''}`}
       style={{
         ...glowStyle,
         borderRadius: 'var(--radius-base)'
@@ -54,7 +57,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           <img
             src={product.imageUrl}
             alt={product.nombre}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isOutOfStock ? 'grayscale' : ''}`}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted">
@@ -63,8 +66,15 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           </div>
         )}
 
-        {/* Badge de Promoción / Descuento */}
-        {product.tienePromocion && (
+        {/* Badge Agotado (tiene prioridad sobre la promo) */}
+        {isOutOfStock ? (
+          <span
+            className="absolute top-3 left-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-slate-500 text-white shadow-md z-10"
+            style={{ borderRadius: 'var(--radius-base)' }}
+          >
+            AGOTADO
+          </span>
+        ) : product.tienePromocion ? (
           <span 
             className="absolute top-3 left-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-primary text-white shadow-md z-10 border border-primary-soft"
             style={{ borderRadius: 'var(--radius-base)' }}
@@ -77,7 +87,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
               'OFERTA'
             )}
           </span>
-        )}
+        ) : null}
 
         {/* Botón Favorito Absoluto */}
         <motion.button
@@ -127,19 +137,24 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
                 </p>
               </>
             ) : (
-              <p className="font-bold text-primary text-base leading-none">
+              <p className={`font-bold text-base leading-none ${isOutOfStock ? 'text-muted' : 'text-primary'}`}>
                 {formatCurrency(product.precioBase)}
               </p>
             )}
           </div>
-          <button
-            className="w-8 h-8 rounded-full bg-action text-white flex items-center justify-center shadow-md shadow-action active:scale-90 transition-transform shrink-0"
-            aria-label="Ver opciones"
-          >
-            <Plus size={18} />
-          </button>
+
+          {/* Botón + solo si hay stock */}
+          {!isOutOfStock && (
+            <button
+              className="w-8 h-8 rounded-full bg-action text-white flex items-center justify-center shadow-md shadow-action active:scale-90 transition-transform shrink-0"
+              aria-label="Ver opciones"
+            >
+              <Plus size={18} />
+            </button>
+          )}
         </div>
       </div>
     </motion.div>
   )
 }
+

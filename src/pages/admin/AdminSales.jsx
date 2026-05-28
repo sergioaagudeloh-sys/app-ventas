@@ -100,6 +100,8 @@ export default function AdminSales() {
   const [expandedQrUrl, setExpandedQrUrl] = useState(null)
   const [stockAlert, setStockAlert] = useState(null)
 
+
+
   // ─── MODO DE VENTA ────────────────────────────────────────────────────────
   // null = aún no elegido (muestra selector), 'inventory' = catálogo, 'custom' = producto libre
   const [saleMode, setSaleMode] = useState(null)
@@ -437,13 +439,18 @@ export default function AdminSales() {
         {saleMode === null && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99998, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
             />
             <motion.div
-              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
-              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
-              className="relative z-10 bg-surface rounded-t-3xl w-full max-w-lg p-6 pb-8 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+              initial={{ y: '100%', opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              exit={{ y: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              className="relative z-10 bg-surface rounded-t-3xl w-full max-w-lg p-6 pb-8 space-y-4 shadow-2xl"
             >
               <button 
                 onClick={() => navigate(-1)}

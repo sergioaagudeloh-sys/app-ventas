@@ -19,20 +19,77 @@ const ordersRef = collection(db, COLLECTIONS.ORDERS)
 
 /**
  * Crea un nuevo pedido desde el cliente.
- * El estado inicial siempre es PENDIENTE y NO descuenta stock.
+ * Descuenta el stock INMEDIATAMENTE de forma atómica (reserva temporal).
+ * Si no hay stock suficiente lanza un error con el detalle del producto.
+ * El pedido se guarda con stockDescontado: true para evitar doble descuento al completar.
  */
 export async function createOrder(orderData) {
-  // Construir el número de pedido (ej: OR-12345678)
   const orderNumber = `OR-${Math.floor(10000000 + Math.random() * 90000000)}`
-  
-  const docRef = await addDoc(ordersRef, {
-    ...orderData,
-    orderNumber,
-    estado: ORDER_STATES.PENDING,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const orderIdRef = doc(collection(db, COLLECTIONS.ORDERS))
+
+  await runTransaction(db, async (transaction) => {
+    const items = orderData.items || []
+
+    // 1. Leer todos los productos involucrados
+    const productsCache = {}
+    for (const item of items) {
+      if (item.productId?.startsWith('custom-')) continue
+      if (!productsCache[item.productId]) {
+        const pRef = doc(db, COLLECTIONS.PRODUCTS, item.productId)
+        const pDoc = await transaction.get(pRef)
+        if (!pDoc.exists()) throw new Error(`Producto no encontrado: ${item.nombre}`)
+        productsCache[item.productId] = { ref: pRef, data: pDoc.data() }
+      }
+    }
+
+    // 2. Verificar stock y calcular descuentos
+    const updatedProducts = {}
+    for (const item of items) {
+      if (item.productId?.startsWith('custom-')) continue
+      const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
+      if (!productInfo) continue
+
+      const variantes = [...productInfo.data.variantes]
+      const variantIndex = variantes.findIndex(v => v.id === item.variantId)
+
+      if (variantIndex !== -1) {
+        const stockActual = variantes[variantIndex].stock
+        if (stockActual < item.cantidad) {
+          const variantLabel = [variantes[variantIndex].talla, variantes[variantIndex].color]
+            .filter(Boolean).join(' / ')
+          throw new Error(
+            `Stock insuficiente para "${item.nombre}${variantLabel ? ` (${variantLabel})` : ''}". ` +
+            `Solo ${stockActual > 0 ? `quedan ${stockActual} unidades` : 'está agotado'}.`
+          )
+        }
+        variantes[variantIndex].stock = stockActual - item.cantidad
+        updatedProducts[item.productId] = {
+          ...productInfo,
+          data: { ...productInfo.data, variantes }
+        }
+      }
+    }
+
+    // 3. Escribir actualizaciones de stock
+    Object.values(updatedProducts).forEach(productInfo => {
+      transaction.update(productInfo.ref, {
+        variantes: productInfo.data.variantes,
+        updatedAt: serverTimestamp()
+      })
+    })
+
+    // 4. Crear el pedido con flag de stock ya descontado
+    transaction.set(orderIdRef, {
+      ...orderData,
+      orderNumber,
+      estado: ORDER_STATES.PENDING,
+      stockDescontado: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   })
-  return docRef.id
+
+  return orderIdRef.id
 }
 
 /**
@@ -127,107 +184,140 @@ export async function archiveOrders(orders) {
  */
 export async function updateOrderStatus(orderId, newStatus, currentOrder) {
   const orderRef = doc(db, COLLECTIONS.ORDERS, orderId)
+  const stockYaDescontado = currentOrder?.stockDescontado === true
 
-  // Si no va a pasar a completado ni a credito_aprobado, es un update simple
-  if (newStatus !== ORDER_STATES.COMPLETED && newStatus !== 'credito_aprobado') {
-    await updateDoc(orderRef, {
-      estado: newStatus,
-      updatedAt: serverTimestamp(),
-    })
+  // ─── CANCELAR ─────────────────────────────────────────────────────────────
+  // Si el pedido tenía stock reservado, hay que devolverlo al inventario
+  if (newStatus === ORDER_STATES.CANCELLED) {
+    if (stockYaDescontado) {
+      const items = currentOrder?.items || []
+      await runTransaction(db, async (transaction) => {
+        // Leer todos los productos afectados
+        const productsCache = {}
+        for (const item of items) {
+          if (item.productId?.startsWith('custom-')) continue
+          if (!productsCache[item.productId]) {
+            const pRef = doc(db, COLLECTIONS.PRODUCTS, item.productId)
+            const pDoc = await transaction.get(pRef)
+            if (pDoc.exists()) {
+              productsCache[item.productId] = { ref: pRef, data: pDoc.data() }
+            }
+          }
+        }
+
+        // Restaurar stock
+        const updatedProducts = {}
+        for (const item of items) {
+          if (item.productId?.startsWith('custom-')) continue
+          const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
+          if (!productInfo) continue
+
+          const variantes = [...productInfo.data.variantes]
+          const variantIndex = variantes.findIndex(v => v.id === item.variantId)
+          if (variantIndex !== -1) {
+            variantes[variantIndex].stock += item.cantidad
+            updatedProducts[item.productId] = {
+              ...productInfo,
+              data: { ...productInfo.data, variantes }
+            }
+          }
+        }
+
+        Object.values(updatedProducts).forEach(productInfo => {
+          transaction.update(productInfo.ref, {
+            variantes: productInfo.data.variantes,
+            updatedAt: serverTimestamp()
+          })
+        })
+
+        transaction.update(orderRef, {
+          estado: newStatus,
+          updatedAt: serverTimestamp()
+        })
+      })
+    } else {
+      // Pedido viejo sin reserva: solo cambiar estado
+      await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
+    }
     return
   }
 
-  // Capturar datos del pedido para usarlos fuera de la transacción
-  let orderData = null
+  // ─── COMPLETAR / CRÉDITO APROBADO ─────────────────────────────────────────
+  if (newStatus === ORDER_STATES.COMPLETED || newStatus === 'credito_aprobado') {
+    let orderData = null
 
-  // SI PASA A COMPLETADO O CRÉDITO APROBADO -> Ejecutamos la transacción para descontar stock
-  await runTransaction(db, async (transaction) => {
-    // 1. Verificar el pedido
-    const orderDoc = await transaction.get(orderRef)
-    if (!orderDoc.exists()) throw new Error('Pedido no encontrado')
-    
-    // Si ya estaba completado o crédito aprobado, no descontamos dos veces
-    if (orderDoc.data().estado === ORDER_STATES.COMPLETED || orderDoc.data().estado === 'credito_aprobado') {
-      throw new Error('El pedido ya había sido procesado.')
-    }
-
-    // Guardamos los datos para usarlos después
-    orderData = orderDoc.data()
-
-    const items = orderDoc.data().items || []
-
-    // 2. Leer todos los productos involucrados ANTES de modificar (regla de transacciones de Firestore)
-    const productRefs = items
-      .filter(item => item.productId && !item.productId.startsWith('custom-'))
-      .map(item => doc(db, COLLECTIONS.PRODUCTS, item.productId))
-    const productsCache = {}
-    
-    for (const pRef of productRefs) {
-      if (!productsCache[pRef.id]) {
-        const pDoc = await transaction.get(pRef)
-        if (pDoc.exists()) {
-          productsCache[pRef.id] = { ref: pRef, data: pDoc.data() }
-        }
+    if (stockYaDescontado) {
+      // Stock ya fue descontado al crear el pedido → solo actualizar estado
+      const orderDoc = await getDoc(orderRef)
+      if (!orderDoc.exists()) throw new Error('Pedido no encontrado')
+      if (orderDoc.data().estado === ORDER_STATES.COMPLETED || orderDoc.data().estado === 'credito_aprobado') {
+        throw new Error('El pedido ya había sido procesado.')
       }
-    }
-
-    // 3. Modificar el stock en los productos
-    const updatedProducts = {} // Para no sobrescribir si el pedido tiene el mismo producto 2 veces
-
-    for (const item of items) {
-      if (item.productId && item.productId.startsWith('custom-')) continue
-      const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
-      if (!productInfo) continue // Producto fue borrado del inventario, igual cobramos el pedido
-
-      const variantes = [...productInfo.data.variantes]
-      const variantIndex = variantes.findIndex(v => v.id === item.variantId)
-
-      if (variantIndex !== -1) {
-        // Reducir stock, pero no dejar que baje de 0 por seguridad
-        variantes[variantIndex].stock = Math.max(0, variantes[variantIndex].stock - item.cantidad)
-        
-        // Guardar en nuestro objeto local temporal
-        updatedProducts[item.productId] = {
-          ...productInfo,
-          data: { ...productInfo.data, variantes }
+      orderData = orderDoc.data()
+      await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
+    } else {
+      // Pedido viejo (sin reserva): descontar stock ahora (comportamiento original)
+      await runTransaction(db, async (transaction) => {
+        const orderDoc = await transaction.get(orderRef)
+        if (!orderDoc.exists()) throw new Error('Pedido no encontrado')
+        if (orderDoc.data().estado === ORDER_STATES.COMPLETED || orderDoc.data().estado === 'credito_aprobado') {
+          throw new Error('El pedido ya había sido procesado.')
         }
-      }
+        orderData = orderDoc.data()
+        const items = orderDoc.data().items || []
+
+        const productRefs = items
+          .filter(item => item.productId && !item.productId.startsWith('custom-'))
+          .map(item => doc(db, COLLECTIONS.PRODUCTS, item.productId))
+        const productsCache = {}
+        for (const pRef of productRefs) {
+          if (!productsCache[pRef.id]) {
+            const pDoc = await transaction.get(pRef)
+            if (pDoc.exists()) productsCache[pRef.id] = { ref: pRef, data: pDoc.data() }
+          }
+        }
+
+        const updatedProducts = {}
+        for (const item of items) {
+          if (item.productId && item.productId.startsWith('custom-')) continue
+          const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
+          if (!productInfo) continue
+          const variantes = [...productInfo.data.variantes]
+          const variantIndex = variantes.findIndex(v => v.id === item.variantId)
+          if (variantIndex !== -1) {
+            variantes[variantIndex].stock = Math.max(0, variantes[variantIndex].stock - item.cantidad)
+            updatedProducts[item.productId] = { ...productInfo, data: { ...productInfo.data, variantes } }
+          }
+        }
+
+        Object.values(updatedProducts).forEach(productInfo => {
+          transaction.update(productInfo.ref, { variantes: productInfo.data.variantes, updatedAt: serverTimestamp() })
+        })
+        transaction.update(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
+      })
     }
 
-    // 4. Aplicar todas las escrituras (writes) al final
-    // Actualizar productos
-    Object.values(updatedProducts).forEach(productInfo => {
-      transaction.update(productInfo.ref, {
-        variantes: productInfo.data.variantes,
+    // Generar crédito si aplica
+    if (newStatus === 'credito_aprobado' && orderData) {
+      const creditsRef = collection(db, COLLECTIONS.CREDITS)
+      await addDoc(creditsRef, {
+        orderId: orderId,
+        orderNumber: orderData.orderNumber,
+        clienteNombre: orderData.cliente?.nombre || 'Desconocido',
+        clienteCelular: orderData.cliente?.celular || 'Desconocido',
+        montoTotal: orderData.total || 0,
+        saldoPendiente: orderData.total || 0,
+        abonos: [],
+        estado: 'activo',
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       })
-    })
-
-    // Actualizar estado del pedido
-    transaction.update(orderRef, {
-      estado: newStatus,
-      updatedAt: serverTimestamp()
-    })
-  })
-
-  // FASE 6: Si el nuevo estado es CRÉDITO APROBADO, generar la deuda en un paso separado
-  // Se hace fuera de la transacción para evitar problemas de permisos
-  if (newStatus === 'credito_aprobado' && orderData) {
-    const creditsRef = collection(db, COLLECTIONS.CREDITS)
-    await addDoc(creditsRef, {
-      orderId: orderId,
-      orderNumber: orderData.orderNumber,
-      clienteNombre: orderData.cliente?.nombre || 'Desconocido',
-      clienteCelular: orderData.cliente?.celular || 'Desconocido',
-      montoTotal: orderData.total || 0,
-      saldoPendiente: orderData.total || 0,
-      abonos: [],
-      estado: 'activo',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
+    }
+    return
   }
 
+  // ─── CUALQUIER OTRO ESTADO (simple update) ────────────────────────────────
+  await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
 }
 
 /**

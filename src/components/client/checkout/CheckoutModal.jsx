@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, MapPin, CreditCard, CheckCircle2, ChevronRight, Store, Truck, User, Phone, Tag, Check, AlertCircle } from 'lucide-react'
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_MESSAGES } from '../../../constants'
+import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_MESSAGES, SUPPORT_WHATSAPP } from '../../../constants'
 import { checkoutSchema } from '../../../schemas/orderSchemas'
 import useCartStore from '../../../store/cartStore'
 import useAuthStore from '../../../store/authStore'
@@ -360,14 +360,15 @@ export default function CheckoutModal({ isOpen, onClose }) {
       setStep(4)
     } catch (error) {
       console.error('Error al crear pedido:', error)
-      setErrors({ global: 'Error procesando tu pedido. Intenta nuevamente.' })
+      setErrors({ global: error.message || 'Error procesando tu pedido. Intenta nuevamente.' })
       isSubmittingRef.current = false
     }
   }
 
   // ── Mensaje WhatsApp ──────────────────────────────────────────────────────
   const handleWhatsApp = () => {
-    if (!whatsappAdmin) return
+    const adminPhone = whatsappAdmin || SUPPORT_WHATSAPP
+    if (!adminPhone) return
     const snap = orderSnapshot
     const num = snap?.numero || orderNumber
     const isDomicilio = snap?.tipoEntrega === 'domicilio'
@@ -425,8 +426,11 @@ export default function CheckoutModal({ isOpen, onClose }) {
       ? `\n🏦 *Banco elegido:* ${bancoInfo.banco} · ${bancoInfo.numeroCuenta}${bancoInfo.titular ? ` · ${bancoInfo.titular}` : ''}`
       : ''
 
+    const seller = useAppConfigStore.getState().sellerName || 'el Administrador'
+
     const text =
-`${e.carrito} *Nuevo Pedido #${num}*
+`Hola ${seller} de *${appName || 'la Tienda'}*.
+${e.carrito} *Nuevo Pedido #${num}*
 
 ${e.cliente} *Cliente:* ${snap?.cliente?.nombre || ''}
 ${e.celular} *Celular:* ${snap?.cliente?.celular || ''}
@@ -439,7 +443,7 @@ ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodo
 ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
 
     const encoded = encodeURIComponent(text)
-    const url = `https://api.whatsapp.com/send/?phone=${whatsappAdmin}&text=${encoded}&type=phone_number&app_absent=0`
+    const url = `https://api.whatsapp.com/send/?phone=${adminPhone.replace(/\D/g, '')}&text=${encoded}&type=phone_number&app_absent=0`
     window.open(url, '_blank')
     onClose()
   }
@@ -862,7 +866,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   {orderSnapshot?.tipoEntrega === 'digital' && <><CheckCircle2 size={13} /> Digital / Servicio</>}
                 </div>
 
-                {whatsappAdmin ? (
+                {whatsappAdmin || SUPPORT_WHATSAPP ? (
                   <div className="space-y-3">
                     <p className="text-sm text-app font-medium">
                       Para agilizar el proceso, notifícanos por WhatsApp:

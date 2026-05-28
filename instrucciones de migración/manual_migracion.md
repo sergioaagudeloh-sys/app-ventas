@@ -144,6 +144,12 @@ Para cargarlos en el nuevo proyecto de tu cliente:
    ```
    *(Esto subirá automáticamente los archivos locales [firestore.rules](file:///d:/Aplicaciones/App%20Ventas/firestore.rules) y [firestore.indexes.json](file:///d:/Aplicaciones/App%20Ventas/firestore.indexes.json) al nuevo backend).*
 
+> [!WARNING]
+> **Tiempo de Construcción de los Índices en Firestore:**
+> Al desplegar los índices compuestos por primera vez, Firestore iniciará su proceso de compilación y construcción en segundo plano. Esto tarda normalmente **entre 1 y 5 minutos**. Durante este periodo, las consultas paginadas o filtradas (por ejemplo, el panel de créditos) fallarán en el frontend mostrando el error: `FirebaseError: The query requires an index. That index is currently building and cannot be used yet.`
+>
+> Esto es un comportamiento normal y temporal. No intentes modificar el código ni desplegar nuevamente; solo debes esperar a que Firestore complete la construcción del índice en el servidor. Puedes verificar el estado en tiempo real en la consola de Firebase en la pestaña *Firestore Database > Índices*.
+
 ---
 
 ## 6. Construcción y Despliegue del Frontend (PWA)

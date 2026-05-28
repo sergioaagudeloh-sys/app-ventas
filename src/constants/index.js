@@ -90,6 +90,8 @@ export const COLLECTIONS = {
   WHOLESALE_ORDERS: 'wholesaleOrders',
   CREDITS: 'credits',
   ADS: 'ads',
+  CLAIMS: 'claims',
+  COUPONS: 'coupons',
 }
 
 // ─── Soporte técnico (hardcoded según informe §12) ───────────────────────────

@@ -1,16 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useClientOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useProducts } from '../../hooks/useInventory'
 import * as orderService from '../../services/orderService'
 import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
 import useAppConfigStore from '../../store/appConfigStore'
-import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, GUIDED_MESSAGES } from '../../constants'
+import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, GUIDED_MESSAGES, SUPPORT_WHATSAPP } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
+import ClaimRequestModal from '../../components/client/claims/ClaimRequestModal'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -64,8 +65,9 @@ export default function ClientOrders() {
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus()
   const { data: activeProducts = [] } = useProducts(true)
   const { addItem, openCart } = useCartStore()
-  const { whatsappAdmin } = useAppConfigStore()
+  const { whatsappAdmin, appName, appIcon, claimsEnabled } = useAppConfigStore()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [showHidden, setShowHidden] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState(null)
@@ -73,6 +75,17 @@ export default function ClientOrders() {
   const [confirmContactOrder, setConfirmContactOrder] = useState(null)
   const [confirmRepeatOrder, setConfirmRepeatOrder] = useState(null)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
+  const [claimOrder, setClaimOrder] = useState(null)
+
+  // Abrir y expandir automáticamente el pedido si viene desde una notificación
+  useEffect(() => {
+    if (location.state?.highlightOrderId) {
+      setExpandedOrderId(location.state.highlightOrderId)
+      
+      // Limpiar el estado para evitar que se vuelva a abrir al recargar o navegar de vuelta
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, navigate])
  
   const activeFilter = 'Todos'
   const matchesFilter = () => true
@@ -131,9 +144,118 @@ export default function ClientOrders() {
   }
 
   const handleContactStore = (orderNumber) => {
-    const phone = whatsappAdmin?.replace(/\D/g, '') || ''
-    const message = encodeURIComponent(`Hola, quiero consultar mi pedido ${orderNumber}`)
+    const phone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
+    const seller = useAppConfigStore.getState().sellerName || 'el Administrador'
+    const shop = useAppConfigStore.getState().appName || 'la Tienda'
+    const message = encodeURIComponent(`Hola ${seller} de *${shop}*, quiero consultar mi pedido ${orderNumber}`)
     window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${message}&type=phone_number&app_absent=0`, '_blank')
+  }
+
+  const handlePrintReceipt = (order) => {
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+    
+    iframe.contentDocument.write(`
+      <html>
+        <head>
+          <title>Factura Pedido ${order.orderNumber}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #000; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
+            .header img.logo { max-width: 150px; max-height: 80px; margin-bottom: 15px; object-fit: contain; }
+            .header h1 { margin: 0 0 5px 0; font-size: 24px; text-transform: uppercase; }
+            .header p { margin: 0 0 5px 0; font-size: 14px; color: #555; }
+            .order-meta { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; font-weight: bold; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; font-size: 14px; }
+            .info-box { border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
+            .info-box h3 { margin-top: 0; font-size: 12px; text-transform: uppercase; color: #666; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+            th { text-align: left; padding: 10px; border-bottom: 2px solid #000; }
+            td { padding: 10px; border-bottom: 1px solid #eee; }
+            .text-right { text-align: right; }
+            .total-row { font-size: 18px; font-weight: bold; border-top: 2px solid #000; }
+            .footer { text-align: center; font-size: 12px; color: #666; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            ${appIcon ? `<img src="${appIcon}" alt="Logo" class="logo" />` : ''}
+            <h1>${appName || 'Factura de Venta'}</h1>
+            ${whatsappAdmin ? `<p>WhatsApp: ${whatsappAdmin}</p>` : ''}
+            
+            <div class="order-meta">
+              <p>Comprobante de Pedido #${order.orderNumber}</p>
+              <p>Fecha: ${order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : new Date().toLocaleString()}</p>
+            </div>
+          </div>
+          
+          <div class="info-grid">
+            <div class="info-box">
+              <h3>Datos del Cliente</h3>
+              <p><strong>Nombre:</strong> ${order.cliente?.nombre || 'N/A'}</p>
+              <p><strong>Celular:</strong> ${order.cliente?.celular || 'N/A'}</p>
+            </div>
+            <div class="info-box">
+              <h3>Datos de Envío</h3>
+              <p><strong>Dirección:</strong> ${order.cliente?.direccion || 'Recogida en Tienda'}</p>
+              <p><strong>Ciudad/Barrio:</strong> ${order.cliente?.ciudad || ''} - ${order.cliente?.barrio || ''}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cant.</th>
+                <th class="text-right">Precio Unit.</th>
+                <th class="text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${order.items.map(item => `
+                <tr>
+                  <td>
+                    <strong>${item.nombre}</strong><br/>
+                    <small style="color: #666;">
+                      ${item.atributos && Object.values(item.atributos).length > 0
+                        ? Object.values(item.atributos).join(' • ')
+                        : item.talla || item.color 
+                          ? [item.talla, item.color].filter(Boolean).join(' • ')
+                          : ''}
+                    </small>
+                  </td>
+                  <td>${item.cantidad}</td>
+                  <td class="text-right">${formatCurrency(item.precio)}</td>
+                  <td class="text-right">${formatCurrency(item.precio * item.cantidad)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="total-row">
+                <td colspan="3" class="text-right" style="padding-top: 15px;">TOTAL A PAGAR:</td>
+                <td class="text-right" style="padding-top: 15px;">${formatCurrency(order.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="footer">
+            <p>Gracias por tu compra.</p>
+            <p>Este documento es un comprobante de tu pedido.</p>
+          </div>
+        </body>
+      </html>
+    `)
+    iframe.contentDocument.close()
+
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      setTimeout(() => document.body.removeChild(iframe), 2000)
+    }, 500)
   }
 
   const handleCancelOrder = (order) => {
@@ -275,6 +397,26 @@ export default function ClientOrders() {
           onClick={(e) => e.stopPropagation()} 
           className="p-5 pt-0 border-t border-app bg-surface"
         >
+          {order.estado === ORDER_STATES.COMPLETED && (
+            <div className="flex flex-col gap-2 mb-3">
+              <button
+                onClick={(e) => { e.stopPropagation(); handlePrintReceipt(order) }}
+                className="w-full flex items-center justify-center gap-2 h-11 bg-emerald-500 text-white rounded-xl font-bold text-xs min-[380px]:text-sm shadow-md hover:bg-emerald-600 transition-colors cursor-pointer active:scale-[0.98]"
+              >
+                <FileText size={16} />
+                Descargar Factura
+              </button>
+              {claimsEnabled && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setClaimOrder(order) }}
+                  className="w-full flex items-center justify-center gap-2 h-11 bg-surface border border-primary/30 text-primary rounded-xl font-bold text-xs min-[380px]:text-sm shadow-sm hover:bg-primary/[0.03] transition-colors cursor-pointer active:scale-[0.98]"
+                >
+                  <ShieldAlert size={16} />
+                  Solicitar Garantía / Cambio
+                </button>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2 pt-4">
             <button
               onClick={(e) => { e.stopPropagation(); setConfirmContactOrder(order) }}
@@ -597,6 +739,14 @@ export default function ClientOrders() {
           </div>
         )}
       </AnimatePresence>
+
+      {claimOrder && (
+        <ClaimRequestModal
+          isOpen={!!claimOrder}
+          onClose={() => setClaimOrder(null)}
+          order={claimOrder}
+        />
+      )}
     </div>
   )
 }

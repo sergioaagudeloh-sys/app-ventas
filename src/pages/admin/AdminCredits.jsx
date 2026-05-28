@@ -1,17 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CreditCard, Search, DollarSign, History, CheckCircle, ChevronDown, Plus } from 'lucide-react'
-import { useCredits, useAddPayment } from '../../hooks/useCredits'
+import { CreditCard, Search, DollarSign, History, CheckCircle, ChevronDown, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useAddPayment } from '../../hooks/useCredits'
 import { paymentSchema } from '../../schemas/creditSchemas'
 import { formatCurrency } from '../../utils/formatters'
+import * as creditService from '../../services/creditService'
 
 export default function AdminCredits() {
   const [activeTab, setActiveTab] = useState('activo') // activo | pagado
-  const { data: credits = [], isLoading } = useCredits(activeTab)
+  const [credits, setCredits] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
   const { mutate: addPayment, isPending } = useAddPayment()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [expandedId, setExpandedId] = useState(null)
+
+  // Estados de paginación
+  const [pagesHistory, setPagesHistory] = useState([null]) // Array de startAfter docs para navegar
+  const [currentPageIdx, setCurrentPageIdx] = useState(0)
+  const [hasNextPage, setHasNextPage] = useState(false)
+  const [lastVisibleDoc, setLastVisibleDoc] = useState(null)
   
   // Modal de abono
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
@@ -19,6 +27,61 @@ export default function AdminCredits() {
   const [paymentMonto, setPaymentMonto] = useState('')
   const [paymentNota, setPaymentNota] = useState('')
   const [paymentError, setPaymentError] = useState('')
+
+  // Cargar créditos al cambiar de pestaña o de página
+  useEffect(() => {
+    async function loadPagedCredits() {
+      setIsLoading(true)
+      try {
+        const startAfterDoc = pagesHistory[currentPageIdx] || null
+        
+        // 1. Obtener la página actual (10 elementos)
+        const result = await creditService.getCreditsPaged(activeTab, 10, startAfterDoc)
+        setCredits(result.credits)
+        setLastVisibleDoc(result.lastDoc)
+
+        // 2. Verificar si hay página siguiente (haciendo consulta anticipada rápida con límite 1)
+        if (result.lastDoc) {
+          const checkNext = await creditService.getCreditsPaged(activeTab, 1, result.lastDoc)
+          setHasNextPage(checkNext.credits.length > 0)
+        } else {
+          setHasNextPage(false)
+        }
+      } catch (err) {
+        console.error('Error al cargar créditos paginados:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadPagedCredits()
+  }, [activeTab, currentPageIdx, pagesHistory])
+
+  // Resetear paginación al cambiar de pestaña o realizar búsquedas
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab)
+    setPagesHistory([null])
+    setCurrentPageIdx(0)
+    setExpandedId(null)
+    setCredits([])
+  }
+
+  const handleNextPage = () => {
+    if (hasNextPage && lastVisibleDoc) {
+      setPagesHistory(prev => [...prev, lastVisibleDoc])
+      setCurrentPageIdx(prev => prev + 1)
+      setExpandedId(null)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPageIdx > 0) {
+      setCurrentPageIdx(prev => prev - 1)
+      setExpandedId(null)
+      // Quitar la última página agregada del historial
+      setPagesHistory(prev => prev.slice(0, -1))
+    }
+  }
 
   const filteredCredits = credits.filter(c => 
     c.clienteNombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,7 +154,7 @@ export default function AdminCredits() {
         {/* Tabs */}
         <div className="flex p-1.5 gap-1 bg-surface-2 rounded-2xl sm:w-64">
           <button
-            onClick={() => setActiveTab('activo')}
+            onClick={() => handleTabChange('activo')}
             className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
               activeTab === 'activo' ? 'bg-surface text-primary shadow-sm' : 'text-muted hover:text-app'
             }`}
@@ -99,7 +162,7 @@ export default function AdminCredits() {
             Activos
           </button>
           <button
-            onClick={() => setActiveTab('pagado')}
+            onClick={() => handleTabChange('pagado')}
             className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
               activeTab === 'pagado' ? 'bg-surface text-primary shadow-sm' : 'text-muted hover:text-app'
             }`}
@@ -120,109 +183,134 @@ export default function AdminCredits() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          <AnimatePresence>
-            {filteredCredits.map(credit => {
-              const isExpanded = expandedId === credit.id
-              const isPaid = credit.estado === 'pagado'
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4">
+            <AnimatePresence>
+              {filteredCredits.map(credit => {
+                const isExpanded = expandedId === credit.id
+                const isPaid = credit.estado === 'pagado'
 
-              return (
-                <motion.div
-                  key={credit.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden"
-                >
-                  {/* Tarjeta Resumen */}
-                  <div
-                    onClick={() => setExpandedId(isExpanded ? null : credit.id)}
-                    className="p-4 sm:p-6 flex flex-col md:flex-row gap-4 md:items-center justify-between cursor-pointer hover:bg-surface-2/50 transition-colors"
+                return (
+                  <motion.div
+                    key={credit.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
-                        isPaid ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'
-                      }`}>
-                        {isPaid ? <CheckCircle size={24} /> : <DollarSign size={24} />}
-                      </div>
-                      
-                      <div>
-                        <h3 className="font-bold text-app text-lg leading-tight">
-                          {credit.clienteNombre}
-                        </h3>
-                        <p className="text-sm text-muted font-medium">
-                          Cel: {credit.clienteCelular} • Ref: {credit.orderNumber}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between md:justify-end gap-6 border-t border-app md:border-0 pt-4 md:pt-0">
-                      <div className="text-left md:text-right">
-                        <p className="text-xs text-muted mb-0.5">Monto Original: {formatCurrency(credit.montoTotal)}</p>
-                        {isPaid ? (
-                          <p className="font-black text-success text-xl">PAGADO</p>
-                        ) : (
-                          <p className="font-black text-warning text-xl">
-                            Debe {formatCurrency(credit.saldoPendiente)}
+                    {/* Tarjeta Resumen */}
+                    <div
+                      onClick={() => setExpandedId(isExpanded ? null : credit.id)}
+                      className="p-4 sm:p-6 flex flex-col md:flex-row gap-4 md:items-center justify-between cursor-pointer hover:bg-surface-2/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+                          isPaid ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'
+                        }`}>
+                          {isPaid ? <CheckCircle size={24} /> : <DollarSign size={24} />}
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-bold text-app text-lg leading-tight">
+                            {credit.clienteNombre}
+                          </h3>
+                          <p className="text-sm text-muted font-medium">
+                            Cel: {credit.clienteCelular} • Ref: {credit.orderNumber}
                           </p>
-                        )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        {!isPaid && (
-                          <button
-                            onClick={(e) => openPaymentModal(credit, e)}
-                            className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center hover:bg-primary/20 transition-colors"
-                            title="Añadir Abono"
-                          >
-                            <Plus size={20} />
-                          </button>
-                        )}
-                        <ChevronDown size={20} className={`text-muted transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Historial Expandido */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-app bg-surface-2/30"
-                      >
-                        <div className="p-6">
-                          <h4 className="text-sm font-bold text-app mb-4 flex items-center gap-2">
-                            <History size={16} className="text-primary" /> Historial de Abonos
-                          </h4>
-                          
-                          {(!credit.abonos || credit.abonos.length === 0) ? (
-                            <p className="text-sm text-muted italic">Aún no se han registrado abonos a esta deuda.</p>
+                      <div className="flex items-center justify-between md:justify-end gap-6 border-t border-app md:border-0 pt-4 md:pt-0">
+                        <div className="text-left md:text-right">
+                          <p className="text-xs text-muted mb-0.5">Monto Original: {formatCurrency(credit.montoTotal)}</p>
+                          {isPaid ? (
+                            <p className="font-black text-success text-xl">PAGADO</p>
                           ) : (
-                            <div className="space-y-3">
-                              {credit.abonos.map((abono, idx) => (
-                                <div key={idx} className="flex justify-between items-center bg-surface p-3 rounded-xl border border-app">
-                                  <div>
-                                    <p className="text-sm font-bold text-success">+{formatCurrency(abono.monto)}</p>
-                                    {abono.nota && <p className="text-xs text-muted mt-0.5">Nota: {abono.nota}</p>}
-                                  </div>
-                                  <p className="text-xs text-muted">
-                                    {new Date(abono.fecha).toLocaleDateString()} {new Date(abono.fecha).toLocaleTimeString()}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
+                            <p className="font-black text-warning text-xl">
+                              Debe {formatCurrency(credit.saldoPendiente)}
+                            </p>
                           )}
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              )
-            })}
-          </AnimatePresence>
+
+                        <div className="flex items-center gap-3">
+                          {!isPaid && (
+                            <button
+                              onClick={(e) => openPaymentModal(credit, e)}
+                              className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center hover:bg-primary/20 transition-colors"
+                              title="Añadir Abono"
+                            >
+                              <Plus size={20} />
+                            </button>
+                          )}
+                          <ChevronDown size={20} className={`text-muted transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Historial Expandido */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="border-t border-app bg-surface-2/30"
+                        >
+                          <div className="p-6">
+                            <h4 className="text-sm font-bold text-app mb-4 flex items-center gap-2">
+                              <History size={16} className="text-primary" /> Historial de Abonos
+                            </h4>
+                            
+                            {(!credit.abonos || credit.abonos.length === 0) ? (
+                              <p className="text-sm text-muted italic">Aún no se han registrado abonos a esta deuda.</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {credit.abonos.map((abono, idx) => (
+                                  <div key={idx} className="flex justify-between items-center bg-surface p-3 rounded-xl border border-app">
+                                    <div>
+                                      <p className="text-sm font-bold text-success">+{formatCurrency(abono.monto)}</p>
+                                      {abono.nota && <p className="text-xs text-muted mt-0.5">Nota: {abono.nota}</p>}
+                                    </div>
+                                    <p className="text-xs text-muted">
+                                      {new Date(abono.fecha).toLocaleDateString()} {new Date(abono.fecha).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* Botones de Paginación */}
+          <div className="flex items-center justify-between pt-4 border-t border-app bg-surface px-4 py-3 rounded-2xl border">
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPageIdx === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border border-app bg-surface text-app hover:border-primary/50 disabled:opacity-40 disabled:hover:border-app disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={16} /> Anterior
+            </button>
+            
+            <span className="text-xs font-bold text-muted uppercase tracking-wider">
+              Página {currentPageIdx + 1}
+            </span>
+
+            <button
+              onClick={handleNextPage}
+              disabled={!hasNextPage}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all border border-app bg-surface text-app hover:border-primary/50 disabled:opacity-40 disabled:hover:border-app disabled:cursor-not-allowed"
+            >
+              Siguiente <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
       )}
 

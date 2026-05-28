@@ -19,7 +19,7 @@ export default function ClientCatalog() {
   const { data: allProducts = [], isLoading: isLoadingProducts } = useProducts(true) // Solo activos
   const { data: allCategories = [] } = useCategories()
   const { data: ads = [] } = useAds()
-  const { catalogFilters, catalogLayout, wholesaleSettings } = useAppConfigStore()
+  const { catalogFilters, catalogLayout, wholesaleSettings, whatsappAdmin } = useAppConfigStore()
   
   // Estado local
   const [searchTerm, setSearchTerm] = useState('')
@@ -185,7 +185,7 @@ export default function ClientCatalog() {
         }
       }
     } else if (action.type === 'whatsapp') {
-      const cleanPhone = action.value ? action.value.replace(/\D/g, '') : SUPPORT_WHATSAPP.replace(/\D/g, '')
+      const cleanPhone = action.value ? action.value.replace(/\D/g, '') : (whatsappAdmin || SUPPORT_WHATSAPP).replace(/\D/g, '')
       const message = encodeURIComponent(`¡Hola! Estoy interesado en la promoción: *${action.ad?.title || 'Anuncio'}*`)
       window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank')
     } else if (action.type === 'url') {
@@ -280,10 +280,10 @@ export default function ClientCatalog() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedCategoryId('all')}
-                className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                   selectedCategoryId === 'all'
-                    ? 'bg-primary text-white border-primary shadow-md'
-                    : 'bg-surface text-app border-app hover:border-primary/30 hover:bg-surface-2'
+                    ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                    : 'bg-surface text-app border-primary/5 hover:border-primary/20 hover:bg-surface-2'
                 }`}
               >
                 <Tag 
@@ -306,10 +306,10 @@ export default function ClientCatalog() {
                     key={cat.id}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setSelectedCategoryId(cat.id)}
-                    className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                    className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                       isSelected
-                        ? 'bg-primary text-white border-primary shadow-md'
-                        : 'bg-surface text-app border-app hover:border-primary/30 hover:bg-surface-2'
+                        ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                        : 'bg-surface text-app border-primary/5 hover:border-primary/20 hover:bg-surface-2'
                     }`}
                   >
                     <IconComponent 

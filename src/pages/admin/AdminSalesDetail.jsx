@@ -473,7 +473,7 @@ export default function AdminSalesDetail() {
     doc.save(`Reporte_Rotacion_Stock_${dateFrom}_a_${dateTo}.pdf`)
   }
 
-  // ─── CÁLCULO DE VENTAS FILTRADAS + TOP 5 ──────────────────────────────────
+  // ─── CÁLCULO DE VENTAS FILTRADAS POR PRODUCTOS ───────────────────────────
   const salesData = useMemo(() => {
     const from = new Date(dateFrom + 'T00:00:00')
     const to = new Date(dateTo + 'T23:59:59')
@@ -488,23 +488,29 @@ export default function AdminSalesDetail() {
     const totalFiltered = filtered.reduce((sum, o) => sum + o.total, 0)
     const orderCount = filtered.length
 
-    // Acumular ventas por nombre de producto
+    // Mapear los productos existentes en el inventario para asegurar que salgan todos (incluso con 0 ventas)
     const conteo = {}
+    products.forEach(p => {
+      conteo[p.nombre] = { nombre: p.nombre, cantidad: 0, total: 0 }
+    })
+
+    // Acumular ventas reales
     filtered.forEach(order => {
       (order.items || []).forEach(item => {
         const nombre = item.nombre || 'Sin nombre'
-        if (!conteo[nombre]) conteo[nombre] = { nombre, cantidad: 0, total: 0 }
+        if (!conteo[nombre]) {
+          conteo[nombre] = { nombre, cantidad: 0, total: 0 }
+        }
         conteo[nombre].cantidad += item.cantidad || 1
         conteo[nombre].total += (item.precio || 0) * (item.cantidad || 1)
       })
     })
 
-    const top5 = Object.values(conteo)
+    const todosLosProductos = Object.values(conteo)
       .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 5)
 
-    return { total: totalFiltered, cantidad: orderCount, top5 }
-  }, [orders, dateFrom, dateTo])
+    return { total: totalFiltered, cantidad: orderCount, todosLosProductos }
+  }, [orders, products, dateFrom, dateTo])
 
   // Animaciones
   const containerVariants = {
@@ -626,32 +632,38 @@ export default function AdminSalesDetail() {
             </div>
           </div>
 
-          {/* Gráfico y Top 5 */}
+          {/* Rendimiento General de Productos */}
           <div className="bg-surface rounded-3xl p-5 md:p-6 border border-app shadow-sm space-y-6">
             <div className="flex items-center justify-between border-b border-app pb-4">
               <h3 className="font-bold text-sm text-app flex items-center gap-2 uppercase tracking-wider">
                 <BarChart2 size={18} className="text-primary" />
-                Top 5 Productos Más Vendidos
+                Rendimiento General de Productos
               </h3>
             </div>
 
-            {salesData.top5.length === 0 ? (
+            {salesData.todosLosProductos.length === 0 ? (
               <div className="text-center py-12 flex flex-col items-center justify-center">
                 <Package size={40} className="text-muted/50 mb-3 animate-pulse" />
-                <p className="text-sm font-semibold text-app">Sin ventas registradas</p>
-                <p className="text-xs text-muted">No hay pedidos completados en este rango de fechas.</p>
+                <p className="text-sm font-semibold text-app">Sin productos registrados</p>
+                <p className="text-xs text-muted">No se encontraron productos en el inventario.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {salesData.top5.map((prod, i) => {
-                  const maxQty = salesData.top5[0].cantidad
-                  const pct = Math.round((prod.cantidad / maxQty) * 100)
-                  const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣']
+                {salesData.todosLosProductos.map((prod, i) => {
+                  const maxQty = salesData.todosLosProductos[0]?.cantidad || 1
+                  const pct = maxQty > 0 ? Math.round((prod.cantidad / maxQty) * 100) : 0
+                  
+                  // Medallas y badges premium para los primeros puestos, emoji genérico para los demás
+                  let badge = '📦'
+                  if (i === 0 && prod.cantidad > 0) badge = '🥇'
+                  else if (i === 1 && prod.cantidad > 0) badge = '🥈'
+                  else if (i === 2 && prod.cantidad > 0) badge = '🥉'
+
                   return (
                     <div key={prod.nombre} className="bg-surface-2 rounded-2xl p-4 border border-app">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-base shrink-0">{medals[i] || '📦'}</span>
+                          <span className="text-base shrink-0">{badge}</span>
                           <p className="text-sm font-bold text-app truncate">{prod.nombre}</p>
                         </div>
                         <div className="text-right shrink-0 ml-2">
@@ -669,7 +681,7 @@ export default function AdminSalesDetail() {
                         />
                       </div>
                       <div className="flex justify-between items-center mt-1.5">
-                        <p className="text-[10px] text-muted">Rendimiento porcentual: {pct}%</p>
+                        <p className="text-[10px] text-muted">Rendimiento relativo: {pct}%</p>
                         <p className="text-xs font-black text-primary">{formatCurrency(prod.total)}</p>
                       </div>
                     </div>

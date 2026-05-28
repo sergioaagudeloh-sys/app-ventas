@@ -285,9 +285,11 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                 <motion.p 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="text-sm font-medium text-green-600 mb-4"
+                  className={`text-sm font-medium mb-4 ${
+                    currentVariant.stock === 0 ? 'text-red-500' : 'text-green-600'
+                  }`}
                 >
-                  {currentVariant.stock} unidades disponibles
+                  {currentVariant.stock === 0 ? 'Esta variante está agotada' : `${currentVariant.stock} unidades disponibles`}
                 </motion.p>
               )}
 
@@ -336,10 +338,23 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
 
                 <button
                   onClick={handleAddToCart}
-                  className="flex-1 h-14 bg-action text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-action"
+                  disabled={currentVariant?.stock === 0}
+                  className={`flex-1 h-14 rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 ${
+                    currentVariant?.stock === 0
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                      : 'bg-action text-white hover:opacity-90 shadow-action'
+                  }`}
                 >
-                  <ShoppingBag size={20} />
-                  Agregar {formatCurrency(((product.tienePromocion && product.precioPromo < product.precioBase) ? product.precioPromo : product.precioBase) * cantidad)}
+                  {currentVariant?.stock === 0 ? (
+                    <>
+                      <span>Agotado</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag size={20} />
+                      Agregar {formatCurrency(((product.tienePromocion && product.precioPromo < product.precioBase) ? product.precioPromo : product.precioBase) * cantidad)}
+                    </>
+                  )}
                 </button>
               </div>
             </div>

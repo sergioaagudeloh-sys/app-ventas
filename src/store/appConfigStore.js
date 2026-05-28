@@ -22,6 +22,7 @@ const useAppConfigStore = create(
       pwaUseBrandIcon: false,    // Usar logo de la tienda como ícono PWA (con fondo)
       activeSeasonalEvent: 'none', // Evento estacional activo ('none', 'navidad', 'halloween', 'madre', 'padre')
       whatsappAdmin: '',
+      claimsEnabled: false,
       bankInfo: {
         numeroCuenta: '',
         banco: '',
@@ -133,6 +134,8 @@ const useAppConfigStore = create(
         employees: state.employees,
         deliverySettings: state.deliverySettings,
         wholesaleSettings: state.wholesaleSettings,
+        whatsappAdmin: state.whatsappAdmin,
+        claimsEnabled: state.claimsEnabled,
       }),
     }
   )
