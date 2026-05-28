@@ -370,6 +370,13 @@ export default function CheckoutModal({ isOpen, onClose }) {
   const handleWhatsApp = () => {
     const adminPhone = whatsappAdmin || SUPPORT_WHATSAPP
     if (!adminPhone) return
+    
+    let adminPhoneClean = adminPhone.replace(/\D/g, '')
+    // Si tiene 10 dígitos (formato celular local en Colombia), le anteponemos el indicativo de país 57
+    if (adminPhoneClean.length === 10) {
+      adminPhoneClean = '57' + adminPhoneClean
+    }
+
     const snap = orderSnapshot
     const num = snap?.numero || orderNumber
     const isDomicilio = snap?.tipoEntrega === 'domicilio'
@@ -450,7 +457,7 @@ ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodo
 ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLine}`
 
     const encoded = encodeURIComponent(text)
-    const url = `https://api.whatsapp.com/send/?phone=${adminPhone.replace(/\D/g, '')}&text=${encoded}&type=phone_number&app_absent=0`
+    const url = `https://api.whatsapp.com/send/?phone=${adminPhoneClean}&text=${encoded}&type=phone_number&app_absent=0`
     window.open(url, '_blank')
     onClose()
   }
