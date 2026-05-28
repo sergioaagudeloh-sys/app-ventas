@@ -61,7 +61,7 @@ const STEP_TITLES = {
 export default function CheckoutModal({ isOpen, onClose }) {
   const { items, getTotal, clearCart } = useCartStore()
   const { user } = useAuthStore()
-  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings } = useAppConfigStore()
+  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings, orderTrackingEnabled } = useAppConfigStore()
   const { mutateAsync: createOrder, isPending } = useCreateOrder()
   const { completedSteps, markStepCompleted } = useGuidedStore()
   const { data: coupons = [] } = useCoupons()
@@ -341,7 +341,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       const currentTotal = getFinalTotal()
       const currentItems = [...items]
 
-      const newOrderId = await createOrder(orderData)
+      const { id: newOrderId, trackingToken } = await createOrder(orderData)
       const shortId = newOrderId.slice(-8).toUpperCase()
 
       setOrderSnapshot({
@@ -349,6 +349,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
         items: currentItems,
         total: currentTotal,
         numero: shortId,
+        trackingToken,
       })
 
       if (!completedSteps?.['checkout']) {
@@ -428,6 +429,12 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
     const seller = useAppConfigStore.getState().sellerName || 'el Administrador'
 
+    let trackingLine = ''
+    if (orderTrackingEnabled && snap?.trackingToken) {
+      const trackingUrl = `${window.location.origin}/pedido/status?t=${snap.trackingToken}`
+      trackingLine = `\n\n📍 *Sigue tu pedido en vivo aquí:*\n${trackingUrl}`
+    }
+
     const text =
 `Hola ${seller} de *${appName || 'la Tienda'}*.
 ${e.carrito} *Nuevo Pedido #${num}*
@@ -440,7 +447,7 @@ ${e.caja} *Productos:*
 ${itemsText}
 ${subtotalLine}${couponLine}${shippingLine}
 ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodoPago}${bancoLine}
-${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
+${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLine}`
 
     const encoded = encodeURIComponent(text)
     const url = `https://api.whatsapp.com/send/?phone=${adminPhone.replace(/\D/g, '')}&text=${encoded}&type=phone_number&app_absent=0`

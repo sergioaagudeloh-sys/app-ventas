@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, MapPin } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -1991,7 +1991,7 @@ export default function AdminSettings() {
                     className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
                   >
                     <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <MapPin size={22} className="text-muted group-hover:text-primary transition-colors" />
+                      <Package size={22} className="text-muted group-hover:text-primary transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Seguimiento de Pedidos</p>
@@ -2433,14 +2433,60 @@ export default function AdminSettings() {
                               {evt.colors.map((c, i) => (
                                 <span 
                                   key={i} 
-                                              {/* SUBSECCIÓN FORM: Garantías y Reclamos */}
+                                  className="w-3.5 h-3.5 rounded-full border border-app/30 shadow-sm shrink-0"
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {formData.activeSeasonalEvent && formData.activeSeasonalEvent !== 'none' && (
+                    <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex gap-3.5 items-start">
+                      <div className="text-xl mt-0.5">ℹ️</div>
+                      <div className="text-xs text-muted leading-relaxed">
+                        <p className="font-bold text-primary mb-0.5">Modo de Temporada Activo</p>
+                        Esta opción aplica una paleta de colores especial a toda la aplicación para tus clientes sin modificar tu tema base. Al desactivarlo, tu tienda volverá a sus colores predefinidos.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateAppConfig({ 
+                          activeSeasonalEvent: formData.activeSeasonalEvent || 'none'
+                        })
+                        config.setConfig({
+                          activeSeasonalEvent: formData.activeSeasonalEvent || 'none'
+                        })
+                        setSaveMessage({ type: 'success', text: 'Evento por temporada guardado y aplicado correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar la temporada.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Cambios de Temporada
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SUBSECCIÓN FORM: Garantías y Reclamos */}
             {activeSubSection === 'garantias' && (
               <>
                 <div className="p-5 sm:p-6 space-y-5">
                   <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
                     <div>
                       <p className="text-sm font-bold text-app">Activar Garantías y Reclamos</p>
-                      <p className="text-xs text-muted mt-0.5">Permite a tus clientes iniciar reclamos o solicitar cambios sobre tus pedidos completados</p>
+                      <p className="text-xs text-muted mt-0.5">Permite a tus clientes iniciar reclamos o solicitar cambios sobre sus pedidos completados</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
                       <input type="checkbox" className="sr-only peer"
@@ -2512,42 +2558,6 @@ export default function AdminSettings() {
                     className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
                   >
                     <Save size={18} /> Guardar Configuración de Seguimiento
-                  </button>
-                </div>
-              </>
-            )}me="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-                    <div>
-                      <p className="text-sm font-bold text-app">Activar Garantías y Reclamos</p>
-                      <p className="text-xs text-muted mt-0.5">Permite a tus clientes iniciar reclamos o solicitar cambios sobre sus pedidos completados</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                      <input type="checkbox" className="sr-only peer"
-                        checked={formData.claimsEnabled ?? false}
-                        onChange={(e) => setFormData({ ...formData, claimsEnabled: e.target.checked })} />
-                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="p-5 border-t border-app bg-surface-2/30">
-                  <button
-                    onClick={async () => {
-                      try {
-                        await updateAppConfig({ 
-                          claimsEnabled: formData.claimsEnabled ?? false
-                        })
-                        config.setConfig({
-                          claimsEnabled: formData.claimsEnabled ?? false
-                        })
-                        setSaveMessage({ type: 'success', text: 'Configuración de garantías guardada correctamente.' })
-                        setTimeout(() => setSaveMessage(null), 3000)
-                      } catch (e) {
-                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
-                      }
-                    }}
-                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
-                  >
-                    <Save size={18} /> Guardar Configuración de Garantías
                   </button>
                 </div>
               </>

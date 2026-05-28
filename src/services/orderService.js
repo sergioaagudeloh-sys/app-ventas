@@ -18,6 +18,28 @@ import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS } from '../constants'
 const ordersRef = collection(db, COLLECTIONS.ORDERS)
 
 /**
+ * Genera un token hash único y seguro SHA-256 basado en ID del pedido y celular.
+ */
+async function generateTrackingToken(orderId, celular) {
+  const cleanCelular = (celular || '').replace(/\D/g, '')
+  const data = `${orderId}_${cleanCelular}`
+  try {
+    const msgBuffer = new TextEncoder().encode(data)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  } catch (error) {
+    console.error('Crypto error, fallback used:', error)
+    let hash = 0
+    for (let i = 0; i < data.length; i++) {
+      hash = (hash << 5) - hash + data.charCodeAt(i)
+      hash |= 0
+    }
+    return 'fallback_' + Math.abs(hash) + '_' + Date.now()
+  }
+}
+
+/**
  * Crea un nuevo pedido desde el cliente.
  * Descuenta el stock INMEDIATAMENTE de forma atómica (reserva temporal).
  * Si no hay stock suficiente lanza un error con el detalle del producto.
@@ -26,6 +48,8 @@ const ordersRef = collection(db, COLLECTIONS.ORDERS)
 export async function createOrder(orderData) {
   const orderNumber = `OR-${Math.floor(10000000 + Math.random() * 90000000)}`
   const orderIdRef = doc(collection(db, COLLECTIONS.ORDERS))
+
+  const trackingToken = await generateTrackingToken(orderIdRef.id, orderData.cliente?.celular)
 
   await runTransaction(db, async (transaction) => {
     const items = orderData.items || []
@@ -84,12 +108,13 @@ export async function createOrder(orderData) {
       orderNumber,
       estado: ORDER_STATES.PENDING,
       stockDescontado: true,
+      trackingToken,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
   })
 
-  return orderIdRef.id
+  return { id: orderIdRef.id, trackingToken }
 }
 
 /**
@@ -328,6 +353,8 @@ export async function createPhysicalOrder(orderData, adminId) {
   const orderIdRef = doc(collection(db, COLLECTIONS.ORDERS))
   const orderId = orderIdRef.id
 
+  const trackingToken = await generateTrackingToken(orderId, orderData.cliente?.celular)
+
   const items = orderData.items || []
   const newStatus = orderData.metodoPago === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.COMPLETED
 
@@ -380,6 +407,7 @@ export async function createPhysicalOrder(orderData, adminId) {
       orderNumber,
       estado: newStatus,
       type: 'physical',
+      trackingToken,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       createdBy: adminId
