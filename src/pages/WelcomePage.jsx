@@ -9,7 +9,7 @@ import { ROLES } from '../constants'
 export default function WelcomePage() {
   const navigate = useNavigate()
   const { role, isLoading } = useAuthStore()
-  const { appName, appIcon, primaryColor, welcomeWavesEnabled, isLoaded } = useAppConfigStore()
+  const { appName, appIcon, primaryColor, welcomeWavesEnabled, slogan, isLoaded } = useAppConfigStore()
 
   // Leer color primario real desde las variables CSS del DOM
   const patternColor = useMemo(() => {
@@ -127,10 +127,21 @@ export default function WelcomePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.25 }}
         >
-          <h1 className="text-4xl md:text-5xl font-black text-app tracking-tight mb-3">
-            {appName || 'Mi Tienda'}
-          </h1>
-          <p className="text-lg text-muted mb-12 max-w-xs mx-auto leading-relaxed">
+          {/* Solo se muestra el nombre si NO hay logo */}
+          {!appIcon && (
+            <h1 className="text-4xl md:text-5xl font-black text-app tracking-tight mb-3">
+              {appName || 'Mi Tienda'}
+            </h1>
+          )}
+
+          {/* Muestra el eslogan guardado o un eslogan genérico premium si hay logo */}
+          {appIcon && (
+            <h2 className="text-xl md:text-2xl font-black text-primary tracking-wide uppercase mb-3 leading-tight">
+              {slogan || 'Lencería y Accesorios para Ti'}
+            </h2>
+          )}
+
+          <p className="text-base text-muted mb-8 max-w-xs mx-auto leading-relaxed">
             Explora nuestros productos y realiza tus pedidos fácilmente.
           </p>
         </motion.div>

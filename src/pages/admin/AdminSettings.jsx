@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -16,6 +16,9 @@ import usePWAInstall from '../../hooks/usePWAInstall'
 import { useAds, useCreateAd, useUpdateAd, useDeleteAd } from '../../hooks/useAds'
 import { useProducts } from '../../hooks/useInventory'
 import { useBilling } from '../../hooks/useBilling'
+import { useOrders } from '../../hooks/useOrders'
+import { jsPDF } from 'jspdf'
+import { autoTable } from 'jspdf-autotable'
 import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '../../hooks/useCoupons'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
@@ -414,8 +417,212 @@ export default function AdminSettings() {
   const [activeSection, setActiveSection] = useState(null)
   const [activeSubSection, setActiveSubSection] = useState(null) // null | 'empleados' | 'entregas'
   const { metrics: billingMetrics, isLoading: billingLoading, savePercent, isSaving: billingIsSaving } = useBilling()
+  const { data: orders = [] } = useOrders()
   const [commissionInput, setCommissionInput] = useState(null)
   const [animatedValues, setAnimatedValues] = useState({ totalMes: 0, comisionMes: 0, pedidosMes: 0, comisionHistorica: 0 })
+
+  // ─── FIRMA Y FACTURACIÓN DESARROLLADOR ─────────────────────────────────────
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const canvasRef = useRef(null)
+
+  const startDrawing = (e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#000000'
+    
+    const rect = canvas.getBoundingClientRect()
+    const clientX = e.clientX || (e.touches && e.touches[0]?.clientX)
+    const clientY = e.clientY || (e.touches && e.touches[0]?.clientY)
+    if (!clientX || !clientY) return
+
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+    
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    setIsDrawing(true)
+  }
+
+  const draw = (e) => {
+    if (!isDrawing) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const rect = canvas.getBoundingClientRect()
+    
+    const clientX = e.clientX || (e.touches && e.touches[0]?.clientX)
+    const clientY = e.clientY || (e.touches && e.touches[0]?.clientY)
+    if (!clientX || !clientY) return
+
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+    
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+
+  const stopDrawing = () => {
+    setIsDrawing(false)
+  }
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    }
+  }
+
+  const exportDeveloperReceiptPDF = () => {
+    try {
+      const canvas = canvasRef.current
+      if (!canvas) {
+        console.error("Canvas ref is null");
+        return
+      }
+      const signatureDataUrl = canvas.toDataURL('image/png')
+
+      const now = new Date()
+      const currentYear = now.getFullYear()
+      const currentMonth = now.getMonth()
+      const MONTH_NAMES_ES = [
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ]
+      const monthLabel = `${MONTH_NAMES_ES[currentMonth]} ${currentYear}`
+
+      const currentPercent = billingMetrics?.commissionPercent ?? 1
+      
+      const toLocalDateLocal = (ts) => {
+        if (!ts) return null
+        if (ts.toDate) return ts.toDate()
+        if (ts instanceof Date) return ts
+        return new Date(ts)
+      }
+
+      const currentMonthOrders = orders.filter(o => {
+        if (o.estado !== ORDER_STATES.COMPLETED) return false
+        if (!o.createdAt) return false
+        const fecha = toLocalDateLocal(o.createdAt)
+        return fecha && fecha.getFullYear() === currentYear && fecha.getMonth() === currentMonth
+      })
+
+      const totalVentas = currentMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+      const totalComision = (totalVentas * currentPercent) / 100
+
+      const doc = new jsPDF()
+      const primaryColor = [16, 185, 129]
+
+      // Header banner
+      doc.setFillColor(...primaryColor)
+      doc.rect(0, 0, 210, 40, 'F')
+      
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(18)
+      doc.setFont('helvetica', 'bold')
+      doc.text('RECIBO DE COMISIÓN DE DESARROLLADOR', 15, 22)
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Periodo: ${monthLabel}`, 15, 30)
+      doc.text(`Generado: ${new Date().toLocaleString()}`, 140, 30)
+
+      // Detalle de las Partes
+      doc.setTextColor(31, 41, 55)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('INFORMACIÓN DE COBRO', 15, 52)
+      
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.text(`Desarrollador: Soporte Técnico / Administrador del Sistema`, 15, 59)
+      doc.text(`Cliente: ${config.sellerName || 'Propietaria de la Tienda'} (Dueña de la Tienda)`, 15, 64)
+      doc.text(`Porcentaje de Comisión: ${currentPercent}%`, 15, 69)
+
+      // Grid boxes
+      doc.setDrawColor(243, 244, 246)
+      doc.setFillColor(249, 250, 251)
+      doc.rect(15, 76, 85, 20, 'F')
+      doc.rect(110, 76, 85, 20, 'F')
+
+      doc.setFontSize(8)
+      doc.setTextColor(107, 114, 128)
+      doc.text('VENTAS TOTALES PROCESADAS', 20, 82)
+      doc.text('TOTAL COMISIÓN NETO A PAGAR', 115, 82)
+
+      doc.setFontSize(13)
+      doc.setTextColor(31, 41, 55)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`$${totalVentas.toLocaleString('es-CO')}`, 20, 91)
+      doc.setTextColor(16, 185, 129)
+      doc.text(`$${totalComision.toLocaleString('es-CO')}`, 115, 91)
+
+      // Table de Detalle
+      doc.setFontSize(11)
+      doc.setTextColor(31, 41, 55)
+      doc.text('Desglose de Pedidos del Periodo', 15, 107)
+
+      const tableHeaders = [['Fecha/Hora', 'Cliente Venta', 'Total Venta', 'Comisión']]
+      const tableData = currentMonthOrders.map(o => {
+        const fecha = toLocalDateLocal(o.createdAt)?.toLocaleString('es-ES') || 'N/A'
+        const clienteVenta = o.cliente?.nombre || 'Cliente General'
+        const comisionIndividual = (o.total * currentPercent) / 100
+        return [
+          fecha, 
+          clienteVenta, 
+          `$${(o.total || 0).toLocaleString('es-CO')}`, 
+          `$${comisionIndividual.toLocaleString('es-CO')}`
+        ]
+      })
+
+      const result = autoTable(doc, {
+        startY: 112,
+        head: tableHeaders,
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        columnStyles: {
+          2: { halign: 'right' },
+          3: { halign: 'right' }
+        }
+      })
+
+      // Seccion de Firma
+      const finalY = (result && result.lastY) ? result.lastY + 15 : (doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 15 : 150);
+
+      if (finalY + 45 > 297) {
+        doc.addPage()
+        doc.text('Firma de Conformidad', 15, 30)
+        doc.addImage(signatureDataUrl, 'PNG', 15, 35, 60, 30)
+        doc.setFontSize(8)
+        doc.setTextColor(107, 114, 128)
+        doc.text('_____________________________________', 15, 75)
+        doc.text(`Firma del Cliente: ${config.sellerName || 'Propietaria de la Tienda'}`, 15, 80)
+        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, 84)
+      } else {
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Firma de Conformidad', 15, finalY)
+        doc.addImage(signatureDataUrl, 'PNG', 15, finalY + 5, 60, 30)
+        doc.setFontSize(8)
+        doc.setTextColor(107, 114, 128)
+        doc.text('_____________________________________', 15, finalY + 40)
+        doc.text(`Firma del Cliente: ${config.sellerName || 'Propietaria de la Tienda'}`, 15, finalY + 45)
+        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, finalY + 49)
+      }
+
+      doc.save(`Recibo_Comision_${monthLabel.replace(' ', '_')}.pdf`)
+      setIsSignatureModalOpen(false)
+    } catch (error) {
+      console.error("Error al exportar el recibo en PDF:", error);
+      alert("Error al generar el PDF: " + error.message);
+    }
+  }
 
   // Escuchar evento personalizado de la barra de navegación para regresar al menú de configuración principal
   useEffect(() => {
@@ -444,6 +651,7 @@ export default function AdminSettings() {
   
   // Estado del Modal de Tema
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false)
+  const [isSeasonalDropdownOpen, setIsSeasonalDropdownOpen] = useState(false)
 
   // ─── MODAL CONFIRMACIÓN CRÍTICA (Fase 5) ────────────────────────────────
   const [criticalConfirmModal, setCriticalConfirmModal] = useState(null) // null | { title, desc, onConfirm }
@@ -637,10 +845,12 @@ export default function AdminSettings() {
     appRadius: 'rounded',
     catalogBanner: { type: 'none', value: '' },
     catalogLayout: 'grid2',
-    animationsEnabled: true,
-    guidedModeEnabled: true,
-    actionColor: '',
+    welcomeWavesEnabled: true,
     loginTrustMessage: '',
+    slogan: '',
+    pwaAppName: '',
+    pwaAppIcon: '',
+    pwaUseBrandIcon: false,
     hasMultipleEmployees: false,
     employeeCount: 0,
     employees: [],
@@ -655,7 +865,8 @@ export default function AdminSettings() {
       discountType: 'percentage', // 'percentage' | 'fixed'
       discountValue: 15
     },
-    catalogMode: 'standard'
+    catalogMode: 'standard',
+    activeSeasonalEvent: 'none'
   })
 
   // Sincronizar store local con formulario al cargar
@@ -665,14 +876,19 @@ export default function AdminSettings() {
         appName: config.appName || '',
         sellerName: config.sellerName || '',
         appIcon: config.appIcon || '',
+        pwaAppName: config.pwaAppName || '',
+        pwaAppIcon: config.pwaAppIcon || '',
+        pwaUseBrandIcon: config.pwaUseBrandIcon || false,
         theme: config.theme || 'rosa-elegante',
+        activeSeasonalEvent: config.activeSeasonalEvent || 'none',
         whatsappAdmin: config.whatsappAdmin || '',
         bankInfo: {
           banco: config.bankInfo?.banco || '',
           tipoCuenta: config.bankInfo?.tipoCuenta || 'ahorros',
           numeroCuenta: config.bankInfo?.numeroCuenta || '',
           titular: config.bankInfo?.titular || '',
-          cedulaNit: config.bankInfo?.cedulaNit || ''
+          cedulaNit: config.bankInfo?.cedulaNit || '',
+          qrUrl: config.bankInfo?.qrUrl || ''
         },
         bankInfo2: {
           activa: config.bankInfo2?.activa || false,
@@ -680,7 +896,8 @@ export default function AdminSettings() {
           tipoCuenta: config.bankInfo2?.tipoCuenta || 'ahorros',
           numeroCuenta: config.bankInfo2?.numeroCuenta || '',
           titular: config.bankInfo2?.titular || '',
-          cedulaNit: config.bankInfo2?.cedulaNit || ''
+          cedulaNit: config.bankInfo2?.cedulaNit || '',
+          qrUrl: config.bankInfo2?.qrUrl || ''
         },
         catalogFilters: config.catalogFilters || {
           categories: true,
@@ -697,6 +914,7 @@ export default function AdminSettings() {
         actionColor: config.actionColor || '',
         welcomeWavesEnabled: config.welcomeWavesEnabled ?? true,
         loginTrustMessage: config.loginTrustMessage || '',
+        slogan: config.slogan || '',
         hasMultipleEmployees: config.hasMultipleEmployees ?? false,
         employeeCount: config.employeeCount ?? 0,
         employees: config.employees ?? [],
@@ -727,7 +945,10 @@ export default function AdminSettings() {
     config.appFont,
     config.appRadius,
     config.catalogBanner,
-    config.catalogLayout,
+    config.slogan,
+    config.pwaAppName,
+    config.pwaAppIcon,
+    config.pwaUseBrandIcon,
     config.animationsEnabled,
     config.guidedModeEnabled,
     config.actionColor,
@@ -737,7 +958,8 @@ export default function AdminSettings() {
     config.employees,
     config.deliverySettings,
     config.wholesaleSettings,
-    config.catalogMode
+    config.catalogMode,
+    config.activeSeasonalEvent
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -746,7 +968,7 @@ export default function AdminSettings() {
     if (!formData.theme) return
 
     const root = document.documentElement
-    const activeColors = getActiveColors(formData.theme, config.isDarkMode)
+    const activeColors = getActiveColors(formData.theme, config.isDarkMode, formData.activeSeasonalEvent)
     
     Object.entries(activeColors).forEach(([key, value]) => {
       root.style.setProperty(key, value)
@@ -754,12 +976,12 @@ export default function AdminSettings() {
 
     return () => {
       // Al desmontar, restaurar el tema oficial guardado
-      const originalColors = getActiveColors(config.theme, config.isDarkMode)
+      const originalColors = getActiveColors(config.theme, config.isDarkMode, config.activeSeasonalEvent)
       Object.entries(originalColors).forEach(([key, value]) => {
         root.style.setProperty(key, value)
       })
     }
-  }, [formData.theme, config.isDarkMode, config.theme])
+  }, [formData.theme, formData.activeSeasonalEvent, config.isDarkMode, config.theme, config.activeSeasonalEvent])
 
   // Guardar configuración en Firebase
   const handleSaveConfig = async () => {
@@ -767,6 +989,7 @@ export default function AdminSettings() {
     setSaveMessage(null)
     try {
       await updateAppConfig(formData)
+      config.setConfig(formData)
       setSaveMessage({ type: 'success', text: 'Configuraciones guardadas y aplicadas a toda la aplicación.' })
       setTimeout(() => setSaveMessage(null), 4000)
     } catch (error) {
@@ -1354,7 +1577,9 @@ export default function AdminSettings() {
                   ? 'Gestión de Personal' 
                   : activeSubSection === 'entregas' 
                     ? 'Métodos de Entrega' 
-                    : activeInfo?.label)
+                    : activeSubSection === 'temporada'
+                      ? 'Eventos por Temporada'
+                      : activeInfo?.label)
               : 'Configuración'
             }
           </h1>
@@ -1364,7 +1589,9 @@ export default function AdminSettings() {
                   ? 'Configura el personal de ventas' 
                   : activeSubSection === 'entregas' 
                     ? 'Opciones de entrega y retiro físico o digital' 
-                    : activeInfo?.description)
+                    : activeSubSection === 'temporada'
+                      ? 'Activa decoraciones y colores especiales'
+                      : activeInfo?.description)
               : 'Ajustes de tu tienda'
             }
           </p>
@@ -1468,6 +1695,16 @@ export default function AdminSettings() {
                   className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-bold text-app mb-2">Eslogan de la tienda (Aparece bajo el logo en el Login)</label>
+                <input
+                  type="text"
+                  value={formData.slogan}
+                  onChange={(e) => setFormData({ ...formData, slogan: e.target.value })}
+                  placeholder="Ej. Lencería y Accesorios para Ti"
+                  className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
               <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app md:col-span-2">
                 <div>
                   <p className="text-sm font-bold text-app">Ondas animadas en el Logotipo</p>
@@ -1480,6 +1717,90 @@ export default function AdminSettings() {
                   <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                 </label>
               </div>
+
+              {/* ─── CONFIGURACIÓN DE APLICACIÓN MÓVIL (PWA) ─── */}
+              <div className="border-t border-app pt-5 md:col-span-2 space-y-4">
+                <h3 className="text-sm font-black text-primary tracking-wider uppercase">
+                  Configuración de Aplicación Móvil (PWA)
+                </h3>
+                <p className="text-xs text-muted leading-relaxed">
+                  Define el nombre y el icono con el que se instalará la aplicación en la pantalla de inicio del celular de tus clientes.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                      <div>
+                        <p className="text-sm font-bold text-app">Usar logo de la tienda como ícono de la app</p>
+                        <p className="text-xs text-muted mt-0.5">Se colocará el logo de tu tienda centrado sobre un fondo con el color principal de la marca</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                        <input type="checkbox" className="sr-only peer"
+                          checked={formData.pwaUseBrandIcon}
+                          onChange={(e) => setFormData({ ...formData, pwaUseBrandIcon: e.target.checked })} />
+                        <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-2 uppercase tracking-wider">Nombre de la App Móvil</label>
+                    <input
+                      type="text"
+                      value={formData.pwaAppName}
+                      onChange={(e) => setFormData({ ...formData, pwaAppName: e.target.value })}
+                      placeholder="Ej. Moni App"
+                      className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    {!formData.pwaUseBrandIcon ? (
+                      <>
+                        <label className="block text-xs font-bold text-app mb-2 uppercase tracking-wider">URL del Icono de Instalación (PWA)</label>
+                        <div className="flex gap-3 items-center">
+                          <div className="relative flex-1">
+                            <Link size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                            <input
+                              type="text"
+                              value={formData.pwaAppIcon}
+                              onChange={(e) => setFormData({ ...formData, pwaAppIcon: e.target.value })}
+                              placeholder="https://ejemplo.com/icono.png"
+                              className="w-full h-12 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors text-sm"
+                            />
+                          </div>
+                          {formData.pwaAppIcon && (
+                            <div className="w-12 h-12 rounded-xl border border-app bg-surface overflow-hidden shrink-0">
+                              <img src={formData.pwaAppIcon} alt="Preview PWA" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <label className="block text-xs font-bold text-app mb-2 uppercase tracking-wider">Vista Previa del Icono PWA</label>
+                        <div className="flex gap-4 items-center p-3 bg-surface-2 rounded-xl border border-app">
+                          <div 
+                            className="w-14 h-14 rounded-2xl flex items-center justify-center p-2.5 shadow-md shrink-0 transition-all duration-300"
+                            style={{ backgroundColor: 'var(--color-primary)' }}
+                          >
+                            {formData.appIcon ? (
+                              <img src={formData.appIcon} alt="Icono Tienda" className="w-full h-full object-contain" />
+                            ) : (
+                              <div className="w-8 h-8 rounded bg-white/20 animate-pulse" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-app">{formData.pwaAppName || formData.appName || 'Mi Aplicación'}</p>
+                            <p className="text-[10px] text-muted">Generado dinámicamente</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
             </div>
             <div className="p-5 border-t border-app bg-surface-2/30">
               <button
@@ -1490,9 +1811,13 @@ export default function AdminSettings() {
                       appName: formData.appName, 
                       sellerName: formData.sellerName,
                       welcomeWavesEnabled: formData.welcomeWavesEnabled ?? true,
-                      loginTrustMessage: formData.loginTrustMessage || ''
+                      loginTrustMessage: formData.loginTrustMessage || '',
+                      slogan: formData.slogan || '',
+                      pwaAppName: formData.pwaAppName || '',
+                      pwaAppIcon: formData.pwaAppIcon || '',
+                      pwaUseBrandIcon: formData.pwaUseBrandIcon || false
                     })
-                    setSaveMessage({ type: 'success', text: 'Identidad de marca guardada correctamente.' })
+                    setSaveMessage({ type: 'success', text: 'Identidad de marca y PWA guardados correctamente.' })
                     setTimeout(() => setSaveMessage(null), 3000)
                   } catch (e) {
                     setSaveMessage({ type: 'error', text: 'Error al actualizar.' })
@@ -1511,7 +1836,7 @@ export default function AdminSettings() {
       {/* ─── VISTA: PERSONALIZAR TIENDA ────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'personalizar' && (
-          <div className="bg-surface rounded-3xl border border-app shadow-sm overflow-hidden flex flex-col">
+          <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col relative">
             
             {/* SUBSECCIÓN MENU: Cuadrícula de Tarjetas Selectoras */}
             {activeSubSection === null && (
@@ -1565,6 +1890,23 @@ export default function AdminSettings() {
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Ventas al por Mayor</p>
                       <p className="text-xs text-muted leading-relaxed">Configura la cantidad mínima, el tipo de descuento y el valor de mayoreo.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
+                  </motion.button>
+
+                  {/* Tarjeta Eventos por Temporada */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('temporada')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <Calendar size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Eventos por Temporada</p>
+                      <p className="text-xs text-muted leading-relaxed">Activa temas visuales especiales (Navidad, Halloween, Día de la Madre/Padre).</p>
                     </div>
                     <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors" />
                   </motion.button>
@@ -1939,6 +2281,110 @@ export default function AdminSettings() {
                     className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
                   >
                     <Save size={18} /> Guardar Configuración de Mayoreo
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* SUBSECCIÓN FORM: Eventos por Temporada */}
+            {activeSubSection === 'temporada' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-6">
+                  <div className="space-y-4">
+                    <label className="block text-xs font-bold text-app uppercase tracking-wider">Selecciona una Temporada Activa</label>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[460px] overflow-y-auto p-2.5 pr-2">
+                      {[
+                        { id: 'none', label: 'Ninguno (Tema normal)', desc: 'Desactiva efectos visuales extras', emoji: '✨', colors: [] },
+                        { id: 'navidad', label: 'Navidad', desc: 'Rojos y verdes navideños', emoji: '🎄', colors: ['#d32f2f', '#388e3c'] },
+                        { id: 'halloween', label: 'Halloween', desc: 'Naranjas y morados mágicos', emoji: '🎃', colors: ['#f57c00', '#7b1fa2'] },
+                        { id: 'madre', label: 'Día de la Madre', desc: 'Rosados y fucsias maternales', emoji: '🌸', colors: ['#ec407a', '#ab47bc'] },
+                        { id: 'padre', label: 'Día del Padre', desc: 'Azul clásico y gris cuero', emoji: '👔', colors: ['#0288d1', '#455a64'] },
+                        { id: 'nino', label: 'Día del Niño', desc: 'Amarillo alegre y celeste pastel', emoji: '🧸', colors: ['#fbc02d', '#29b6f6'] },
+                        { id: 'amistad', label: 'Amor y Amistad', desc: 'Rojos pasión y rosa suave', emoji: '❤️', colors: ['#e91e63', '#f48fb1'] },
+                        { id: 'verano', label: 'Verano', desc: 'Amarillo brillante y turquesa playa', emoji: '☀️', colors: ['#ffeb3b', '#00bcd4'] },
+                        { id: 'semanasanta', label: 'Semana Santa', desc: 'Morados litúrgicos y blanco lino', emoji: '🌾', colors: ['#673ab7', '#eae6df'] },
+                        { id: 'mascota', label: 'Día de la Mascota', desc: 'Cafés y beige cálidos', emoji: '🐾', colors: ['#8d6e63', '#d7ccc8'] }
+                      ].map((evt) => {
+                        const isActive = (formData.activeSeasonalEvent || 'none') === evt.id
+                        return (
+                          <motion.button
+                            key={evt.id}
+                            type="button"
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setFormData({ ...formData, activeSeasonalEvent: evt.id })}
+                            className={`p-4 rounded-2xl text-left flex gap-4 items-start transition-all duration-300 relative outline-none focus:outline-none ${
+                              isActive 
+                                ? 'bg-primary/[0.04]' 
+                                : 'bg-surface-2 hover:bg-surface-2/60'
+                            }`}
+                            style={{ 
+                              border: 'none', 
+                              outline: 'none', 
+                              boxShadow: isActive ? '0 0 16px 2px color-mix(in srgb, var(--color-primary) 35%, transparent)' : 'none' 
+                            }}
+                          >
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all ${
+                              isActive ? 'bg-primary/10' : 'bg-surface'
+                            }`}>
+                              <span className="text-xl">{evt.emoji}</span>
+                            </div>
+                            
+                            <div className="flex-1 min-w-0 pr-8">
+                              <p className={`font-bold text-xs mb-0.5 transition-colors ${isActive ? 'text-primary' : 'text-app'}`}>
+                                {evt.label}
+                              </p>
+                              <p className="text-[10px] text-muted leading-relaxed line-clamp-2">
+                                {evt.desc}
+                              </p>
+                            </div>
+
+                            <div className="absolute right-4 top-4 flex gap-1">
+                              {evt.colors.map((c, i) => (
+                                <span 
+                                  key={i} 
+                                  className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-sm shrink-0"
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {formData.activeSeasonalEvent && formData.activeSeasonalEvent !== 'none' && (
+                    <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex gap-3.5 items-start">
+                      <div className="text-xl mt-0.5">ℹ️</div>
+                      <div className="text-xs text-muted leading-relaxed">
+                        <p className="font-bold text-primary mb-0.5">Modo de Temporada Activo</p>
+                        Esta opción aplica una paleta de colores especial a toda la aplicación para tus clientes sin modificar tu tema base. Al desactivarlo, tu tienda volverá a sus colores predefinidos.
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateAppConfig({ 
+                          activeSeasonalEvent: formData.activeSeasonalEvent || 'none'
+                        })
+                        config.setConfig({
+                          activeSeasonalEvent: formData.activeSeasonalEvent || 'none'
+                        })
+                        setSaveMessage({ type: 'success', text: 'Evento por temporada guardado y aplicado correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar la temporada.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Cambios de Temporada
                   </button>
                 </div>
               </>
@@ -3440,6 +3886,13 @@ export default function AdminSettings() {
                       placeholder="Ej. 1234567890"
                       className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
                   </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-muted mb-1.5">URL del Código QR de Pago</label>
+                    <input type="text" value={formData.bankInfo.qrUrl || ''}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, qrUrl: e.target.value } })}
+                      placeholder="Ej. https://url-de-tu-imagen-qr.png"
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors" />
+                  </div>
                 </div>
               </div>
 
@@ -3503,6 +3956,13 @@ export default function AdminSettings() {
                       <input type="text" value={formData.bankInfo2.cedulaNit}
                         onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, cedulaNit: e.target.value } })}
                         placeholder="Ej. 1234567890"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-muted mb-1.5">URL del Código QR de Pago</label>
+                      <input type="text" value={formData.bankInfo2.qrUrl || ''}
+                        onChange={(e) => setFormData({ ...formData, bankInfo2: { ...formData.bankInfo2, qrUrl: e.target.value } })}
+                        placeholder="Ej. https://url-de-tu-imagen-qr.png"
                         className="w-full h-11 px-4 rounded-xl bg-surface border border-emerald-500/30 text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors" />
                     </div>
                   </div>
@@ -3974,7 +4434,7 @@ export default function AdminSettings() {
             </div>
 
             {/* Resumen compacto del historial */}
-            {!billingLoading && billingMetrics && (
+            {!billingLoading && billingMetrics && (<>
               <div className="bg-surface rounded-2xl border border-app overflow-hidden">
                 <div className="px-5 py-4 border-b border-app">
                   <p className="text-sm font-bold text-app">Resumen de comisiones</p>
@@ -3997,7 +4457,95 @@ export default function AdminSettings() {
                   ))}
                 </div>
               </div>
-            )}
+
+              {/* Generar Recibo de Cobro y Firma */}
+              <div className="bg-surface rounded-2xl shadow-sm p-5 space-y-4">
+                <div>
+                  <p className="text-sm font-bold text-app mb-1">Generar Recibo y Firma de Conformidad</p>
+                  <p className="text-xs text-muted leading-relaxed">
+                    Genera el recibo detallado de comisiones mensuales para que el cliente lo firme y lo exporte en PDF.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => {
+                      setIsSignatureModalOpen(true)
+                      setTimeout(() => clearCanvas(), 50)
+                    }}
+                    className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer shadow-sm"
+                  >
+                    <Receipt size={16} />
+                    Firmar y Exportar Recibo del Mes
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal de Firma Digital Canvas */}
+              <AnimatePresence>
+                {isSignatureModalOpen && (
+                  <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setIsSignatureModalOpen(false)}
+                      style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' }}
+                    />
+                    <motion.div
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      className="bg-surface rounded-3xl p-6 shadow-2xl relative max-w-sm w-full mx-4 space-y-4"
+                    >
+                      <div className="flex items-center justify-between border-b border-primary/5 pb-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-app">Firma de Conformidad</h3>
+                          <p className="text-[10px] text-muted">Dibuja la firma táctil del cliente en el recuadro</p>
+                        </div>
+                        <button
+                          onClick={() => setIsSignatureModalOpen(false)}
+                          className="w-8 h-8 rounded-xl bg-surface-2 hover:bg-surface-3 flex items-center justify-center text-muted cursor-pointer"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+
+                      <div className="bg-surface-2 rounded-2xl overflow-hidden flex flex-col items-center p-2 shadow-inner">
+                        <canvas
+                          ref={canvasRef}
+                          width={300}
+                          height={150}
+                          onMouseDown={startDrawing}
+                          onMouseMove={draw}
+                          onMouseUp={stopDrawing}
+                          onMouseLeave={stopDrawing}
+                          onTouchStart={startDrawing}
+                          onTouchMove={draw}
+                          onTouchEnd={stopDrawing}
+                          className="bg-white rounded-xl cursor-crosshair max-w-full"
+                          style={{ display: 'block', touchAction: 'none' }}
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={clearCanvas}
+                          className="flex-1 h-11 rounded-xl font-bold text-xs bg-surface-2 hover:bg-surface-3 text-app active:scale-95 transition-all cursor-pointer"
+                        >
+                          Limpiar Firma
+                        </button>
+                        <button
+                          onClick={exportDeveloperReceiptPDF}
+                          className="flex-1 h-11 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all cursor-pointer"
+                        >
+                          Generar PDF
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+            </>)}
 
             </div>
           )

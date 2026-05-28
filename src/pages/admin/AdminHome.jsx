@@ -114,47 +114,59 @@ export default function AdminHome() {
         .pulse-red-alert { animation: pulse-red 2.2s infinite ease-in-out !important; }
       `}} />
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8 pb-6 border-b border-app">
-        <div className="flex items-center gap-4">
-          {appIcon ? (
-            <img 
-              src={appIcon} 
-              alt={appName || 'Logo'} 
-              className="h-[84px] w-auto max-w-[150px] object-contain shrink-0 hover:scale-105 transition-all duration-300 select-none"
-            />
-          ) : (
-            <div 
-              className="w-14 h-14 rounded-2xl text-white font-black text-2xl flex items-center justify-center shrink-0 select-none shadow-lg"
-              style={{ 
-                background: 'linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 85%, #000000))',
-                textShadow: '0 1px 2px rgba(0,0,0,0.15)'
-              }}
-            >
-              {(appName || 'V').charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div>
-            <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Panel de Administración
-            </span>
-            <h1 className="text-xl md:text-2xl font-black text-app mt-1 tracking-tight leading-tight">
-              {(() => {
-                const hour = new Date().getHours()
-                if (hour < 12) return 'Buenos días'
-                if (hour < 18) return 'Buenas tardes'
-                return 'Buenas noches'
-              })()}, <span className="text-primary font-black">{sellerName || 'Mónica Henao'}</span>
-            </h1>
+      {/* Tarjeta de Bienvenida Centrada Premium */}
+      <motion.div
+        variants={itemVariants}
+        className="bg-surface rounded-3xl py-1.5 px-6 md:py-2 md:px-8 border border-app shadow-sm flex flex-col items-center text-center gap-1.5 mb-8 relative overflow-hidden"
+      >
+        <div className="absolute -right-16 -top-16 w-36 h-36 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+        
+        {/* Logotipo de la tienda */}
+        {appIcon ? (
+          <img 
+            src={appIcon} 
+            alt={appName || 'Logo'} 
+            className="h-48 w-auto max-w-[360px] object-contain shrink-0 hover:scale-105 transition-all duration-300 select-none"
+            style={{ marginTop: '-2rem', marginBottom: '-2rem' }}
+          />
+        ) : (
+          <div 
+            className="w-24 h-24 rounded-3xl text-white font-black text-4xl flex items-center justify-center shrink-0 select-none shadow-lg my-0"
+            style={{ 
+              background: 'linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 85%, #000000))',
+              textShadow: '0 1px 2px rgba(0,0,0,0.15)'
+            }}
+          >
+            {(appName || 'V').charAt(0).toUpperCase()}
           </div>
-        </div>
-        <div className="text-left md:text-right shrink-0 flex flex-col justify-center md:items-end">
-          <p className="text-xs font-black text-app uppercase tracking-widest text-primary/80">
-            {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
+        )}
+
+        {/* Insignia del Panel */}
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-black text-primary uppercase tracking-widest bg-primary/5 px-4 py-1 rounded-full border border-primary/20">
+          Panel de Administración
+        </span>
+
+        {/* Saludo y Nombre */}
+        <h1 className="text-xl md:text-2xl font-black text-app tracking-tight leading-tight mt-1">
+          {(() => {
+            const hour = new Date().getHours()
+            if (hour < 12) return 'Buenos días'
+            if (hour < 18) return 'Buenas tardes'
+            return 'Buenas noches'
+          })()}, <span className="text-primary font-black">{sellerName || 'Mónica Henao'}</span>
+        </h1>
+
+        {/* Línea Divisoria Sutil */}
+        <div className="w-full max-w-md h-[1px] bg-app/10 my-0.5" />
+
+        {/* Fecha y Subtítulo */}
+        <div className="flex flex-col items-center">
+          <p className="text-xs font-black text-app uppercase tracking-widest text-primary/95">
+            {new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()).toUpperCase()}
           </p>
-          <p className="text-[11px] text-muted mt-1 leading-relaxed">Monitoreo y resumen de tu negocio en tiempo real</p>
+          <p className="text-[10px] text-muted mt-0.5 leading-relaxed">Monitoreo y resumen de tu negocio</p>
         </div>
-      </div>
+      </motion.div>
 
       {/* ─── TARJETAS DE MÉTRICAS ──────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">

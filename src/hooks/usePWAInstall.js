@@ -4,21 +4,30 @@ export default function usePWAInstall() {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [isInstallable, setIsInstallable] = useState(false)
   const [isDismissed, setIsDismissed] = useState(() => {
-    return sessionStorage.getItem('pwa-install-dismissed') === 'true'
+    // 1. Verificar si está descartado permanentemente
+    const permanentDismiss = localStorage.getItem('pwa-install-dismissed') === 'true'
+    if (permanentDismiss) return true
+
+    // 2. Verificar si se pospuso temporalmente (Recordar más tarde)
+    const remindLaterTime = localStorage.getItem('pwa-install-remind-later')
+    if (remindLaterTime) {
+      const hoursPassed = (Date.now() - Number(remindLaterTime)) / (1000 * 60 * 60)
+      if (hoursPassed < 24) {
+        return true // Aún en periodo de gracia de 24h
+      }
+    }
+    return false
   })
 
   useEffect(() => {
     const handler = (e) => {
-      // Prevenir el comportamiento por defecto de Chrome
       e.preventDefault()
-      // Guardar el evento para dispararlo después
       setInstallPrompt(e)
       setIsInstallable(true)
     }
 
     window.addEventListener('beforeinstallprompt', handler)
 
-    // Si ya se abrió en modo autónomo (standalone), no mostrar invitación
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstallable(false)
     }
@@ -40,8 +49,14 @@ export default function usePWAInstall() {
     }
   }
 
-  const dismissPrompt = () => {
-    sessionStorage.setItem('pwa-install-dismissed', 'true')
+  const dismissPrompt = (remindLater = false) => {
+    if (remindLater) {
+      // Recordar más tarde: guardar fecha actual
+      localStorage.setItem('pwa-install-remind-later', Date.now().toString())
+    } else {
+      // Cerrar permanentemente
+      localStorage.setItem('pwa-install-dismissed', 'true')
+    }
     setIsDismissed(true)
   }
 

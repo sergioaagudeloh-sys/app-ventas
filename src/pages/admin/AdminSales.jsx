@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -53,6 +54,7 @@ const COLOR_MAP = {
   'plateado': '#C0C0C0',
   'marron': '#78350F',
   'marrón': '#78350F',
+  'beige': '#F5F5DC',
 }
 
 function getCssColor(colorName) {
@@ -68,11 +70,12 @@ function getCssColor(colorName) {
 }
 
 export default function AdminSales() {
+  const navigate = useNavigate()
   const { data: products = [], isLoading: loadingProducts } = useProducts(true)
   const { data: categories = [] } = useCategories()
   const { user: currentAdmin } = useAuthStore()
   const { mutateAsync: createPhysicalOrder, isPending: isSubmitting } = useCreatePhysicalOrder()
-  const { appName, appIcon, whatsappAdmin } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, bankInfo, bankInfo2 } = useAppConfigStore()
 
   // Estados del POS
   const [cart, setCart] = useState([])
@@ -94,6 +97,34 @@ export default function AdminSales() {
   // Modales
   const [selectedProductForModal, setSelectedProductForModal] = useState(null)
   const [lastOrderDetails, setLastOrderDetails] = useState(null)
+  const [expandedQrUrl, setExpandedQrUrl] = useState(null)
+  const [stockAlert, setStockAlert] = useState(null)
+
+  // ─── MODO DE VENTA ────────────────────────────────────────────────────────
+  // null = aún no elegido (muestra selector), 'inventory' = catálogo, 'custom' = producto libre
+  const [saleMode, setSaleMode] = useState(null)
+  const [customItem, setCustomItem] = useState({ nombre: '', precio: '', cantidad: '1' })
+
+  const addCustomItemToCart = () => {
+    const precio = parseFloat(customItem.precio)
+    const cantidad = parseInt(customItem.cantidad)
+    if (!customItem.nombre.trim() || isNaN(precio) || precio <= 0 || isNaN(cantidad) || cantidad <= 0) {
+      setStockAlert({ message: 'Completa nombre, precio y cantidad válidos.' })
+      return
+    }
+    setCart(prev => [...prev, {
+      productId: `custom-${Date.now()}`,
+      variantId: `custom-${Date.now()}`,
+      nombre: customItem.nombre.trim(),
+      precio,
+      talla: null,
+      color: null,
+      cantidad,
+      maxStock: 99999,
+      imageUrl: null
+    }])
+    setCustomItem({ nombre: '', precio: '', cantidad: '1' })
+  }
 
   // Búsqueda en tiempo real de cliente
   useEffect(() => {
@@ -138,7 +169,7 @@ export default function AdminSales() {
       setClientSearchStatus('found')
     } catch (e) {
       console.error(e)
-      alert('Error al registrar el cliente')
+      setStockAlert({ message: 'Error al registrar el cliente.' })
     } finally {
       setIsRegisteringClient(false)
     }
@@ -175,7 +206,7 @@ export default function AdminSales() {
     } else {
       const variant = product.variantes?.[0] || { id: 'default', stock: 9999, talla: null, color: null }
       if (variant.stock <= 0) {
-        alert('Este producto no tiene stock disponible.')
+        setStockAlert({ message: 'Este producto no tiene stock disponible.' })
         return
       }
       addToCart(product, variant, 1)
@@ -189,14 +220,14 @@ export default function AdminSales() {
         const newCart = [...prev]
         const newQty = newCart[existingIdx].cantidad + qty
         if (newQty > variant.stock) {
-          alert(`No hay stock suficiente. Máximo disponible: ${variant.stock}`)
+          setTimeout(() => setStockAlert({ message: `Stock insuficiente. Máximo disponible: ${variant.stock} unidad(es).` }), 0)
           return prev
         }
         newCart[existingIdx].cantidad = newQty
         return newCart
       } else {
         if (qty > variant.stock) {
-          alert(`No hay stock suficiente. Disponible: ${variant.stock}`)
+          setTimeout(() => setStockAlert({ message: `Stock insuficiente. Disponible: ${variant.stock} unidad(es).` }), 0)
           return prev
         }
         return [...prev, {
@@ -222,7 +253,7 @@ export default function AdminSales() {
         return prev.filter((_, i) => i !== idx)
       }
       if (newQty > item.maxStock) {
-        alert(`No hay stock suficiente. Máximo disponible: ${item.maxStock}`)
+        setTimeout(() => setStockAlert({ message: `Stock insuficiente. Máximo disponible: ${item.maxStock} unidad(es).` }), 0)
         return prev
       }
       const newCart = [...prev]
@@ -400,6 +431,58 @@ export default function AdminSales() {
 
   return (
     <div className="min-h-screen bg-app flex flex-col p-4 md:p-6 w-full max-w-[100vw]">
+
+      {/* ─── SELECTOR DE MODO DE VENTA (Bottom Sheet) ──────────────────────── */}
+      <AnimatePresence>
+        {saleMode === null && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99998, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)' }}
+            />
+            <motion.div
+              initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+              className="relative z-10 bg-surface rounded-t-3xl w-full max-w-lg p-6 pb-8 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            >
+              <button 
+                onClick={() => navigate(-1)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm hover:scale-105 active:scale-95"
+              >
+                <X size={16} />
+              </button>
+              <div className="w-10 h-1 rounded-full bg-app/20 mx-auto mb-2" />
+              <p className="text-sm font-bold text-app text-center">¿Qué tipo de venta vas a realizar?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setSaleMode('inventory')}
+                  className="flex flex-col items-center gap-3 p-5 bg-surface-2 hover:bg-primary/10 border border-app hover:border-primary rounded-2xl transition-all active:scale-95 group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Store size={24} className="text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-app">Inventario</p>
+                    <p className="text-[10px] text-muted">Productos del catálogo</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setSaleMode('custom')}
+                  className="flex flex-col items-center gap-3 p-5 bg-surface-2 hover:bg-emerald-500/10 border border-app hover:border-emerald-500 rounded-2xl transition-all active:scale-95 group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <FileText size={24} className="text-emerald-500" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-app">Personalizado</p>
+                    <p className="text-[10px] text-muted">Producto libre / sin stock</p>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
       {/* ─── ENCABEZADO ─────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -409,9 +492,18 @@ export default function AdminSales() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-app">Ventas Directas</h1>
-            <p className="text-xs text-muted">POS Inteligente de Mostrador</p>
+            <p className="text-xs text-muted">{saleMode === 'custom' ? 'Modo: Producto personalizado' : 'POS Inteligente de Mostrador'}</p>
           </div>
         </div>
+        {/* Toggle de modo */}
+        {saleMode !== null && (
+          <button
+            onClick={() => setSaleMode(null)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-2 border border-app text-xs font-bold text-muted hover:text-app transition-colors"
+          >
+            <RefreshCw size={12} /> Cambiar modo
+          </button>
+        )}
         
         {/* Toggle de pestañas en Mobile */}
         <div className="flex md:hidden bg-surface rounded-2xl p-1 border border-app w-full sm:w-auto">
@@ -441,128 +533,183 @@ export default function AdminSales() {
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         
-        {/* ─── PANEL IZQUIERDO: CATÁLOGO DE PRODUCTOS (visible en desktop o si activeTab === 'products') ─── */}
+        {/* ─── PANEL IZQUIERDO: CATÁLOGO o FORMULARIO PERSONALIZADO ────── */}
         <div className={`md:col-span-7 xl:col-span-8 flex flex-col gap-4 ${activeTab !== 'products' ? 'hidden md:flex' : 'flex'}`}>
+
+          {/* ── MODO PERSONALIZADO ───────────────────────────────────────── */}
+          {saleMode === 'custom' && (
+            <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-app">
+                <FileText size={16} className="text-emerald-500" />
+                <p className="text-sm font-bold text-app">Agregar producto personalizado</p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Nombre del producto</label>
+                  <input
+                    type="text"
+                    value={customItem.nombre}
+                    onChange={e => setCustomItem(p => ({ ...p, nombre: e.target.value }))}
+                    placeholder="Ej: Camiseta personalizada azul"
+                    className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Precio unitario</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={customItem.precio}
+                      onChange={e => setCustomItem(p => ({ ...p, precio: e.target.value }))}
+                      placeholder="0"
+                      className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Cantidad</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={customItem.cantidad}
+                      onChange={e => setCustomItem(p => ({ ...p, cantidad: e.target.value }))}
+                      className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={addCustomItemToCart}
+                  className="w-full h-11 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 active:scale-95 transition-all bg-emerald-500 hover:bg-emerald-600"
+                >
+                  <Plus size={16} /> Agregar al carrito
+                </button>
+              </div>
+            </div>
+          )}
           
           {/* Buscador y categorías */}
-          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm space-y-4">
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
-                <Search size={18} />
-              </span>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por nombre, talla o color..."
-                className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
-              />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-surface-2 flex items-center justify-center text-muted hover:text-app"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+          {saleMode !== 'custom' && (
+            <>
+              <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm space-y-4">
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
+                    <Search size={18} />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar por nombre, talla o color..."
+                    className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-sm text-app placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-surface-2 flex items-center justify-center text-muted hover:text-app"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
-            {/* Categorías */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
-              <button
-                onClick={() => setSelectedCategory('Todos')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
-                  selectedCategory === 'Todos'
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'bg-surface-2 text-app border-app hover:bg-surface-2/75'
-                }`}
-              >
-                Todos
-              </button>
-              {categories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
-                    selectedCategory === cat.id
-                      ? 'bg-primary text-white border-primary shadow-sm'
-                      : 'bg-surface-2 text-app border-app hover:bg-surface-2/75'
-                  }`}
-                >
-                  {cat.nombre}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Grilla de productos */}
-          {loadingProducts ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-3xl border border-app shadow-sm">
-              <Loader2 className="animate-spin text-primary mb-3" size={32} />
-              <p className="text-xs text-muted">Cargando catálogo...</p>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-3xl border border-app shadow-sm">
-              <Package className="text-muted mb-3 animate-pulse" size={40} />
-              <p className="text-sm font-semibold text-app">No se encontraron productos</p>
-              <p className="text-xs text-muted">Prueba con otra palabra clave o categoría.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredProducts.map(product => {
-                const stock = getProductTotalStock(product)
-                return (
-                  <motion.div
-                    key={product.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleAddProductClick(product)}
-                    className="bg-surface rounded-3xl border border-app overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer flex flex-col group relative"
+                {/* Categorías */}
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
+                  <button
+                    onClick={() => setSelectedCategory('Todos')}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                      selectedCategory === 'Todos'
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-surface-2 text-app border-app hover:bg-surface-2/75'
+                    }`}
                   >
-                    {/* Imagen */}
-                    <div className="aspect-square bg-surface-2 flex items-center justify-center overflow-hidden relative">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.nombre}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <Package size={32} className="text-muted/65" />
-                      )}
-                      
-                      {/* Stock Badge */}
-                      <span className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm border ${
-                        stock <= 0
-                          ? 'bg-red-500 text-white border-red-600'
-                          : stock <= 5
-                          ? 'bg-warning text-white border-warning'
-                          : 'bg-surface text-app border-app'
-                      }`}>
-                        {stock <= 0 ? 'Agotado' : `${stock} und.`}
-                      </span>
-                    </div>
+                    Todos
+                  </button>
+                  {categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                        selectedCategory === cat.id
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-surface-2 text-app border-app hover:bg-surface-2/75'
+                      }`}
+                    >
+                      {cat.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                    {/* Contenido */}
-                    <div className="p-3.5 flex-1 flex flex-col justify-between">
-                      <p className="font-bold text-sm text-app line-clamp-2 mb-1 group-hover:text-primary transition-colors">
-                        {product.nombre}
-                      </p>
-                      <div>
-                        <p className="text-[10px] text-muted mb-1">
-                          {product.variantes?.length || 1} variante(s)
-                        </p>
-                        <p className="font-black text-primary text-base">
-                          {formatCurrency(product.precioBase)}
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
+              {/* Grilla de productos */}
+              {loadingProducts ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-3xl border border-app shadow-sm">
+                  <Loader2 className="animate-spin text-primary mb-3" size={32} />
+                  <p className="text-xs text-muted">Cargando catálogo...</p>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-3xl border border-app shadow-sm">
+                  <Package className="text-muted mb-3 animate-pulse" size={40} />
+                  <p className="text-sm font-semibold text-app">No se encontraron productos</p>
+                  <p className="text-xs text-muted">Prueba con otra palabra clave o categoría.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredProducts.map(product => {
+                    const stock = getProductTotalStock(product)
+                    return (
+                      <motion.div
+                        key={product.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleAddProductClick(product)}
+                        className="bg-surface rounded-3xl border border-app overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer flex flex-col group relative"
+                      >
+                        {/* Imagen */}
+                        <div className="aspect-square bg-surface-2 flex items-center justify-center overflow-hidden relative">
+                          {product.imageUrl ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.nombre}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <Package size={32} className="text-muted/65" />
+                          )}
+                          
+                          {/* Stock Badge */}
+                          <span className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm border ${
+                            stock <= 0
+                              ? 'bg-red-500 text-white border-red-600'
+                              : stock <= 5
+                              ? 'bg-warning text-white border-warning'
+                              : 'bg-surface text-app border-app'
+                          }`}>
+                            {stock <= 0 ? 'Agotado' : `${stock} und.`}
+                          </span>
+                        </div>
+
+                        {/* Contenido */}
+                        <div className="p-3.5 flex-1 flex flex-col justify-between">
+                          <p className="font-bold text-sm text-app line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+                            {product.nombre}
+                          </p>
+                          <div>
+                            <p className="text-[10px] text-muted mb-1">
+                              {product.variantes?.length || 1} variante(s)
+                            </p>
+                            <p className="font-black text-primary text-base">
+                              {formatCurrency(product.precioBase)}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -778,6 +925,72 @@ export default function AdminSales() {
               </div>
             </div>
 
+            {paymentMethod === PAYMENT_METHODS.TRANSFER && (
+              <div className="space-y-4 p-5 bg-gradient-to-br from-surface to-primary/[0.03] rounded-3xl shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest border-b border-transparent pb-2">
+                  Cuentas para Transferencia
+                </p>
+                <div className="space-y-4">
+                  {bankInfo?.banco && (
+                    <div className="flex items-center justify-between gap-4 text-xs">
+                      <div className="space-y-1.5 flex-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-primary text-white shadow-sm">
+                          {bankInfo.banco}
+                        </span>
+                        <p className="text-[11px] text-muted">
+                          Tipo: <span className="font-extrabold text-app">{bankInfo.tipoCuenta === 'ahorros' ? 'Ahorros' : bankInfo.tipoCuenta === 'corriente' ? 'Corriente' : 'Digital'}</span>
+                        </p>
+                        <p className="font-mono text-xs text-muted">
+                          Número: <span className="font-black text-app bg-surface-2 px-2 py-1 rounded-lg">{bankInfo.numeroCuenta}</span>
+                        </p>
+                        <p className="text-[11px] text-muted">
+                          Titular: <span className="font-bold text-app">{bankInfo.titular}</span>
+                        </p>
+                      </div>
+                      {bankInfo.qrUrl && (
+                        <div 
+                          onClick={() => setExpandedQrUrl(bankInfo.qrUrl)}
+                          className="w-24 h-24 rounded-2xl shadow-sm bg-white p-1.5 flex items-center justify-center shrink-0 hover:scale-105 transition-transform duration-300 cursor-pointer"
+                        >
+                          <img src={bankInfo.qrUrl} alt="QR Pago" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {bankInfo2?.activa && bankInfo2?.banco && (
+                    <div className="flex items-center justify-between gap-4 text-xs pt-4 border-t border-app/50">
+                      <div className="space-y-1.5 flex-1">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-sm">
+                          {bankInfo2.banco}
+                        </span>
+                        <p className="text-[11px] text-muted">
+                          Tipo: <span className="font-extrabold text-app">{bankInfo2.tipoCuenta === 'ahorros' ? 'Ahorros' : bankInfo2.tipoCuenta === 'corriente' ? 'Corriente' : 'Digital'}</span>
+                        </p>
+                        <p className="font-mono text-xs text-muted">
+                          Número: <span className="font-black text-app bg-surface-2 px-2 py-1 rounded-lg">{bankInfo2.numeroCuenta}</span>
+                        </p>
+                        <p className="text-[11px] text-muted">
+                          Titular: <span className="font-bold text-app">{bankInfo2.titular}</span>
+                        </p>
+                      </div>
+                      {bankInfo2.qrUrl && (
+                        <div 
+                          onClick={() => setExpandedQrUrl(bankInfo2.qrUrl)}
+                          className="w-24 h-24 rounded-2xl shadow-sm bg-white p-1.5 flex items-center justify-center shrink-0 hover:scale-105 transition-transform duration-300 cursor-pointer"
+                        >
+                          <img src={bankInfo2.qrUrl} alt="QR Pago 2" className="w-full h-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!bankInfo?.banco && (!bankInfo2?.activa || !bankInfo2?.banco) && (
+                    <p className="text-xs text-muted text-center py-4">No hay cuentas bancarias configuradas.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Notas opcionales */}
             <div>
               <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1.5">Notas de la Venta (Opcional)</label>
@@ -946,6 +1159,77 @@ export default function AdminSales() {
                   Continuar
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* ─── MODAL PARA AMPLIAR EL QR ───────────────────────────────────── */}
+      <AnimatePresence>
+        {expandedQrUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setExpandedQrUrl(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white p-6 rounded-[2rem] shadow-2xl z-10 max-w-sm w-full flex flex-col items-center gap-4"
+            >
+              <button
+                onClick={() => setExpandedQrUrl(null)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                <X size={14} />
+              </button>
+              <p className="text-sm font-bold text-center mt-2 text-slate-800">Escanea para Pagar</p>
+              <div className="w-64 h-64 border border-slate-100 rounded-2xl overflow-hidden p-3 bg-white flex items-center justify-center shadow-inner">
+                <img src={expandedQrUrl} alt="Código QR Ampliado" className="w-full h-full object-contain" />
+              </div>
+              <p className="text-xs text-slate-500 text-center leading-relaxed">
+                Presenta este código al cliente para realizar la transferencia de forma directa.
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Modal de alerta de stock ─────────────────────────────────────── */}
+      <AnimatePresence>
+        {stockAlert && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setStockAlert(null)}
+              style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+            />
+            <motion.div
+              initial={{ scale: 0.88, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.88, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="relative bg-surface rounded-3xl shadow-2xl p-6 max-w-xs w-full flex flex-col items-center gap-4 z-10"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/15 flex items-center justify-center">
+                <Package size={28} className="text-amber-500" />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-bold text-app">Stock insuficiente</p>
+                <p className="text-xs text-muted leading-relaxed">{stockAlert.message}</p>
+              </div>
+              <button
+                onClick={() => setStockAlert(null)}
+                className="w-full h-11 rounded-2xl font-bold text-sm text-white active:scale-95 transition-all"
+                style={{ background: 'var(--color-primary)' }}
+              >
+                Entendido
+              </button>
             </motion.div>
           </div>
         )}

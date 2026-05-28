@@ -17,6 +17,10 @@ const useAppConfigStore = create(
       theme: 'rosa-elegante',    // Paleta activa
       isDarkMode: false,         // Toggle light/dark
       adminRegistered: false,    // Bandera para Auth Admin
+      pwaAppName: '',            // Nombre al instalarse como app móvil
+      pwaAppIcon: null,          // Icono personalizado de instalación PWA
+      pwaUseBrandIcon: false,    // Usar logo de la tienda como ícono PWA (con fondo)
+      activeSeasonalEvent: 'none', // Evento estacional activo ('none', 'navidad', 'halloween', 'madre', 'padre')
       whatsappAdmin: '',
       bankInfo: {
         numeroCuenta: '',
@@ -24,6 +28,7 @@ const useAppConfigStore = create(
         tipoCuenta: 'ahorros',   // 'ahorros' | 'corriente'
         titular: '',
         cedulaNit: '',
+        qrUrl: '',
       },
       bankInfo2: {
         activa: false,           // segunda cuenta habilitada
@@ -32,6 +37,7 @@ const useAppConfigStore = create(
         tipoCuenta: 'ahorros',
         titular: '',
         cedulaNit: '',
+        qrUrl: '',
       },
       // ─── Apariencia avanzada ───────────────────────────────────────────
       appFont: 'inter',
@@ -51,6 +57,7 @@ const useAppConfigStore = create(
       },
       guidedModeEnabled: true, // Toggle global de asistencia
       loginTrustMessage: '',  // Mensaje de confianza personalizable
+      slogan: '',             // Eslogan de la tienda (aparece debajo del logo en login)
       deliverySettings: {
         pickup: {
           enabled: true,
@@ -108,10 +115,14 @@ const useAppConfigStore = create(
       partialize: (state) => ({
         appName: state.appName,
         appIcon: state.appIcon,
+        pwaAppName: state.pwaAppName,
+        pwaAppIcon: state.pwaAppIcon,
+        pwaUseBrandIcon: state.pwaUseBrandIcon,
         welcomeWavesEnabled: state.welcomeWavesEnabled,
         sellerName: state.sellerName,
         isDarkMode: state.isDarkMode,
         theme: state.theme,
+        activeSeasonalEvent: state.activeSeasonalEvent,
         appFont: state.appFont,
         appRadius: state.appRadius,
         actionColor: state.actionColor,

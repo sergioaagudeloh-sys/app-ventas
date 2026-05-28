@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   const { role, setAdmin, setClient, isLoading: isAuthLoading } = useAuthStore()
-  const { appName, appIcon, adminRegistered, primaryColor, welcomeWavesEnabled, loginTrustMessage, isLoaded } = useAppConfigStore()
+  const { appName, appIcon, adminRegistered, primaryColor, welcomeWavesEnabled, loginTrustMessage, slogan, isLoaded } = useAppConfigStore()
   const navigate = useNavigate()
 
   // Leer color primario real desde CSS en runtime
@@ -180,15 +180,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-app flex flex-col items-center justify-center p-5 relative overflow-hidden">
+    <div className="h-screen w-screen overflow-hidden bg-app flex flex-col md:flex-row items-stretch md:items-center md:justify-center relative">
 
-      {/* ─── Fondo: orbes + patrón de comercio ──────────────────────────────── */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* ─── Fondo en Escritorio (Se oculta en móvil para limpieza) ───────────────── */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none hidden md:block">
         <div className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute -bottom-[20%] -right-[10%] w-[70%] h-[70%] rounded-full bg-primary/8 blur-[100px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[50%] rounded-full bg-primary/5 blur-[80px]" />
         <div
-          className="absolute inset-0 opacity-[0.07]"
+          className="absolute inset-0 opacity-[0.06]"
           style={{
             backgroundImage: patternSvg,
             backgroundSize: '160px 160px',
@@ -196,22 +195,21 @@ export default function LoginPage() {
           }}
         />
       </div>
-
       {/* Botón Ir atrás */}
       <motion.button
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
         onClick={() => navigate('/')}
-        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-app hover:border-primary/50 text-app font-semibold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-20"
+        className="absolute top-5 left-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-surface/95 backdrop-blur-md border border-app hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
       >
-        <ArrowLeft size={16} className="text-primary" />
+        <ArrowLeft size={16} className="text-primary flex-shrink-0" />
         <span>Ir atrás</span>
       </motion.button>
 
       {/* Botón Administrador / Volver a Cliente */}
       <motion.button
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
         onClick={() => {
           if (mode === 'client') {
             setMode('admin')
@@ -222,56 +220,43 @@ export default function LoginPage() {
             setError('')
           }
         }}
-        className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-app hover:border-primary/50 text-app font-semibold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-20 cursor-pointer"
+        className="absolute top-5 right-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-app hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
       >
         {mode === 'client' ? (
           <>
-            <Shield size={16} className="text-primary" />
+            <Shield size={16} className="text-primary flex-shrink-0" />
             <span>Ingreso Admin</span>
           </>
         ) : (
           <>
-            <Smartphone size={16} className="text-primary" />
+            <Smartphone size={16} className="text-primary flex-shrink-0" />
             <span>Volver a Cliente</span>
           </>
         )}
       </motion.button>
 
-      {/* Header con logo y nombre de la app */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <div className="flex items-center justify-center mb-6 relative">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.6 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, type: 'spring', bounce: 0.45 }}
-            className="relative flex items-center justify-center"
-          >
-            {/* Glow difuminado exterior */}
-            <motion.div
-              animate={{ opacity: [0.3, 0.65, 0.3], scale: [0.9, 1.05, 0.9] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute w-[280px] h-[280px] rounded-full bg-primary/20 blur-2xl"
-            />
+      {/* ── CONTENEDOR PRINCIPAL: Híbrido Móvil / Escritorio ── */}
+      <div className="w-full h-full flex flex-col md:justify-center md:items-center z-10 md:p-4 bg-gradient-to-b from-primary/[0.06] via-primary/[0.02] to-surface md:from-transparent md:to-transparent overflow-y-auto">
+        
+        <div className="w-full md:max-w-md flex flex-col items-center gap-3 pt-24 px-4 pb-6 md:p-0">
+          
+          {/* 1. SECCIÓN HERO (Compactada y continua) */}
+          <div className="w-full flex flex-col items-center text-center relative px-2 mb-1">
+            {/* Glow sutil */}
+            <div className="absolute top-2 w-32 h-32 rounded-full bg-primary/10 blur-2xl md:hidden pointer-events-none" />
 
-            {/* Círculo contenedor de ondas */}
-            <div className="relative w-[280px] h-[280px] rounded-full overflow-hidden flex items-center justify-center">
-              {/* Fondo circular muy sutil */}
-              <div className="absolute inset-0 rounded-full bg-primary/5" />
-
-              {/* Ondas sonar */}
-              {(welcomeWavesEnabled !== false) && [0, 1.2, 2.4].map((delay, i) => (
+            {/* Contenedor del Logo de Identidad de Marca */}
+            <div className="relative w-32 h-32 md:w-44 md:h-44 flex items-center justify-center mb-1">
+              {/* Ondas animadas traseras */}
+              {(welcomeWavesEnabled !== false) && [0, 1.6].map((delay, i) => (
                 <motion.div
                   key={i}
                   animate={{
-                    scale: [0.3, 1.05],
-                    opacity: [0, 0.35, 0]
+                    scale: [0.7, 1.15],
+                    opacity: [0, 0.2, 0]
                   }}
                   transition={{
-                    duration: 3.6,
+                    duration: 3,
                     repeat: Infinity,
                     ease: 'easeOut',
                     delay,
@@ -280,212 +265,227 @@ export default function LoginPage() {
                 />
               ))}
 
-              {/* Logo centrado y flotante */}
-              <div className="relative w-[180px] h-[180px] z-10">
+              {/* Logo gigante centrado */}
+              <div className="relative w-[105px] h-[105px] md:w-[145px] md:h-[145px] z-10 flex items-center justify-center">
                 {appIcon ? (
                   <motion.img
                     src={appIcon}
                     alt={`Logo de ${appName}`}
-                    animate={{ y: [0, -5, 0] }}
+                    animate={{ y: [0, -3, 0] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                     className="w-full h-full object-contain"
                     style={{
-                      filter: 'drop-shadow(0 10px 18px color-mix(in srgb, var(--color-primary) 45%, transparent))'
+                      filter: 'drop-shadow(0 6px 10px color-mix(in srgb, var(--color-primary) 20%, transparent))'
                     }}
                   />
                 ) : (
                   <motion.div
-                    animate={{ y: [0, -5, 0] }}
+                    animate={{ y: [0, -3, 0] }}
                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    className="w-full h-full rounded-[3rem] bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-xl"
+                    className="w-full h-full rounded-[2rem] bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg"
                   >
-                    <Store size={72} className="text-white drop-shadow-lg" />
+                    <Store size={48} className="text-white drop-shadow-md" />
                   </motion.div>
                 )}
               </div>
             </div>
-          </motion.div>
-        </div>
-        <h1 className="text-3xl font-bold text-app">{appName}</h1>
-        <p className="text-muted text-sm mt-1">
-          {mode === 'client' 
-            ? 'Bienvenido. Explora y realiza tus pedidos fácilmente.' 
-            : 'Panel de control y administración del negocio.'}
-        </p>
-      </motion.div>
 
-      {/* Tarjeta de login */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="w-full max-w-sm bg-surface rounded-3xl shadow-xl border border-app overflow-hidden"
-      >
-        <div className="p-6">
-          {/* ─── Formulario Cliente ───────────────────────────────────── */}
-          {mode === 'client' && (
-            <form
-              onSubmit={handleClientLogin}
-              noValidate
+            {/* Eslogan y Mensajes */}
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="px-2"
             >
-                <div className="space-y-4">
-                  {/* Paso 1: Pedir celular */}
-                  {clientStep === 1 && (
-                    <div key="step1">
-                      <label htmlFor="client-celular" className="block text-sm font-medium text-app mb-1.5">
-                        Número de celular
-                      </label>
-                      <div className="relative">
-                        <Smartphone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+              {!appIcon && (
+                <h1 className="text-lg md:text-2xl font-bold text-app tracking-tight mb-0.5">{appName}</h1>
+              )}
+
+              <h2 className="text-base md:text-lg font-black text-primary tracking-wide uppercase leading-tight">
+                {slogan || 'Lencería y Accesorios para Ti'}
+              </h2>
+
+              <p className="text-muted text-[11px] md:text-xs mt-0.5 max-w-[240px] md:max-w-none mx-auto opacity-80 leading-relaxed">
+                {mode === 'client' 
+                  ? 'Bienvenido. Explora y realiza tus pedidos fácilmente.' 
+                  : 'Panel de control y administración del negocio.'}
+              </p>
+            </motion.div>
+          </div>
+
+          {/* 2. CARD DE FORMULARIO CONTINUO */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full bg-surface rounded-3xl shadow-xl border border-app overflow-hidden p-5 md:p-6"
+          >
+            <div className="w-full">
+              {/* ─── Formulario Cliente ───────────────────────────────────── */}
+              {mode === 'client' && (
+                <form
+                  onSubmit={handleClientLogin}
+                  noValidate
+                >
+                  <div className="space-y-3.5">
+                    {/* Paso 1: Pedir celular */}
+                    {clientStep === 1 && (
+                      <div key="step1">
+                        <label htmlFor="client-celular" className="block text-[11px] font-bold text-app mb-1.5 uppercase tracking-wider">
+                          Número de celular
+                        </label>
+                        <div className="relative">
+                          <Smartphone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+                          <input
+                            id="client-celular"
+                            type="tel"
+                            value={celular}
+                            onChange={(e) => setCelular(e.target.value)}
+                            placeholder="3XXXXXXXXX"
+                            className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            autoComplete="tel"
+                            aria-required="true"
+                            aria-describedby="trust-message"
+                          />
+                        </div>
+                        <div id="trust-message" className="flex items-start gap-2.5 mt-2.5 p-3 bg-primary/[0.04] rounded-2xl" role="note">
+                          <Shield size={14} className="text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
+                          <p className="text-[10px] text-muted leading-relaxed font-semibold">{CLIENT_LOGIN_TRUST_MESSAGE}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Paso 2: Pedir nombre (Solo si es nuevo) */}
+                    {clientStep === 2 && (
+                      <div key="step2">
+                        <div className="mb-4 bg-primary/5 p-3 rounded-2xl border border-primary/10">
+                          <p className="text-xs text-primary font-bold mb-1">¡Hola! Parece que eres nuevo por aquí.</p>
+                          <p className="text-[11px] text-muted leading-relaxed">Ingresa tu nombre para guardar tus datos y hacer más rápidos tus próximos pedidos.</p>
+                        </div>
+                        <label htmlFor="client-nombre" className="block text-[11px] font-bold text-app mb-2 uppercase tracking-wider">
+                          ¿Cómo te llamas?
+                        </label>
                         <input
-                          id="client-celular"
-                          type="tel"
-                          value={celular}
-                          onChange={(e) => setCelular(e.target.value)}
-                          placeholder="3XXXXXXXXX"
-                          className="w-full h-12 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted text-sm focus:outline-none focus:border-primary transition-colors"
-                          autoComplete="tel"
+                          id="client-nombre"
+                          type="text"
+                          value={nombre}
+                          onChange={(e) => setNombre(e.target.value)}
+                          placeholder="Ej. María Pérez"
+                          className="w-full h-12 px-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                          autoComplete="given-name"
                           aria-required="true"
-                          aria-describedby="trust-message"
+                          autoFocus
                         />
                       </div>
-                      <div id="trust-message" className="flex items-start gap-2 mt-3 p-3 bg-surface-2 rounded-xl" role="note">
-                        <Shield size={14} className="text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
-                        <p className="text-xs text-muted leading-relaxed">{CLIENT_LOGIN_TRUST_MESSAGE}</p>
-                      </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Paso 2: Pedir nombre (Solo si es nuevo) */}
-                  {clientStep === 2 && (
-                    <div key="step2">
-                      <div className="mb-4">
-                        <p className="text-sm text-app font-medium mb-1">¡Hola! Parece que eres nuevo por aquí.</p>
-                        <p className="text-xs text-muted">Ingresa tu nombre para guardar tus datos y hacer más rápidos tus próximos pedidos.</p>
+                    {/* Mensaje de error */}
+                    {error && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                        <p className="text-xs text-red-500 text-center font-semibold" role="alert">
+                          {error}
+                        </p>
                       </div>
-                      <label htmlFor="client-nombre" className="block text-sm font-medium text-app mb-1.5">
-                        ¿Cómo te llamas?
-                      </label>
+                    )}
+
+                    {/* Botón continuar */}
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full h-12 bg-primary text-white rounded-2xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-primary/25 hover:shadow-primary/30"
+                      aria-label="Continuar al catálogo"
+                    >
+                      {isLoading ? (
+                        <div
+                          className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                          aria-label="Cargando..."
+                        />
+                      ) : (
+                        'Continuar'
+                      )}
+                    </button>
+
+                    {/* Asistencia Guiada: Inactividad */}
+                    {mode === 'client' && (
+                      <SmartHint 
+                        stepId="login_inactivity" 
+                        message="Ingresa tus datos para continuar." 
+                        position="bottom" 
+                        inactivityTrigger={true}
+                        isInactive={isInactive}
+                        forceShow={true}
+                      />
+                    )}
+                  </div>
+                </form>
+              )}
+
+              {/* ─── Formulario Admin ─────────────────────────────────────── */}
+              {mode === 'admin' && (
+                <form onSubmit={handleAdminAuth} className="space-y-4" noValidate>
+                  <div className="mb-4">
+                    <p className="text-xs text-app font-bold mb-1">
+                      {adminRegistered ? 'Bienvenido de nuevo' : 'Configuración Inicial'}
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      {adminRegistered 
+                        ? 'Ingresa tus credenciales para acceder al panel administrativo.' 
+                        : 'Crea el usuario y contraseña del administrador.'}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
                       <input
-                        id="client-nombre"
-                        type="text"
-                        value={nombre}
-                        onChange={(e) => setNombre(e.target.value)}
-                        placeholder="Ej. María Pérez"
-                        className="w-full h-12 px-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted text-sm focus:outline-none focus:border-primary transition-colors"
-                        autoComplete="given-name"
-                        aria-required="true"
-                        autoFocus
+                        type="email"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value)}
+                        placeholder="Correo electrónico"
+                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                        required
                       />
                     </div>
-                  )}
+                    
+                    <div className="relative">
+                      <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+                      <input
+                        type="password"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        placeholder="Contraseña"
+                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                  {/* Mensaje de error */}
                   {error && (
                     <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                      <p className="text-sm text-red-500 text-center font-medium" role="alert">
+                      <p className="text-xs text-red-500 text-center font-semibold" role="alert">
                         {error}
                       </p>
                     </div>
                   )}
 
-                  {/* Botón continuar */}
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-12 bg-primary text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    aria-label="Continuar al catálogo"
+                    className="w-full h-12 bg-primary text-white rounded-2xl font-bold text-sm transition-all duration-300 active:scale-95 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-primary/25"
                   >
                     {isLoading ? (
-                      <div
-                        className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"
-                        aria-label="Cargando..."
-                      />
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      'Continuar'
+                      adminRegistered ? 'Iniciar Sesión' : 'Registrar Administrador'
                     )}
                   </button>
+                </form>
+              )}
+            </div>
+          </motion.div>
 
-                  {/* Asistencia Guiada: Inactividad */}
-                  {mode === 'client' && (
-                    <SmartHint 
-                      stepId="login_inactivity" 
-                      message="Ingresa tus datos para continuar." 
-                      position="bottom" 
-                      inactivityTrigger={true}
-                      isInactive={isInactive}
-                      forceShow={true}
-                    />
-                  )}
-                </div>
-              </form>
-            )}
-
-            {/* ─── Formulario Admin ─────────────────────────────────────── */}
-            {mode === 'admin' && (
-              <form onSubmit={handleAdminAuth} className="space-y-4" noValidate>
-                <div className="mb-4">
-                  <p className="text-sm text-app font-medium mb-1">
-                    {adminRegistered ? 'Bienvenido de nuevo' : 'Configuración Inicial'}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {adminRegistered 
-                      ? 'Ingresa tus credenciales para acceder al panel.' 
-                      : 'Crea el usuario y contraseña del administrador.'}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
-                    <input
-                      type="email"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                      placeholder="Correo electrónico"
-                      className="w-full h-12 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted text-sm focus:outline-none focus:border-primary transition-colors"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
-                    <input
-                      type="password"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      placeholder="Contraseña"
-                      className="w-full h-12 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted text-sm focus:outline-none focus:border-primary transition-colors"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                    <p className="text-sm text-red-500 text-center font-medium" role="alert">
-                      {error}
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-12 bg-primary text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    adminRegistered ? 'Iniciar Sesión' : 'Registrar Administrador'
-                  )}
-                </button>
-              </form>
-            )}
         </div>
-      </motion.div>
+      </div>
 
-      <p className="mt-6 text-xs text-muted text-center">
+      <p className="absolute bottom-3 left-0 right-0 text-[10px] text-muted/60 text-center pointer-events-none z-10 hidden md:block">
         {appName} · {loginTrustMessage || 'Tu tienda de confianza'}
       </p>
     </div>

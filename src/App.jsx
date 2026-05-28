@@ -48,7 +48,7 @@ function AppErrorFallback({ error }) {
 
 // ─── Componente que aplica el tema y modo oscuro desde el store ───────────────
 function ThemeApplier() {
-  const { theme, isDarkMode, appFont, appRadius, actionColor, animationsEnabled } = useAppConfigStore()
+  const { theme, activeSeasonalEvent, isDarkMode, appFont, appRadius, actionColor, animationsEnabled } = useAppConfigStore()
 
   useEffect(() => {
     const root = document.documentElement
@@ -60,8 +60,8 @@ function ThemeApplier() {
       root.classList.remove('dark')
     }
 
-    // Calcular e inyectar colores dinámicos base
-    const activeColors = getActiveColors(theme, isDarkMode)
+    // Calcular e inyectar colores dinámicos base incluyendo el evento estacional activo
+    const activeColors = getActiveColors(theme, isDarkMode, activeSeasonalEvent)
     
     Object.entries(activeColors).forEach(([key, value]) => {
       root.style.setProperty(key, value)
@@ -105,10 +105,12 @@ function ThemeApplier() {
       root.classList.add('no-animations')
     }
     
-  }, [theme, isDarkMode, appFont, appRadius, actionColor, animationsEnabled])
+  }, [theme, activeSeasonalEvent, isDarkMode, appFont, appRadius, actionColor, animationsEnabled])
 
   return null
 }
+
+import { updateDynamicManifest } from './utils/dynamicManifest'
 
 export default function App() {
   // Inicialización de la sesión global híbrida (LocalStorage + Firebase)
@@ -117,7 +119,18 @@ export default function App() {
   // Sincronización global Firestore <-> Zustand en tiempo real
   useAppConfigSync()
 
-  const { animationsEnabled } = useAppConfigStore()
+  const { appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode, animationsEnabled } = useAppConfigStore()
+
+  // Actualizar el manifest PWA en tiempo real cuando cambie el nombre o logo
+  useEffect(() => {
+    const titleToUse = pwaAppName || appName
+    if (titleToUse) {
+      document.title = titleToUse
+      const activeColors = getActiveColors(theme, isDarkMode, activeSeasonalEvent)
+      const primaryColor = activeColors['--color-primary']
+      updateDynamicManifest(appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, primaryColor)
+    }
+  }, [appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode])
 
   return (
     <ErrorBoundary FallbackComponent={AppErrorFallback}>

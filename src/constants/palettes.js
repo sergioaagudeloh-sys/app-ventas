@@ -230,23 +230,271 @@ export const ADVANCED_PALETTES = {
   }
 }
 
+// Paletas temáticas de eventos estacionales
+export const SEASONAL_EVENTS = {
+  none: {
+    id: 'none',
+    name: 'Sin Evento Activo'
+  },
+  navidad: {
+    id: 'navidad',
+    name: 'Navidad 🎄',
+    light: {
+      primary: '#d32f2f',      // Rojo navideño
+      secondary: '#388e3c',    // Verde pino
+      accent: '#fbc02d',       // Dorado
+      bg: '#fff9f9',
+      surface: '#ffffff',
+      surface2: '#ffebee',
+      text: '#1b0000',
+      textMuted: '#5d4037',
+      border: '#ffcdd2'
+    },
+    dark: {
+      primary: '#ef5350',
+      secondary: '#4caf50',
+      accent: '#ffd54f',
+      bg: '#0a0505',
+      surface: '#180d0d',
+      surface2: '#2b1616',
+      text: '#ffebee',
+      textMuted: '#d7ccc8',
+      border: '#5c2525'
+    }
+  },
+  halloween: {
+    id: 'halloween',
+    name: 'Halloween 🎃',
+    light: {
+      primary: '#f57c00',      // Naranja calabaza
+      secondary: '#7b1fa2',    // Morado bruja
+      accent: '#212121',       // Negro
+      bg: '#fffdfb',
+      surface: '#ffffff',
+      surface2: '#ffe0b2',
+      text: '#1b0d00',
+      textMuted: '#4a148c',
+      border: '#ffcc80'
+    },
+    dark: {
+      primary: '#ff9800',
+      secondary: '#9c27b0',
+      accent: '#eeeeee',
+      bg: '#0f0a05',
+      surface: '#1c130b',
+      surface2: '#2d1e11',
+      text: '#ffe0b2',
+      textMuted: '#e1bee7',
+      border: '#6d3c0c'
+    }
+  },
+  madre: {
+    id: 'madre',
+    name: 'Día de la Madre 🌸',
+    light: {
+      primary: '#ec407a',      // Rosado maternal
+      secondary: '#f48fb1',    // Rosa pastel
+      accent: '#ab47bc',       // Violeta suave
+      bg: '#fff8f9',
+      surface: '#ffffff',
+      surface2: '#fce4ec',
+      text: '#2c0012',
+      textMuted: '#7b1fa2',
+      border: '#f8bbd0'
+    },
+    dark: {
+      primary: '#f48fb1',
+      secondary: '#fce4ec',
+      accent: '#ce93d8',
+      bg: '#0f0a0c',
+      surface: '#1c1115',
+      surface2: '#2d1a21',
+      text: '#fce4ec',
+      textMuted: '#e1bee7',
+      border: '#5c1e34'
+    }
+  },
+  padre: {
+    id: 'padre',
+    name: 'Día del Padre 👔',
+    light: {
+      primary: '#0288d1',      // Azul varonil
+      secondary: '#455a64',    // Gris cuero
+      accent: '#00796b',       // Teal profundo
+      bg: '#f4faff',
+      surface: '#ffffff',
+      surface2: '#e1f5fe',
+      text: '#001a2c',
+      textMuted: '#37474f',
+      border: '#b3e5fc'
+    },
+    dark: {
+      primary: '#29b6f6',
+      secondary: '#90a4ae',
+      accent: '#26a69a',
+      bg: '#050a0f',
+      surface: '#0b131c',
+      surface2: '#13212f',
+      text: '#e1f5fe',
+      textMuted: '#cfd8dc',
+      border: '#10304a'
+    }
+  },
+  nino: {
+    id: 'nino',
+    name: 'Día del Niño 🧸',
+    light: {
+      primary: '#fbc02d',      // Amarillo alegre
+      secondary: '#29b6f6',    // Celeste infantil
+      accent: '#ec407a',       // Rosa chicle
+      bg: '#fffdf4',
+      surface: '#ffffff',
+      surface2: '#fffde7',
+      text: '#2e2300',
+      textMuted: '#0277bd',
+      border: '#fff59d'
+    },
+    dark: {
+      primary: '#fdd835',
+      secondary: '#4fc3f7',
+      accent: '#f06292',
+      bg: '#0a0a04',
+      surface: '#17170a',
+      surface2: '#282710',
+      text: '#fffde7',
+      textMuted: '#81d4fa',
+      border: '#57541a'
+    }
+  },
+  amistad: {
+    id: 'amistad',
+    name: 'Amor y Amistad ❤️',
+    light: {
+      primary: '#e91e63',      // Rojo pasión / fucsia
+      secondary: '#f48fb1',    // Rosa suave
+      accent: '#9c27b0',       // Morado amor
+      bg: '#fff5f7',
+      surface: '#ffffff',
+      surface2: '#ffe4e8',
+      text: '#2c000b',
+      textMuted: '#880e4f',
+      border: '#ffccd5'
+    },
+    dark: {
+      primary: '#f48fb1',
+      secondary: '#ffccd5',
+      accent: '#e040fb',
+      bg: '#0f0507',
+      surface: '#1c0c10',
+      surface2: '#2d1419',
+      text: '#ffe4e8',
+      textMuted: '#f48fb1',
+      border: '#5c1b27'
+    }
+  },
+  verano: {
+    id: 'verano',
+    name: 'Verano ☀️',
+    light: {
+      primary: '#ffeb3b',      // Amarillo sol
+      secondary: '#00bcd4',    // Turquesa playa
+      accent: '#ff9800',       // Naranja cálido
+      bg: '#fffff0',
+      surface: '#ffffff',
+      surface2: '#e0f7fa',
+      text: '#2c2c00',
+      textMuted: '#006064',
+      border: '#fff9c4'
+    },
+    dark: {
+      primary: '#fdd835',
+      secondary: '#4dd0e1',
+      accent: '#fb8c00',
+      bg: '#0a0a00',
+      surface: '#17170b',
+      surface2: '#12252a',
+      text: '#fffff0',
+      textMuted: '#80deea',
+      border: '#4a4a15'
+    }
+  },
+  semanasanta: {
+    id: 'semanasanta',
+    name: 'Semana Santa 🌾',
+    light: {
+      primary: '#673ab7',      // Morado eclesiástico
+      secondary: '#eae6df',    // Blanco lino
+      accent: '#ffb300',       // Oro
+      bg: '#fafafa',
+      surface: '#ffffff',
+      surface2: '#ede7f6',
+      text: '#1a0033',
+      textMuted: '#5e35b1',
+      border: '#d1c4e9'
+    },
+    dark: {
+      primary: '#9575cd',
+      secondary: '#424242',
+      accent: '#ffca28',
+      bg: '#0c0a0f',
+      surface: '#120f18',
+      surface2: '#1c1725',
+      text: '#ede7f6',
+      textMuted: '#b39ddb',
+      border: '#3c3252'
+    }
+  },
+  mascota: {
+    id: 'mascota',
+    name: 'Día de la Mascota 🐾',
+    light: {
+      primary: '#8d6e63',      // Café cálido / Huella
+      secondary: '#d7ccc8',    // Hueso / Beige suave
+      accent: '#ffb74d',       // Naranja juguetón
+      bg: '#faf8f6',
+      surface: '#ffffff',
+      surface2: '#efebe9',
+      text: '#3e2723',
+      textMuted: '#5d4037',
+      border: '#d7ccc8'
+    },
+    dark: {
+      primary: '#a1887f',
+      secondary: '#4e342e',
+      accent: '#ffa726',
+      bg: '#0f0c0b',
+      surface: '#1c1715',
+      surface2: '#2d221e',
+      text: '#efebe9',
+      textMuted: '#d7ccc8',
+      border: '#5c4033'
+    }
+  }
+}
+
 // Convertir las paletas estáticas a formato de inyección
-export function getActiveColors(themeConfig, isDarkMode) {
-  // themeConfig puede ser un string (id de paleta predefinida) o un objeto (paleta personalizada)
+export function getActiveColors(themeConfig, isDarkMode, activeSeasonalEvent = 'none') {
   let baseColors = null;
 
-  if (typeof themeConfig === 'string') {
-    // Es una paleta predefinida o fallback
-    const palette = ADVANCED_PALETTES[themeConfig] || ADVANCED_PALETTES['rosa-elegante'];
-    baseColors = isDarkMode ? palette.dark : palette.light;
-  } else if (themeConfig && typeof themeConfig === 'object') {
-    // Es una paleta personalizada
-    baseColors = isDarkMode 
-      ? (themeConfig.dark || themeConfig.light || themeConfig) 
-      : (themeConfig.light || themeConfig);
+  // Priorizar el evento de temporada si está activo y existe
+  if (activeSeasonalEvent && activeSeasonalEvent !== 'none' && SEASONAL_EVENTS[activeSeasonalEvent]) {
+    const eventPalette = SEASONAL_EVENTS[activeSeasonalEvent];
+    baseColors = isDarkMode ? eventPalette.dark : eventPalette.light;
   }
 
-  // Fallback de seguridad
+  // Fallback a la paleta normal de la tienda si no hay evento activo
+  if (!baseColors) {
+    if (typeof themeConfig === 'string') {
+      const palette = ADVANCED_PALETTES[themeConfig] || ADVANCED_PALETTES['rosa-elegante'];
+      baseColors = isDarkMode ? palette.dark : palette.light;
+    } else if (themeConfig && typeof themeConfig === 'object') {
+      baseColors = isDarkMode 
+        ? (themeConfig.dark || themeConfig.light || themeConfig) 
+        : (themeConfig.light || themeConfig);
+    }
+  }
+
+  // Fallback de seguridad final
   if (!baseColors) {
     baseColors = ADVANCED_PALETTES['rosa-elegante'].light;
   }
@@ -265,3 +513,4 @@ export function getActiveColors(themeConfig, isDarkMode) {
     '--color-border': baseColors.border || (isDarkMode ? DEFAULT_DARK_BORDER : DEFAULT_LIGHT_BORDER)
   }
 }
+

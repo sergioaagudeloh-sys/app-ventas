@@ -157,7 +157,9 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
     const items = orderDoc.data().items || []
 
     // 2. Leer todos los productos involucrados ANTES de modificar (regla de transacciones de Firestore)
-    const productRefs = items.map(item => doc(db, COLLECTIONS.PRODUCTS, item.productId))
+    const productRefs = items
+      .filter(item => item.productId && !item.productId.startsWith('custom-'))
+      .map(item => doc(db, COLLECTIONS.PRODUCTS, item.productId))
     const productsCache = {}
     
     for (const pRef of productRefs) {
@@ -173,6 +175,7 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
     const updatedProducts = {} // Para no sobrescribir si el pedido tiene el mismo producto 2 veces
 
     for (const item of items) {
+      if (item.productId && item.productId.startsWith('custom-')) continue
       const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
       if (!productInfo) continue // Producto fue borrado del inventario, igual cobramos el pedido
 
@@ -239,9 +242,10 @@ export async function createPhysicalOrder(orderData, adminId) {
   const newStatus = orderData.metodoPago === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.COMPLETED
 
   await runTransaction(db, async (transaction) => {
-    // 1. Leer todos los productos involucrados
+    // 1. Leer todos los productos involucrados (excluyendo personalizados)
     const productsCache = {}
     for (const item of items) {
+      if (item.productId && item.productId.startsWith('custom-')) continue
       if (!productsCache[item.productId]) {
         const pRef = doc(db, COLLECTIONS.PRODUCTS, item.productId)
         const pDoc = await transaction.get(pRef)
@@ -255,6 +259,7 @@ export async function createPhysicalOrder(orderData, adminId) {
     // 2. Modificar el stock
     const updatedProducts = {}
     for (const item of items) {
+      if (item.productId && item.productId.startsWith('custom-')) continue
       const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
       const variantes = [...productInfo.data.variantes]
       const variantIndex = variantes.findIndex(v => v.id === item.variantId)

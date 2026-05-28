@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus, Trash2, Image as ImageIcon, ChevronDown, Check } from 'lucide-react'
+import { X, Plus, Trash2, Image as ImageIcon, ChevronDown, Check, Sparkles, Camera, UploadCloud } from 'lucide-react'
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
+import { doc, onSnapshot, deleteDoc } from 'firebase/firestore'
+import { storage, db } from '../../../config/firebaseConfig'
 import { productSchema } from '../../../schemas/inventorySchemas'
 import { PRODUCT_GENDERS } from '../../../constants'
 import { useCategories } from '../../../hooks/useInventory'
@@ -79,7 +82,7 @@ function CustomSelect({ value, onChange, options, placeholder, emptyOption = "Ni
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.15 }}
-              className="absolute z-50 top-full left-0 right-0 mt-2 bg-surface border border-app rounded-2xl shadow-xl overflow-hidden"
+              className="absolute z-50 top-11 left-0 right-0 mt-2 bg-surface border border-app rounded-2xl shadow-xl overflow-hidden"
             >
               <div className="max-h-60 overflow-y-auto no-scrollbar py-2">
                 <button
@@ -107,6 +110,11 @@ function CustomSelect({ value, onChange, options, placeholder, emptyOption = "Ni
           </>
         )}
       </AnimatePresence>
+
+      {/* Espaciador dinámico para expandir el scroll interno del modal solo cuando está desplegado */}
+      {isOpen && (
+        <div className="h-52 pointer-events-none" />
+      )}
     </div>
   )
 }
@@ -134,6 +142,111 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   const [formData, setFormData] = useState(initialForm)
   const [errors, setErrors] = useState({})
 
+  const [loadingIA, setLoadingIA] = useState(false)
+  const [currentDraftId, setCurrentDraftId] = useState(null)
+  const [currentDraftFilePath, setCurrentDraftFilePath] = useState(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+
+  // Estados del Wizard (Solo creación)
+  const [currentStep, setCurrentStep] = useState(1)
+
+  const steps = [
+    { number: 1, title: 'Imagen' },
+    { number: 2, title: 'Datos Básicos' },
+    { number: 3, title: 'Precios' },
+    { number: 4, title: 'Descuento' },
+    { number: 5, title: 'Inventario' },
+  ]
+
+  const handleCleanupTemp = async (id, filePath) => {
+    if (!id) return
+    try {
+      await deleteDoc(doc(db, "draft_products", id))
+      if (filePath) {
+        const fileRef = ref(storage, filePath)
+        await deleteObject(fileRef)
+      }
+    } catch (e) {
+      console.error("Error al limpiar borrador temporal:", e)
+    }
+  }
+
+  const handleClose = async () => {
+    if (currentDraftId) {
+      await handleCleanupTemp(currentDraftId, currentDraftFilePath)
+    }
+    onClose()
+  }
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // Limpiar borrador anterior si existe
+    if (currentDraftId) {
+      await handleCleanupTemp(currentDraftId, currentDraftFilePath)
+    }
+
+    const draftId = crypto.randomUUID()
+    const extension = file.name.split('.').pop() || 'jpg'
+    const filePath = `artifacts/temp_uploads/${draftId}.${extension}`
+    
+    setCurrentDraftId(draftId)
+    setCurrentDraftFilePath(filePath)
+    setLoadingIA(true)
+    setUploadProgress(0)
+
+    try {
+      const storageRef = ref(storage, filePath)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          setUploadProgress(Math.round(progress))
+        }, 
+        (error) => {
+          console.error("Error subiendo archivo:", error)
+          alert("Error al subir la imagen.")
+          setLoadingIA(false)
+        }, 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
+          setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
+          
+          // Micro-interacción: Si estamos creando, avanzar automáticamente al paso 2
+          // para que el admin pueda rellenar los datos mientras Gemini analiza la imagen.
+          if (!initialData) {
+            setCurrentStep(2)
+          }
+          
+          // Escuchar cambios en el documento borrador creado por la Cloud Function
+          const unsub = onSnapshot(doc(db, "draft_products", draftId), (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data()
+              if (data.error) {
+                alert(data.error)
+                setLoadingIA(false)
+                unsub()
+              } else if (data.nombre_sugerido && data.descripcion_comercial) {
+                setFormData(prev => ({
+                  ...prev,
+                  nombre: prev.nombre || data.nombre_sugerido,
+                  descripcion: prev.descripcion || data.descripcion_comercial
+                }))
+                setLoadingIA(false)
+                unsub()
+              }
+            }
+          })
+        }
+      )
+    } catch (err) {
+      console.error(err)
+      setLoadingIA(false)
+    }
+  }
+
   // Cargar datos iniciales si estamos editando
   useEffect(() => {
     if (initialData && isOpen) {
@@ -147,9 +260,11 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         discountType: initialData.discountType || 'percentage',
         discountValue: initialData.discountValue || 0
       })
+      setCurrentStep(1)
     } else if (isOpen) {
       setFormData({ ...initialForm, variantes: [{ ...initialVariant, id: crypto.randomUUID() }] })
       setErrors({})
+      setCurrentStep(1) // Empezar siempre en el paso 1 al crear
     }
   }, [initialData, isOpen])
 
@@ -176,9 +291,91 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     }))
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  // Validaciones parciales por pasos para el Wizard
+  const validateStep = (step) => {
+    const stepErrors = {}
     
+    if (step === 1) {
+      if (loadingIA) {
+        stepErrors.imageUrl = "Espera a que termine de procesar la imagen."
+      }
+    }
+    
+    if (step === 2) {
+      if (!formData.nombre || formData.nombre.trim().length < 3) {
+        stepErrors.nombre = "El nombre del producto debe tener al menos 3 caracteres."
+      }
+      if (!formData.categoriaId) {
+        stepErrors.categoriaId = "Debes seleccionar una categoría."
+      }
+    }
+    
+    if (step === 3) {
+      const pBase = Number(formData.precioBase)
+      if (isNaN(pBase) || pBase <= 0) {
+        stepErrors.precioBase = "El precio al detal debe ser mayor a 0."
+      }
+      if (formData.precioMayorista && Number(formData.precioMayorista) < 0) {
+        stepErrors.precioMayorista = "El precio mayorista no puede ser negativo."
+      }
+      const umbral = Number(formData.umbralAlerta)
+      if (isNaN(umbral) || umbral < 0) {
+        stepErrors.umbralAlerta = "El stock mínimo de alerta no puede ser negativo."
+      }
+    }
+    
+    if (step === 4) {
+      if (formData.discountActive) {
+        const val = Number(formData.discountValue || 0)
+        if (val < 0) {
+          stepErrors.discountValue = "El descuento no puede ser negativo."
+        }
+        if (formData.discountType === 'percentage' && val > 100) {
+          stepErrors.discountValue = "El porcentaje de descuento no puede superar el 100%."
+        }
+      }
+    }
+
+    if (step === 5) {
+      formData.variantes.forEach((v, index) => {
+        if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
+          stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
+        }
+      })
+    }
+
+    setErrors(stepErrors)
+    return Object.keys(stepErrors).length === 0
+  }
+
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setErrors({})
+      setCurrentStep(prev => Math.min(prev + 1, 5))
+    }
+  }
+
+  const handlePrevStep = () => {
+    setErrors({})
+    setCurrentStep(prev => Math.max(prev - 1, 1))
+  }
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault()
+    
+    // Si estamos creando, realizar validación final de todos los pasos
+    if (!initialData) {
+      let allValid = true
+      for (let s = 1; s <= 5; s++) {
+        if (!validateStep(s)) {
+          setCurrentStep(s)
+          allValid = false
+          break
+        }
+      }
+      if (!allValid) return
+    }
+
     let finalVariantes = formData.variantes.map(v => ({
       ...v,
       stock: v.stock === '' ? 0 : Number(v.stock)
@@ -218,389 +415,1078 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     }
 
     setErrors({})
+    setCurrentDraftId(null)
+    setCurrentDraftFilePath(null)
     onSave(result.data)
   }
 
   if (!isOpen) return null
 
+  // RENDERIZADO DE LA BARRA DE PROGRESO DEL ASISTENTE
+  const renderProgressBar = () => {
+    if (initialData) return null // No mostrar en edición
+
+    return (
+      <div className="px-6 py-4 border-b border-app bg-surface/50 backdrop-blur-md">
+        <div className="flex items-center justify-between max-w-lg mx-auto relative">
+          {/* Línea de fondo */}
+          <div className="absolute top-4 left-4 right-4 h-[2px] bg-surface-2 -translate-y-1/2 z-0" />
+          {/* Línea activa */}
+          <div 
+            className="absolute top-4 left-4 h-[2px] bg-primary -translate-y-1/2 z-0 transition-all duration-300"
+            style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+          />
+          
+          {steps.map((s) => {
+            const isActive = currentStep === s.number
+            const isCompleted = currentStep > s.number
+            return (
+              <div key={s.number} className="relative z-10 flex flex-col items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Permitir navegar a pasos ya completados o validar para ir uno adelante
+                    if (s.number < currentStep) {
+                      setCurrentStep(s.number)
+                    } else if (s.number === currentStep + 1) {
+                      if (validateStep(currentStep)) {
+                        setCurrentStep(s.number)
+                      }
+                    }
+                  }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold transition-all duration-300 ${
+                    isCompleted 
+                      ? 'bg-primary text-white scale-100' 
+                      : isActive 
+                        ? 'bg-primary text-white ring-4 ring-primary/20 scale-110' 
+                        : 'bg-surface-2 text-muted border border-app'
+                  }`}
+                >
+                  {isCompleted ? <Check size={14} className="stroke-[3]" /> : s.number}
+                </button>
+                <span className={`text-[10px] mt-1.5 font-bold transition-colors duration-300 ${
+                  isActive ? 'text-primary' : isCompleted ? 'text-app' : 'text-muted'
+                }`}>
+                  {s.title}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // RENDERIZADO DEL PASO ACTUAL EN MODO WIZARD (CREACIÓN)
+  const renderWizardStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-5"
+          >
+            <div className="text-center max-w-sm mx-auto mb-6">
+              <h3 className="text-lg font-bold text-app">Imagen del Producto</h3>
+              <p className="text-xs text-muted">Sube o toma una foto del producto para iniciar el registro guiado.</p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Controles de Carga */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-2">
+                    {/* Subir de Galería */}
+                    <label className="flex-1 h-12 bg-surface-2 hover:bg-surface border-2 border-dashed border-app rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-app cursor-pointer transition-all active:scale-95 group">
+                      <UploadCloud size={18} className="text-muted group-hover:text-primary transition-colors" />
+                      <span>Galería</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleImageUpload} 
+                        className="hidden" 
+                        disabled={loadingIA}
+                      />
+                    </label>
+                    
+                    {/* Tomar Foto */}
+                    <label className="flex-1 h-12 bg-surface-2 hover:bg-surface border-2 border-dashed border-app rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-app cursor-pointer transition-all active:scale-95 group">
+                      <Camera size={18} className="text-muted group-hover:text-primary transition-colors" />
+                      <span>Cámara</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        onChange={handleImageUpload} 
+                        className="hidden" 
+                        disabled={loadingIA}
+                      />
+                    </label>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-muted font-bold block mb-1">O INGRESA UNA URL DE RESPALDO:</span>
+                    <div className="relative">
+                      <ImageIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                      <input
+                        type="url"
+                        value={formData.imageUrl}
+                        onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                        placeholder="https://..."
+                        className="w-full h-10 pl-9 pr-4 rounded-xl bg-surface-2 border border-app text-xs text-app focus:border-primary focus:outline-none"
+                        disabled={loadingIA}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Previsualización */}
+                <div className="relative h-32 rounded-2xl border border-app bg-surface-2 overflow-hidden flex items-center justify-center">
+                  {loadingIA ? (
+                    <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                      <div className="relative flex items-center justify-center">
+                        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                        <Sparkles size={14} className="text-primary absolute animate-pulse" />
+                      </div>
+                      <p className="text-[11px] font-extrabold text-primary animate-pulse">
+                        Gemini IA Analizando Producto...
+                      </p>
+                      <p className="text-[9px] text-muted">
+                        {uploadProgress < 100 ? `Subiendo: ${uploadProgress}%` : 'Generando sugerencias comerciales...'}
+                      </p>
+                    </div>
+                  ) : formData.imageUrl ? (
+                    <div className="w-full h-full relative group">
+                      <img 
+                        src={formData.imageUrl} 
+                        alt="Vista previa" 
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (currentDraftId) {
+                            await handleCleanupTemp(currentDraftId, currentDraftFilePath)
+                            setCurrentDraftId(null)
+                            setCurrentDraftFilePath(null)
+                          }
+                          setFormData({ ...formData, imageUrl: '' })
+                        }}
+                        className="absolute top-2 right-2 bg-black/60 text-white hover:bg-red-500 rounded-lg p-1.5 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4">
+                      <ImageIcon size={24} className="text-muted mx-auto mb-1.5 opacity-40" />
+                      <p className="text-[11px] text-muted">Sin imagen cargada</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {errors.imageUrl && <p className="text-error text-xs">{errors.imageUrl}</p>}
+            </div>
+          </motion.div>
+        )
+
+      case 2:
+        return (
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            <div className="text-center max-w-sm mx-auto mb-4">
+              <h3 className="text-lg font-bold text-app">Datos Básicos</h3>
+              <p className="text-xs text-muted">Define los textos de venta y a qué categoría pertenece tu producto.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-app">Nombre del Producto *</label>
+                  {loadingIA && (
+                    <span className="text-[10px] font-bold text-primary animate-pulse flex items-center gap-1">
+                      <Sparkles size={10} /> IA Escribiendo...
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={formData.nombre}
+                  onChange={e => setFormData({...formData, nombre: e.target.value})}
+                  placeholder={loadingIA ? "Escribiendo por IA..." : "Ej. Camisa Lino Italiana"}
+                  className={`w-full h-11 px-4 rounded-xl bg-surface-2 border text-app focus:border-primary focus:outline-none transition-all ${
+                    loadingIA ? 'border-primary/40 animate-pulse' : 'border-app'
+                  }`}
+                />
+                {errors.nombre && <p className="text-error text-xs mt-1">{errors.nombre}</p>}
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-app">Descripción Comercial</label>
+                  {loadingIA && (
+                    <span className="text-[10px] font-bold text-primary animate-pulse flex items-center gap-1">
+                      <Sparkles size={10} /> IA Redactando...
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={formData.descripcion || ''}
+                  onChange={e => setFormData({...formData, descripcion: e.target.value})}
+                  rows={3}
+                  placeholder={loadingIA ? "Escribiendo descripción por IA..." : "Destaca los atractivos del producto..."}
+                  className={`w-full p-3 rounded-xl bg-surface-2 border text-app focus:border-primary focus:outline-none resize-none transition-all ${
+                    loadingIA ? 'border-primary/40 animate-pulse' : 'border-app'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-app mb-1">Categoría *</label>
+                <CustomSelect
+                  value={formData.categoriaId}
+                  onChange={(val) => setFormData({...formData, categoriaId: val})}
+                  options={categories.map(c => ({ value: c.id, label: c.nombre }))}
+                  placeholder="Selecciona una categoría..."
+                  emptyOption="Sin categoría"
+                />
+                {errors.categoriaId && <p className="text-error text-xs mt-1">{errors.categoriaId}</p>}
+              </div>
+
+              {/* Atributos personalizados */}
+              {catalogFilters.customAttributes?.map(attr => (
+                <div key={attr.id}>
+                  <label className="block text-xs font-bold text-app mb-1">{attr.name}</label>
+                  {attr.type === 'select' ? (
+                    <CustomSelect
+                      value={formData.atributos?.[attr.id] || ''}
+                      onChange={(val) => setFormData({
+                        ...formData,
+                        atributos: { ...formData.atributos, [attr.id]: val }
+                      })}
+                      options={attr.options?.map(opt => ({ value: opt, label: opt }))}
+                      placeholder="Seleccione..."
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={formData.atributos?.[attr.id] || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        atributos: { ...formData.atributos, [attr.id]: e.target.value }
+                      })}
+                      placeholder={`Ej. ${attr.name}`}
+                      className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )
+
+      case 3:
+        return (
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            <div className="text-center max-w-sm mx-auto mb-4">
+              <h3 className="text-lg font-bold text-app">Precios y Alerta</h3>
+              <p className="text-xs text-muted">Establece el costo para el público, mayoristas y el límite de inventario.</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-app mb-1">Precio Detal (COP) *</label>
+                <input
+                  type="number"
+                  value={formData.precioBase}
+                  onChange={e => setFormData({...formData, precioBase: e.target.value})}
+                  placeholder="Ej. 85000"
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none font-bold"
+                />
+                {errors.precioBase && <p className="text-error text-xs mt-1">{errors.precioBase}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-app mb-1">Precio Mayorista (Opcional)</label>
+                <input
+                  type="number"
+                  value={formData.precioMayorista}
+                  onChange={e => setFormData({...formData, precioMayorista: e.target.value})}
+                  placeholder="Ej. 70000"
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-app mb-1">Stock Mínimo (Alerta de Agotado) *</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.umbralAlerta}
+                  onChange={e => setFormData({...formData, umbralAlerta: e.target.value})}
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+                />
+                {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
+              </div>
+            </div>
+          </motion.div>
+        )
+
+      case 4:
+        return (
+          <motion.div
+            key="step4"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            <div className="text-center max-w-sm mx-auto mb-4">
+              <h3 className="text-lg font-bold text-app">Oferta Directa</h3>
+              <p className="text-xs text-muted">Aplica rebajas inmediatas para llamar la atención en el catálogo.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-2 border border-app">
+                <div>
+                  <p className="text-sm font-bold text-app">¿Aplicar Descuento de una vez?</p>
+                  <p className="text-xs text-muted">Habilita una rebaja especial inmediata.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.discountActive}
+                  onChange={(e) => setFormData({ ...formData, discountActive: e.target.checked })}
+                  className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer shrink-0"
+                />
+              </div>
+
+              {formData.discountActive && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-surface-2 border border-app animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-1.5">Tipo de Descuento</label>
+                    <CustomSelect
+                      value={formData.discountType}
+                      onChange={(val) => setFormData({ ...formData, discountType: val })}
+                      options={[
+                        { value: 'percentage', label: 'Porcentaje (%)' },
+                        { value: 'amount', label: 'Monto Fijo (COP $)' },
+                      ]}
+                      placeholder="Seleccione..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-1.5">Valor del Descuento</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.discountValue === 0 ? '' : formData.discountValue}
+                      onChange={(e) => setFormData({ ...formData, discountValue: e.target.value === '' ? 0 : Number(e.target.value) })}
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-app focus:border-primary focus:outline-none"
+                    />
+                    {errors.discountValue && <p className="text-error text-xs mt-1">{errors.discountValue}</p>}
+                  </div>
+
+                  {/* Previsualización */}
+                  {Number(formData.precioBase) > 0 && (
+                    <div className="sm:col-span-2 p-3 bg-surface rounded-xl border border-app text-xs font-bold flex items-center justify-between">
+                      <span className="text-muted">Simulación de Precio:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="line-through text-muted font-normal">${Number(formData.precioBase).toLocaleString()}</span>
+                        <span className="text-primary text-sm font-extrabold">
+                          ${Math.max(0, (() => {
+                            const base = Number(formData.precioBase)
+                            const val = Number(formData.discountValue || 0)
+                            if (formData.discountType === 'percentage') {
+                              return base - (base * val) / 100
+                            }
+                            return base - val
+                          })()).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )
+
+      case 5:
+        return (
+          <motion.div
+            key="step5"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4"
+          >
+            <div className="text-center max-w-sm mx-auto mb-4">
+              <h3 className="text-lg font-bold text-app">
+                {(catalogFilters.sizes || catalogFilters.colors) ? 'Variantes y Stock' : 'Inventario de Tienda'}
+              </h3>
+              <p className="text-xs text-muted">
+                {(catalogFilters.sizes || catalogFilters.colors) ? 'Añade combinaciones y cantidades.' : 'Indica las unidades disponibles en el stock.'}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {(catalogFilters.sizes || catalogFilters.colors) && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddVariant}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
+                  >
+                    <Plus size={14} /> Añadir Variante
+                  </button>
+                </div>
+              )}
+
+              {Object.keys(errors).some(k => k.startsWith('variantes')) && (
+                <p className="text-error text-xs font-bold">Por favor verifica los stocks ingresados en las variantes.</p>
+              )}
+
+              <div className="space-y-4 max-h-[30vh] overflow-y-auto no-scrollbar">
+                {(catalogFilters.sizes || catalogFilters.colors ? formData.variantes : [formData.variantes[0]]).filter(Boolean).map((variant, index) => {
+                  const tallasList = Array.from(new Set([...COMMON_TALLAS, variant.talla])).filter(Boolean)
+                  const coloresList = Array.from(new Set([...COMMON_COLORES, variant.color])).filter(Boolean)
+
+                  return (
+                    <div key={variant.id} className="relative bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
+                      {/* Botón Eliminar */}
+                      {(catalogFilters.sizes || catalogFilters.colors) && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVariant(variant.id)}
+                          disabled={formData.variantes.length === 1}
+                          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+
+                      <div className="flex flex-col gap-3 pr-6">
+                        {catalogFilters.sizes && (
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1.5 block">Talla: {variant.talla || 'Ninguna'}</label>
+                            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                              {tallasList.map(t => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => handleVariantChange(variant.id, 'talla', variant.talla === t ? '' : t)}
+                                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 border ${
+                                    variant.talla === t
+                                      ? 'bg-primary text-white border-primary shadow-sm'
+                                      : 'bg-surface text-app border-app hover:border-primary/50'
+                                  }`}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {catalogFilters.colors && (
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1.5 block">Color: {variant.color || 'Ninguno'}</label>
+                            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5">
+                              {coloresList.map(c => {
+                                const hex = getCssColor(c)
+                                const isLight = isLightColor(hex)
+                                const isSelected = variant.color === c
+                                return (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
+                                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border flex items-center gap-1`}
+                                    style={{
+                                      backgroundColor: hex,
+                                      color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
+                                      borderColor: isSelected 
+                                        ? 'var(--color-primary)' 
+                                        : (isLight ? 'var(--color-border)' : 'transparent'),
+                                      boxShadow: isSelected ? '0 0 8px rgba(124,58,237,0.35)' : undefined
+                                    }}
+                                  >
+                                    {c}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[10px] font-bold text-app mb-1 block">Cantidad Disponible *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Ej. 10"
+                            value={variant.stock}
+                            onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
+                            className="w-full sm:w-1/2 h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                          />
+                          {errors[`variantes.${index}.stock`] && (
+                            <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.stock`]}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  // RENDERIZADO DEL FORMULARIO CLÁSICO COMPLETO (MODO EDICIÓN)
+  const renderClassicForm = () => {
+    return (
+      <form id="product-form" onSubmit={handleSubmit} className="space-y-6 animate-in fade-in duration-200">
+        {/* Alerta general de Errores */}
+        {Object.keys(errors).length > 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-error p-4 rounded-xl">
+            <p className="text-error font-bold mb-2">Por favor corrige los siguientes errores:</p>
+            <ul className="list-disc pl-5 text-sm text-error space-y-1">
+              {Object.entries(errors).map(([key, msg]) => {
+                let friendlyKey = key
+                if (key === 'nombre') friendlyKey = 'Nombre del producto'
+                if (key === 'categoriaId') friendlyKey = 'Categoría'
+                if (key === 'precioBase') friendlyKey = 'Precio Detal'
+                if (key === 'precioMayorista') friendlyKey = 'Precio Mayorista'
+                if (key === 'imageUrl') friendlyKey = 'Imagen'
+                if (key === 'umbralAlerta') friendlyKey = 'Alerta de Stock'
+                
+                if (key.startsWith('variantes.')) {
+                  const parts = key.split('.')
+                  friendlyKey = `Variante ${Number(parts[1]) + 1} (${parts[2] || 'general'})`
+                }
+                return <li key={key}><b>{friendlyKey}:</b> {msg}</li>
+              })}
+            </ul>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="md:col-span-2">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-app">Nombre *</label>
+              {loadingIA && (
+                <span className="text-[10px] font-bold text-primary animate-pulse flex items-center gap-1">
+                  <Sparkles size={10} /> Autogenerando...
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              value={formData.nombre}
+              onChange={e => setFormData({...formData, nombre: e.target.value})}
+              placeholder={loadingIA ? "Escribiendo por IA..." : "Nombre del producto"}
+              className={`w-full h-11 px-4 rounded-xl bg-surface-2 border text-app focus:border-primary focus:outline-none transition-all ${
+                loadingIA ? 'border-primary/40 animate-pulse' : 'border-app'
+              }`}
+            />
+            {errors.nombre && <p className="text-error text-xs mt-1">{errors.nombre}</p>}
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium text-app">Descripción Comercial</label>
+              {loadingIA && (
+                <span className="text-[10px] font-bold text-primary animate-pulse flex items-center gap-1">
+                  <Sparkles size={10} /> Autogenerando...
+                </span>
+              )}
+            </div>
+            <textarea
+              value={formData.descripcion || ''}
+              onChange={e => setFormData({...formData, descripcion: e.target.value})}
+              rows={3}
+              placeholder={loadingIA ? "Escribiendo descripción por IA..." : "Describe el producto..."}
+              className={`w-full p-3 rounded-xl bg-surface-2 border text-app focus:border-primary focus:outline-none resize-none transition-all ${
+                loadingIA ? 'border-primary/40 animate-pulse' : 'border-app'
+              }`}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app mb-1">Categoría *</label>
+            <CustomSelect
+              value={formData.categoriaId}
+              onChange={(val) => setFormData({...formData, categoriaId: val})}
+              options={categories.map(c => ({ value: c.id, label: c.nombre }))}
+              placeholder="Seleccione una categoría..."
+              emptyOption="Sin categoría"
+            />
+            {errors.categoriaId && <p className="text-error text-xs mt-1">{errors.categoriaId}</p>}
+          </div>
+
+          {catalogFilters.customAttributes?.map(attr => (
+            <div key={attr.id}>
+              <label className="block text-sm font-medium text-app mb-1">{attr.name}</label>
+              {attr.type === 'select' ? (
+                <CustomSelect
+                  value={formData.atributos?.[attr.id] || ''}
+                  onChange={(val) => setFormData({
+                    ...formData,
+                    atributos: { ...formData.atributos, [attr.id]: val }
+                  })}
+                  options={attr.options?.map(opt => ({ value: opt, label: opt }))}
+                  placeholder="Seleccione una opción..."
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={formData.atributos?.[attr.id] || ''}
+                  onChange={e => setFormData({
+                    ...formData,
+                    atributos: { ...formData.atributos, [attr.id]: e.target.value }
+                  })}
+                  placeholder={`Ej. ${attr.name}`}
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+                />
+              )}
+            </div>
+          ))}
+
+          <div className="md:col-span-2 space-y-3">
+            <label className="block text-sm font-bold text-app">Imagen del Producto *</label>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-2">
+                  <label className="flex-1 h-12 bg-surface-2 hover:bg-surface border-2 border-dashed border-app rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-app cursor-pointer transition-all active:scale-95 group">
+                    <UploadCloud size={18} className="text-muted group-hover:text-primary transition-colors" />
+                    <span>Subir de Galería</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      className="hidden" 
+                      disabled={loadingIA}
+                    />
+                  </label>
+                  
+                  <label className="flex-1 h-12 bg-surface-2 hover:bg-surface border-2 border-dashed border-app rounded-xl flex items-center justify-center gap-2 text-sm font-semibold text-app cursor-pointer transition-all active:scale-95 group">
+                    <Camera size={18} className="text-muted group-hover:text-primary transition-colors" />
+                    <span>Tomar Foto</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      onChange={handleImageUpload} 
+                      className="hidden" 
+                      disabled={loadingIA}
+                    />
+                  </label>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-muted font-bold block mb-1">O INGRESA UNA URL DE RESPALDO:</span>
+                  <div className="relative">
+                    <ImageIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                    <input
+                      type="url"
+                      value={formData.imageUrl}
+                      onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                      placeholder="https://..."
+                      className="w-full h-10 pl-9 pr-4 rounded-xl bg-surface-2 border border-app text-xs text-app focus:border-primary focus:outline-none"
+                      disabled={loadingIA}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative h-28 rounded-2xl border border-app bg-surface-2 overflow-hidden flex items-center justify-center">
+                {loadingIA ? (
+                  <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                    <div className="relative flex items-center justify-center">
+                      <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                      <Sparkles size={14} className="text-primary absolute animate-pulse" />
+                    </div>
+                    <p className="text-[11px] font-extrabold text-primary animate-pulse">
+                      Gemini IA Analizando...
+                    </p>
+                  </div>
+                ) : formData.imageUrl ? (
+                  <div className="w-full h-full relative group">
+                    <img 
+                      src={formData.imageUrl} 
+                      alt="Vista previa" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (currentDraftId) {
+                          await handleCleanupTemp(currentDraftId, currentDraftFilePath)
+                          setCurrentDraftId(null)
+                          setCurrentDraftFilePath(null)
+                        }
+                        setFormData({ ...formData, imageUrl: '' })
+                      }}
+                      className="absolute top-2 right-2 bg-black/60 text-white hover:bg-red-500 rounded-lg p-1.5 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center p-4">
+                    <ImageIcon size={24} className="text-muted mx-auto mb-1.5 opacity-40" />
+                    <p className="text-[11px] text-muted">Sin imagen cargada</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {errors.imageUrl && <p className="text-error text-xs mt-1">{errors.imageUrl}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app mb-1">Precio Detal (COP) *</label>
+            <input
+              type="number"
+              value={formData.precioBase}
+              onChange={e => setFormData({...formData, precioBase: e.target.value})}
+              className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+            />
+            {errors.precioBase && <p className="text-error text-xs mt-1">{errors.precioBase}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app mb-1">Precio Mayorista (Opcional)</label>
+            <input
+              type="number"
+              value={formData.precioMayorista}
+              onChange={e => setFormData({...formData, precioMayorista: e.target.value})}
+              className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-app mb-1">Stock Mínimo (Umbral de Alerta) *</label>
+            <input
+              type="number"
+              min="0"
+              value={formData.umbralAlerta}
+              onChange={e => setFormData({...formData, umbralAlerta: e.target.value})}
+              className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+            />
+            {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
+          </div>
+
+          <div className="md:col-span-2 border-t border-app pt-5 mt-2 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-2 border border-app">
+              <div>
+                <p className="text-sm font-bold text-app">¿Aplicar Descuento de una vez?</p>
+                <p className="text-xs text-muted">Aplica una oferta directa al producto</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={formData.discountActive}
+                onChange={(e) => setFormData({ ...formData, discountActive: e.target.checked })}
+                className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer shrink-0"
+              />
+            </div>
+
+            {formData.discountActive && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-surface-2 border border-app animate-in fade-in slide-in-from-top-3 duration-200">
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5">Tipo de Descuento</label>
+                  <CustomSelect
+                    value={formData.discountType}
+                    onChange={(val) => setFormData({ ...formData, discountType: val })}
+                    options={[
+                      { value: 'percentage', label: 'Porcentaje (%)' },
+                      { value: 'amount', label: 'Monto Fijo (COP $)' },
+                    ]}
+                    placeholder="Seleccione..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5">Valor del Descuento</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.discountValue === 0 ? '' : formData.discountValue}
+                    onChange={(e) => setFormData({ ...formData, discountValue: e.target.value === '' ? 0 : Number(e.target.value) })}
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-app focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                {Number(formData.precioBase) > 0 && (
+                  <div className="md:col-span-2 p-3 bg-surface rounded-xl border border-app text-xs font-bold flex items-center justify-between">
+                    <span className="text-muted">Simulación de Precio:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="line-through text-muted font-normal">${Number(formData.precioBase).toLocaleString()}</span>
+                      <span className="text-primary text-sm font-extrabold">
+                        ${Math.max(0, (() => {
+                          const base = Number(formData.precioBase)
+                          const val = Number(formData.discountValue || 0)
+                          if (formData.discountType === 'percentage') {
+                            return base - (base * val) / 100
+                          }
+                          return base - val
+                        })()).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-app pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-app">
+                {(catalogFilters.sizes || catalogFilters.colors) ? 'Variantes y Stock' : 'Inventario y Stock'}
+              </h3>
+            </div>
+            {(catalogFilters.sizes || catalogFilters.colors) && (
+              <button
+                type="button"
+                onClick={handleAddVariant}
+                className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-semibold hover:bg-primary/20 transition-colors"
+              >
+                <Plus size={16} /> Añadir Variante
+              </button>
+            )}
+          </div>
+          
+          {errors.variantes && <p className="text-error text-sm mb-3">{errors.variantes}</p>}
+
+          <div className="space-y-4">
+            {(catalogFilters.sizes || catalogFilters.colors ? formData.variantes : [formData.variantes[0]]).filter(Boolean).map((variant) => {
+              const tallasList = Array.from(new Set([...COMMON_TALLAS, variant.talla])).filter(Boolean)
+              const coloresList = Array.from(new Set([...COMMON_COLORES, variant.color])).filter(Boolean)
+
+              return (
+                <div key={variant.id} className="relative bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
+                  {(catalogFilters.sizes || catalogFilters.colors) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVariant(variant.id)}
+                      disabled={formData.variantes.length === 1}
+                      className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+
+                  <div className="flex flex-col gap-4 pr-6">
+                    {catalogFilters.sizes && (
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">Talla: {variant.talla || 'Ninguna'}</label>
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                          {tallasList.map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => handleVariantChange(variant.id, 'talla', variant.talla === t ? '' : t)}
+                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border-2 ${
+                                variant.talla === t
+                                  ? 'bg-primary text-white border-primary shadow-md'
+                                  : 'bg-surface text-app border-app hover:border-primary/50'
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {catalogFilters.colors && (
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">Color: {variant.color || 'Ninguno'}</label>
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1.5 pt-1">
+                          {coloresList.map(c => {
+                            const hex = getCssColor(c)
+                            const isLight = isLightColor(hex)
+                            const isSelected = variant.color === c
+                            return (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
+                                className="flex-shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 border-2 flex items-center gap-1.5 shadow-sm"
+                                style={{
+                                  backgroundColor: hex,
+                                  color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
+                                  borderColor: isSelected ? 'var(--color-primary)' : (isLight ? 'var(--color-border)' : 'transparent'),
+                                }}
+                              >
+                                {c}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Ej: 15"
+                        value={variant.stock}
+                        onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
+                        className="w-full sm:w-1/2 h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </form>
+    )
+  }
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Backdrop */}
+        {/* Fondo del Modal */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         />
 
-        {/* Modal */}
+        {/* Contenedor Modal */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-2xl max-h-[90vh] bg-surface rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-app"
+          className="relative w-full max-w-2xl max-h-[95vh] bg-surface rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-app"
         >
-          {/* Header */}
+          {/* Cabecera */}
           <div className="flex items-center justify-between p-6 border-b border-app bg-surface z-10">
-            <h2 className="text-xl font-bold text-app">
-              {initialData ? 'Editar Producto' : 'Nuevo Producto'}
-            </h2>
+            <div>
+              <h2 className="text-xl font-extrabold text-app">
+                {initialData ? 'Editar Producto' : 'Crear Nuevo Producto'}
+              </h2>
+              {!initialData && (
+                <p className="text-[10px] text-muted font-bold uppercase tracking-wider mt-0.5">
+                  Asistente de registro rápido
+                </p>
+              )}
+            </div>
             <button
-              onClick={onClose}
+              type="button"
+              onClick={handleClose}
               className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
             >
               <X size={18} />
             </button>
           </div>
 
-          {/* Form Content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <form id="product-form" onSubmit={handleSubmit} className="space-y-6">
-              
-              {/* Alerta general de Errores */}
-              {Object.keys(errors).length > 0 && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-error p-4 rounded-xl">
-                  <p className="text-error font-bold mb-2">Por favor corrige los siguientes errores:</p>
-                  <ul className="list-disc pl-5 text-sm text-error space-y-1">
-                    {Object.entries(errors).map(([key, msg]) => {
-                      // Traducir rutas técnicas a algo amigable
-                      let friendlyKey = key
-                      if (key === 'nombre') friendlyKey = 'Nombre del producto'
-                      if (key === 'categoriaId') friendlyKey = 'Categoría'
-                      if (key === 'precioBase') friendlyKey = 'Precio Detal'
-                      if (key === 'precioMayorista') friendlyKey = 'Precio Mayorista'
-                      if (key === 'imageUrl') friendlyKey = 'Imagen'
-                      if (key === 'umbralAlerta') friendlyKey = 'Alerta de Stock'
-                      
-                      if (key.startsWith('variantes.')) {
-                        const parts = key.split('.')
-                        friendlyKey = `Variante ${Number(parts[1]) + 1} (${parts[2] || 'general'})`
-                      }
-                      return <li key={key}><b>{friendlyKey}:</b> {msg}</li>
-                    })}
-                  </ul>
-                </div>
-              )}
+          {/* Barra de progreso si estamos en creación */}
+          {renderProgressBar()}
 
-              {/* Información Básica */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-app mb-1">Nombre *</label>
-                  <input
-                    type="text"
-                    value={formData.nombre}
-                    onChange={e => setFormData({...formData, nombre: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
-                  />
-                  {errors.nombre && <p className="text-error text-xs mt-1">{errors.nombre}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-app mb-1">Categoría *</label>
-                  <CustomSelect
-                    value={formData.categoriaId}
-                    onChange={(val) => setFormData({...formData, categoriaId: val})}
-                    options={categories.map(c => ({ value: c.id, label: c.nombre }))}
-                    placeholder="Seleccione una categoría..."
-                    emptyOption="Sin categoría"
-                  />
-                  {errors.categoriaId && <p className="text-error text-xs mt-1">{errors.categoriaId}</p>}
-                </div>
-
-                {/* Atributos Personalizados Dinámicos */}
-                {catalogFilters.customAttributes?.map(attr => (
-                  <div key={attr.id}>
-                    <label className="block text-sm font-medium text-app mb-1">{attr.name}</label>
-                    {attr.type === 'select' ? (
-                      <CustomSelect
-                        value={formData.atributos?.[attr.id] || ''}
-                        onChange={(val) => setFormData({
-                          ...formData,
-                          atributos: { ...formData.atributos, [attr.id]: val }
-                        })}
-                        options={attr.options?.map(opt => ({ value: opt, label: opt }))}
-                        placeholder="Seleccione una opción..."
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        value={formData.atributos?.[attr.id] || ''}
-                        onChange={e => setFormData({
-                          ...formData,
-                          atributos: { ...formData.atributos, [attr.id]: e.target.value }
-                        })}
-                        placeholder={`Ej. ${attr.name}`}
-                        className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
-                      />
-                    )}
-                  </div>
-                ))}
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-app mb-1">URL de Imagen (No subir archivos) *</label>
-                  <div className="relative">
-                    <ImageIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                    <input
-                      type="url"
-                      value={formData.imageUrl}
-                      onChange={e => setFormData({...formData, imageUrl: e.target.value})}
-                      placeholder="https://..."
-                      className="w-full h-11 pl-10 pr-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none text-sm"
-                    />
-                  </div>
-                  {errors.imageUrl && <p className="text-error text-xs mt-1">{errors.imageUrl}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-app mb-1">Precio Detal (COP) *</label>
-                  <input
-                    type="number"
-                    value={formData.precioBase}
-                    onChange={e => setFormData({...formData, precioBase: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
-                  />
-                  {errors.precioBase && <p className="text-error text-xs mt-1">{errors.precioBase}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-app mb-1">Precio Mayorista (Opcional)</label>
-                  <input
-                    type="number"
-                    value={formData.precioMayorista}
-                    onChange={e => setFormData({...formData, precioMayorista: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-app mb-1">Stock Mínimo (Umbral de Alerta) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.umbralAlerta}
-                    onChange={e => setFormData({...formData, umbralAlerta: e.target.value})}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
-                  />
-                  {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
-                </div>
-
-                {/* ── Sección de Descuento Directo en Inventario ── */}
-                <div className="md:col-span-2 border-t border-app pt-5 mt-2 space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-2 border border-app">
-                    <div>
-                      <p className="text-sm font-bold text-app">¿Aplicar Descuento de una vez?</p>
-                      <p className="text-xs text-muted">Aplica una oferta directa al producto que se verá reflejada en el catálogo</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={formData.discountActive}
-                      onChange={(e) => setFormData({ ...formData, discountActive: e.target.checked })}
-                      className="w-5 h-5 rounded text-primary focus:ring-primary border-app cursor-pointer shrink-0"
-                    />
-                  </div>
-
-                  {formData.discountActive && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-2xl bg-surface-2 border border-app animate-in fade-in slide-in-from-top-3 duration-200">
-                      <div>
-                        <label className="block text-xs font-bold text-app mb-1.5">Tipo de Descuento</label>
-                        <CustomSelect
-                          value={formData.discountType}
-                          onChange={(val) => setFormData({ ...formData, discountType: val })}
-                          options={[
-                            { value: 'percentage', label: 'Porcentaje (%)' },
-                            { value: 'amount', label: 'Monto Fijo (COP $)' },
-                          ]}
-                          placeholder="Seleccione..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-app mb-1.5">Valor del Descuento</label>
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={formData.discountValue === 0 ? '' : formData.discountValue}
-                          onChange={(e) => setFormData({ ...formData, discountValue: e.target.value === '' ? 0 : Number(e.target.value) })}
-                          className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-app focus:border-primary focus:outline-none"
-                        />
-                      </div>
-
-                      {/* Vista Previa del Cálculo en Tiempo Real */}
-                      {Number(formData.precioBase) > 0 && (
-                        <div className="md:col-span-2 p-3 bg-surface rounded-xl border border-app text-xs font-bold flex items-center justify-between">
-                          <span className="text-muted">Simulación de Precio:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="line-through text-muted font-normal">${Number(formData.precioBase).toLocaleString()}</span>
-                            <span className="text-primary text-sm font-extrabold">
-                              ${Math.max(0, (() => {
-                                const base = Number(formData.precioBase)
-                                const val = Number(formData.discountValue || 0)
-                                if (formData.discountType === 'percentage') {
-                                  return base - (base * val) / 100
-                                }
-                                return base - val
-                              })()).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Variantes e Inventario */}
-              <div className="border-t border-app pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-app">
-                      {(catalogFilters.sizes || catalogFilters.colors) ? 'Variantes y Stock' : 'Inventario y Stock'}
-                    </h3>
-                    <p className="text-xs text-muted">
-                      {(catalogFilters.sizes || catalogFilters.colors) ? 'Añade combinaciones disponibles.' : 'Indica la cantidad total disponible en tienda.'}
-                    </p>
-                  </div>
-                  {(catalogFilters.sizes || catalogFilters.colors) && (
-                    <button
-                      type="button"
-                      onClick={handleAddVariant}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-semibold hover:bg-primary/20 transition-colors"
-                    >
-                      <Plus size={16} /> Añadir Variante
-                    </button>
-                  )}
-                </div>
-                
-                {errors.variantes && <p className="text-error text-sm mb-3">{errors.variantes}</p>}
-
-                <div className="space-y-4">
-                  {(catalogFilters.sizes || catalogFilters.colors ? formData.variantes : [formData.variantes[0]]).filter(Boolean).map((variant) => {
-                    // Asegurar que si hay una talla/color existente que no esté en la lista común, se muestre como botón
-                    const tallasList = Array.from(new Set([...COMMON_TALLAS, variant.talla])).filter(Boolean)
-                    const coloresList = Array.from(new Set([...COMMON_COLORES, variant.color])).filter(Boolean)
-
-                    return (
-                      <div key={variant.id} className="relative bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
-                        
-                        {/* Botón Eliminar Variante (Absoluto arriba a la derecha) */}
-                        {(catalogFilters.sizes || catalogFilters.colors) && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVariant(variant.id)}
-                            disabled={formData.variantes.length === 1}
-                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
-
-                        <div className="flex flex-col gap-4 pr-6">
-                          {/* Botones de Talla */}
-                          {catalogFilters.sizes && (
-                            <div>
-                              <label className="text-xs font-semibold text-app mb-2 block">Talla Seleccionada: {variant.talla || 'Ninguna'}</label>
-                              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                {tallasList.map(t => (
-                                  <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => handleVariantChange(variant.id, 'talla', variant.talla === t ? '' : t)} // Permite deseleccionar
-                                    className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border-2 ${
-                                      variant.talla === t
-                                        ? 'bg-primary text-white border-primary shadow-md'
-                                        : 'bg-surface text-app border-app hover:border-primary/50'
-                                    }`}
-                                  >
-                                    {t}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Botones de Color */}
-                          {catalogFilters.colors && (
-                            <div>
-                              <label className="text-xs font-semibold text-app mb-2 block">Color Seleccionado: {variant.color || 'Ninguno'}</label>
-                              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1.5 pt-1">
-                                {coloresList.map(c => {
-                                  const hex = getCssColor(c)
-                                  const isLight = isLightColor(hex)
-                                  const isSelected = variant.color === c
-                                  return (
-                                    <button
-                                      key={c}
-                                      type="button"
-                                      onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
-                                      className={`flex-shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 border-2 flex items-center gap-1.5 shadow-sm`}
-                                      style={{
-                                        backgroundColor: hex,
-                                        color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
-                                        borderColor: isSelected 
-                                          ? 'var(--color-primary)' 
-                                          : (isLight ? 'var(--color-border)' : 'transparent'),
-                                        boxShadow: isSelected ? '0 0 10px rgba(124,58,237,0.35)' : undefined
-                                      }}
-                                    >
-                                      <span 
-                                        className="w-2 h-2 rounded-full shrink-0 border"
-                                        style={{ 
-                                          backgroundColor: isSelected ? (isLight ? 'rgba(0,0,0,0.85)' : '#ffffff') : 'transparent',
-                                          borderColor: isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)'
-                                        }}
-                                      />
-                                      {c}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Input de Stock */}
-                          <div>
-                            <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
-                            <input
-                              type="number"
-                              min="0"
-                              placeholder="Ej: 15"
-                              value={variant.stock}
-                              onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
-                              onWheel={e => e.target.blur()}
-                              onKeyDown={e => {
-                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                  e.preventDefault()
-                                }
-                              }}
-                              className="w-full sm:w-1/2 h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none focus:ring-1 focus:ring-primary transition-all"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </form>
+          {/* Contenido del Formulario */}
+          <div className="flex-1 overflow-y-auto p-6 bg-surface-3/20">
+            {initialData ? renderClassicForm() : (
+              <AnimatePresence mode="wait">
+                {renderWizardStep()}
+              </AnimatePresence>
+            )}
           </div>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-app bg-surface z-10 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2.5 rounded-xl font-semibold text-app bg-surface-2 hover:bg-app transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              form="product-form"
-              className="px-6 py-2.5 rounded-xl font-semibold text-white bg-primary hover:opacity-90 active:scale-95 transition-all"
-            >
-              Guardar Producto
-            </button>
+          {/* Pie de Página */}
+          <div className="p-4 border-t border-app bg-surface z-10 flex justify-between items-center">
+            {/* Errores del paso actual */}
+            <div className="flex-1 mr-4">
+              {Object.keys(errors).length > 0 && !initialData && (
+                <p className="text-error text-xs font-bold leading-tight animate-pulse">
+                  {Object.values(errors)[0]}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 shrink-0">
+              {initialData ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="px-6 py-2.5 rounded-xl font-semibold text-app bg-surface-2 hover:bg-app transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    form="product-form"
+                    className="px-6 py-2.5 rounded-xl font-semibold text-white bg-primary hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    Guardar Cambios
+                  </button>
+                </>
+              ) : (
+                <>
+                  {currentStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={handlePrevStep}
+                      className="px-5 py-2.5 rounded-xl font-bold text-app bg-surface-2 hover:bg-app transition-all active:scale-95"
+                    >
+                      Atrás
+                    </button>
+                  )}
+                  
+                  {currentStep < 5 ? (
+                    <button
+                      type="button"
+                      onClick={handleNextStep}
+                      className="px-6 py-2.5 rounded-xl font-bold text-white bg-primary hover:opacity-95 active:scale-95 transition-all shadow-md shadow-primary/20"
+                    >
+                      Siguiente
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      className="px-6 py-2.5 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-600/20"
+                    >
+                      Guardar Producto
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>

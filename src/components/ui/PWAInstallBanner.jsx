@@ -12,33 +12,44 @@ export default function PWAInstallBanner() {
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 50, scale: 0.95 }}
-          className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-max z-50 p-2.5 rounded-full bg-surface/90 backdrop-blur-md border border-app shadow-xl flex items-center gap-3.5 pl-4 pr-3"
-          style={{ borderRadius: '9999px' }}
+          className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-[360px] z-50 p-4 rounded-3xl bg-surface/85 backdrop-blur-lg border border-app shadow-2xl flex flex-col gap-4"
         >
-          {/* Icono + Texto en una sola línea compacta */}
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <Download size={14} className="animate-bounce" style={{ animationDuration: '2s' }} />
+          {/* Fila de Encabezado */}
+          <div className="flex gap-3 relative">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Download size={20} className="animate-bounce" style={{ animationDuration: '2.5s' }} />
             </div>
-            <span className="font-semibold text-app text-xs whitespace-nowrap">
-              Instala la aplicación para un acceso rápido
-            </span>
+            
+            <div className="flex-1 min-w-0 pr-6">
+              <h4 className="font-extrabold text-app text-sm leading-tight">Instalar Aplicación</h4>
+              <p className="text-muted text-[11px] mt-0.5 leading-snug">
+                Accede al instante a la tienda desde tu pantalla de inicio y navega de forma más rápida y fluida.
+              </p>
+            </div>
+
+            {/* Botón de Cerrar Permanente */}
+            <button
+              onClick={() => dismissPrompt(false)}
+              className="absolute -top-1.5 -right-1.5 w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-app hover:bg-surface-2 transition-colors"
+              aria-label="Cerrar permanentemente"
+            >
+              <X size={15} />
+            </button>
           </div>
 
-          {/* Botones de acción súper compactos */}
-          <div className="flex items-center gap-1.5 border-l border-app pl-3">
+          {/* Acciones */}
+          <div className="flex items-center gap-2 pt-1">
             <button
-              onClick={handleInstall}
-              className="px-3 py-1.5 rounded-full text-[11px] font-bold text-white bg-primary hover:opacity-90 active:scale-95 transition-all shadow-sm"
+              onClick={() => dismissPrompt(true)}
+              className="flex-1 py-2.5 rounded-2xl text-xs font-bold text-muted hover:text-app bg-surface-2 hover:bg-surface border border-app transition-all active:scale-95"
             >
-              Instalar
+              Recordar más tarde
             </button>
             <button
-              onClick={dismissPrompt}
-              className="w-7 h-7 flex items-center justify-center rounded-full text-muted hover:text-app hover:bg-surface-2 transition-colors"
-              aria-label="Cerrar aviso"
+              onClick={handleInstall}
+              className="flex-1 py-2.5 rounded-2xl text-xs font-black text-white bg-primary hover:opacity-95 transition-all active:scale-95 shadow-lg shadow-primary/10"
             >
-              <X size={13} />
+              Instalar
             </button>
           </div>
         </motion.div>
