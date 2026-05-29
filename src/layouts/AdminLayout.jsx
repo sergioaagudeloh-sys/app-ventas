@@ -341,14 +341,14 @@ export default function AdminLayout() {
                 <>
                   {/* Backdrop para cerrar haciendo clic en cualquier lado fuera de la ventana */}
                   <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                    className="fixed inset-0 z-[9999] bg-transparent" 
                     onClick={() => setIsNotificationsOpen(false)}
                   />
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                    className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-50 p-4 space-y-3"
+                    className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-[10000] p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between border-b border-app pb-2">
                       <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
@@ -542,14 +542,14 @@ export default function AdminLayout() {
             <>
               {/* Backdrop para cerrar haciendo clic en cualquier lado fuera de la ventana */}
               <div 
-                className="fixed inset-0 z-40 bg-transparent" 
+                className="fixed inset-0 z-[9999] bg-transparent" 
                 onClick={() => setIsNotificationsOpen(false)}
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: -8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                className="absolute right-0 top-13 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-50"
+                className="absolute right-0 top-13 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-[10000]"
               >
                 <div className="flex items-center justify-between border-b border-app pb-2">
                   <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>

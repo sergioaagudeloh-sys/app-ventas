@@ -205,12 +205,17 @@ export default function ClientLayout() {
             </button>
             <AnimatePresence>
               {isNotificationsOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                  className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-50 p-4 space-y-3"
-                >
+                <>
+                  <div 
+                    className="fixed inset-0 z-[9999] bg-transparent" 
+                    onClick={() => setIsNotificationsOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                    className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-[10000] p-4 space-y-3"
+                  >
                   <div className="flex items-center justify-between border-b border-app pb-2">
                     <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
                     {notifications.length > 0 && (
@@ -238,6 +243,7 @@ export default function ClientLayout() {
                     </div>
                   )}
                 </motion.div>
+              </>
               )}
             </AnimatePresence>
           </div>
@@ -368,39 +374,45 @@ export default function ClientLayout() {
             </button>
             <AnimatePresence>
               {isNotificationsOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                  className="absolute right-0 top-12 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-50"
-                >
-                  <div className="flex items-center justify-between border-b border-app pb-2">
-                    <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
-                    {notifications.length > 0 && (
-                      <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
-                    )}
-                  </div>
-                  {notifications.length === 0 ? (
-                    <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
-                  ) : (
-                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                      {notifications.map(n => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => handleNotificationClick(n)}
-                          className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
-                              {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
-                            </span>
-                          </div>
-                          <p className="text-muted leading-tight">{n.message}</p>
-                        </div>
-                      ))}
+                <>
+                  <div 
+                    className="fixed inset-0 z-[9999] bg-transparent" 
+                    onClick={() => setIsNotificationsOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -8 }}
+                    className="absolute right-0 top-12 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-[10000]"
+                  >
+                    <div className="flex items-center justify-between border-b border-app pb-2">
+                      <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
+                      {notifications.length > 0 && (
+                        <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
+                      )}
                     </div>
-                  )}
-                </motion.div>
+                    {notifications.length === 0 ? (
+                      <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
+                    ) : (
+                      <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                        {notifications.map(n => (
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleNotificationClick(n)}
+                            className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
+                                {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
+                              </span>
+                            </div>
+                            <p className="text-muted leading-tight">{n.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
