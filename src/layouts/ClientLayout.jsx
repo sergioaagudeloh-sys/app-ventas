@@ -164,7 +164,7 @@ export default function ClientLayout() {
 
       {/* ─── SIDEBAR DESKTOP ────────────────────────────────────────────── */}
       <aside
-        className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface border-r border-app z-40 shadow-sm"
+        className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface border-r border-app z-30 shadow-sm"
         aria-label="Navegación del cliente"
       >
         {/* Header del sidebar */}
@@ -321,7 +321,7 @@ export default function ClientLayout() {
 
       {/* ─── HEADER MOBILE ────────────────────────────── */}
       <header
-        className="flex md:hidden fixed top-0 left-0 right-0 h-14 z-40 items-center justify-between px-4 bg-surface/70 backdrop-blur-xl border-b border-app"
+        className="flex md:hidden fixed top-0 left-0 right-0 h-14 z-30 items-center justify-between px-4 bg-surface/70 backdrop-blur-xl border-b border-app"
         aria-label="Encabezado"
       >
         <div className="flex items-center gap-2">
