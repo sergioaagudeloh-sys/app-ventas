@@ -104,6 +104,16 @@ function ThemeApplier() {
     } else {
       root.classList.add('no-animations')
     }
+
+    // ─── 5. Sincronizar theme-color meta tag del Navegador Móvil y PWA ───
+    const themeBgColor = activeColors['--color-bg'] || (isDarkMode ? '#0f0f0f' : '#ffffff')
+    let themeMetaTag = document.querySelector('meta[name="theme-color"]')
+    if (!themeMetaTag) {
+      themeMetaTag = document.createElement('meta')
+      themeMetaTag.name = 'theme-color'
+      document.head.appendChild(themeMetaTag)
+    }
+    themeMetaTag.setAttribute('content', themeBgColor)
     
   }, [theme, activeSeasonalEvent, isDarkMode, appFont, appRadius, actionColor, animationsEnabled])
 
@@ -121,14 +131,27 @@ export default function App() {
 
   const { appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode, animationsEnabled } = useAppConfigStore()
 
-  // Actualizar el manifest PWA en tiempo real cuando cambie el nombre o logo
+  // Actualizar el manifest PWA y el favicon en tiempo real cuando cambie el nombre o logo
   useEffect(() => {
     const titleToUse = pwaAppName || appName
     if (titleToUse) {
       document.title = titleToUse
       const activeColors = getActiveColors(theme, isDarkMode, activeSeasonalEvent)
       const primaryColor = activeColors['--color-primary']
-      updateDynamicManifest(appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, primaryColor)
+      const bgColor = activeColors['--color-bg']
+      updateDynamicManifest(appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, primaryColor, bgColor)
+    }
+
+    // Actualizar el favicon con la imagen de marca o el favicon por defecto
+    const faviconToUse = appIcon || '/favicon.svg'
+    const link = document.querySelector("link[rel~='icon']")
+    if (link) {
+      link.href = faviconToUse
+      if (appIcon) {
+        link.type = 'image/png'
+      } else {
+        link.type = 'image/svg+xml'
+      }
     }
   }, [appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode])
 

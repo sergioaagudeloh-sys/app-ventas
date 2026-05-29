@@ -5,12 +5,16 @@ import useAppConfigStore from '../store/appConfigStore'
 import useCartStore from '../store/cartStore'
 import useAuthStore from '../store/authStore'
 import useFavoritesStore from '../store/favoritesStore'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import useInactivityTimer from '../hooks/useInactivityTimer'
 import SmartHint from '../components/client/guided/SmartHint'
 import ClientCouponsModal from '../components/client/coupons/ClientCouponsModal'
-import { subscribeToClientOrders } from '../services/orderService'
-import { subscribeToClientCredits } from '../services/creditService'
+import { useCoupons } from '../hooks/useCoupons'
+import {
+  subscribeToClientNotifications,
+  markNotificationAsRead,
+  clearAllClientNotifications
+} from '../services/clientNotificationService'
 import { playClientSound } from '../utils/audio'
 
 const NAV_ITEMS_LEFT = [
@@ -38,11 +42,19 @@ const ALL_NAV_ITEMS = [
  * Incluye el CartDrawer global accesible desde cualquier página.
  */
 export default function ClientLayout() {
-  const { appName, appIcon } = useAppConfigStore()
+  const { appName, appIcon, creditsEnabled, couponsEnabled } = useAppConfigStore()
   const { getCount, openCart, isOpen: isCartOpen } = useCartStore()
   const { user } = useAuthStore()
   const { subscribe, unsubscribe } = useFavoritesStore()
   const navigate = useNavigate()
+
+  const navItemsRight = useMemo(() => {
+    return NAV_ITEMS_RIGHT.filter(item => item.path !== '/tienda/creditos' || creditsEnabled)
+  }, [creditsEnabled])
+
+  const allNavItems = useMemo(() => {
+    return ALL_NAV_ITEMS.filter(item => item.path !== '/tienda/creditos' || creditsEnabled)
+  }, [creditsEnabled])
   
   const [isCouponsOpen, setIsCouponsOpen] = useState(false)
   const [toasts, setToasts] = useState([])
@@ -52,19 +64,36 @@ export default function ClientLayout() {
   const cartCount = getCount()
   const userId = user?.celular || user?.uid
 
+  // Conteo de cupones activos para el badge del botón de Ofertas
+  const { data: allCoupons = [] } = useCoupons()
+  const activeCouponsCount = useMemo(() => {
+    const now = new Date()
+    return allCoupons.filter(c => {
+      if (!c.activo && !c.active) return false
+      const expDate = c.fechaExpiracion || c.endDate
+      if (expDate) {
+        const d = new Date(expDate)
+        if (!isNaN(d) && d < now) return false
+      }
+      return true
+    }).length
+  }, [allCoupons])
+
   // Inactividad: 10s si hay items pero el carrito está cerrado
   const { isInactive: isCartInactive } = useInactivityTimer(10000, cartCount > 0 && !isCartOpen)
 
   // Tracker de notificaciones
-  const prevStatuses = useRef({})
-  const prevAbonosCounts = useRef({})
-  const isFirstLoadOrders = useRef(true)
-  const isFirstLoadCredits = useRef(true)
+  const isFirstLoadNotifications = useRef(true)
+  const prevNotificationsCount = useRef(0)
+  const currentNotificationsRef = useRef([])
+
+  useEffect(() => {
+    currentNotificationsRef.current = notifications
+  }, [notifications])
 
   const triggerToast = (message, type = 'status', orderId = null) => {
     const id = Date.now()
     setToasts(prev => [...prev, { id, message, type, orderId }])
-    setNotifications(prev => [{ id, message, type, orderId }, ...prev])
     playClientSound()
     setIsRinging(true)
     setTimeout(() => setIsRinging(false), 2000)
@@ -73,55 +102,40 @@ export default function ClientLayout() {
     }, 5000)
   }
 
-  // Listener en tiempo real de cambios de estado y abonos
+  // Suscribirse a las notificaciones persistentes en tiempo real
   useEffect(() => {
     if (!user?.celular) return
 
-    const unsubOrders = subscribeToClientOrders(user.celular, (orders) => {
-      if (isFirstLoadOrders.current) {
-        orders.forEach(o => {
-          prevStatuses.current[o.id] = o.estado
-        })
-        isFirstLoadOrders.current = false
+    console.log("[ClientLayout] Suscribiéndose a notificaciones para celular:", user.celular)
+    const unsubNotifications = subscribeToClientNotifications(user.celular, (notifs) => {
+      console.log("[ClientLayout] Recibido snapshot de notificaciones. Cantidad:", notifs.length, "FirstLoad:", isFirstLoadNotifications.current)
+      
+      if (isFirstLoadNotifications.current) {
+        setNotifications(notifs)
+        prevNotificationsCount.current = notifs.length
+        isFirstLoadNotifications.current = false
         return
       }
 
-      orders.forEach(o => {
-        const prevStatus = prevStatuses.current[o.id]
-        if (prevStatus !== undefined && prevStatus !== o.estado) {
-          triggerToast(`Tu pedido ${o.orderNumber || ''} cambió a ${o.estado.toUpperCase()}`, 'status', o.id)
-        }
-        prevStatuses.current[o.id] = o.estado
-      })
-    })
-
-    const unsubCredits = subscribeToClientCredits(user.celular, (credits) => {
-      if (isFirstLoadCredits.current) {
-        credits.forEach(c => {
-          prevAbonosCounts.current[c.id] = c.abonos?.length || 0
+      if (notifs.length > prevNotificationsCount.current) {
+        // Encontrar las que son verdaderamente nuevas
+        const currentIds = new Set(currentNotificationsRef.current.map(n => n.id))
+        const newNotifs = notifs.filter(n => !currentIds.has(n.id))
+        
+        newNotifs.forEach(n => {
+          console.log("[ClientLayout] Nueva notificación recibida en tiempo real:", n.message)
+          triggerToast(n.message, n.type, n.orderId)
         })
-        isFirstLoadCredits.current = false
-        return
       }
 
-      credits.forEach(c => {
-        const prevCount = prevAbonosCounts.current[c.id]
-        const currentCount = c.abonos?.length || 0
-        if (prevCount !== undefined && currentCount > prevCount) {
-          const lastAbono = c.abonos[c.abonos.length - 1]
-          if (lastAbono) {
-            triggerToast(`Se aplicó un abono de $${lastAbono.monto.toLocaleString()} a tu crédito`, 'abono', c.orderId)
-          }
-        }
-        prevAbonosCounts.current[c.id] = currentCount
-      })
+      setNotifications(notifs)
+      prevNotificationsCount.current = notifs.length
     })
 
     return () => {
-      unsubOrders()
-      unsubCredits()
-      isFirstLoadOrders.current = true
-      isFirstLoadCredits.current = true
+      unsubNotifications()
+      isFirstLoadNotifications.current = true
+      prevNotificationsCount.current = 0
     }
   }, [user?.celular])
 
@@ -133,8 +147,11 @@ export default function ClientLayout() {
     }
   }, [userId, subscribe, unsubscribe])
 
-  const handleNotificationClick = (n) => {
+  const handleNotificationClick = async (n) => {
     setIsNotificationsOpen(false)
+    if (n.id) {
+      await markNotificationAsRead(n.id)
+    }
     if (n.orderId) {
       navigate('/tienda/pedidos', { state: { highlightOrderId: n.orderId } })
     } else {
@@ -197,7 +214,7 @@ export default function ClientLayout() {
                   <div className="flex items-center justify-between border-b border-app pb-2">
                     <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
                     {notifications.length > 0 && (
-                      <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
+                      <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
                     )}
                   </div>
                   {notifications.length === 0 ? (
@@ -228,7 +245,7 @@ export default function ClientLayout() {
 
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Secciones del cliente">
-          {ALL_NAV_ITEMS.map(({ path, icon: Icon, label }) => (
+          {allNavItems.map(({ path, icon: Icon, label }) => (
             <NavLink
               key={path}
               to={path}
@@ -251,14 +268,21 @@ export default function ClientLayout() {
           ))}
 
           {/* Botón Cupones en Desktop Sidebar */}
-          <button
-            onClick={() => setIsCouponsOpen(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-app hover:bg-surface-2 transition-all duration-300 border border-dashed border-primary/20 hover:border-primary/40 mt-4 bg-primary/5 text-primary"
-            aria-label="Ver cupones y ofertas"
-          >
-            <Tag size={18} className="text-primary" aria-hidden="true" />
-            <span className="font-bold text-primary">Ofertas Flash</span>
-          </button>
+          {couponsEnabled && (
+            <button
+              onClick={() => setIsCouponsOpen(true)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-app hover:bg-surface-2 transition-all duration-300 border border-dashed border-primary/20 hover:border-primary/40 mt-4 bg-primary/5 text-primary relative"
+              aria-label="Ver cupones y ofertas"
+            >
+              <Tag size={18} className="text-primary" aria-hidden="true" />
+              <span className="font-bold text-primary">Ofertas Flash</span>
+              {activeCouponsCount > 0 && (
+                <span className="ml-auto bg-primary text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow">
+                  {activeCouponsCount}
+                </span>
+              )}
+            </button>
+          )}
         </nav>
 
         {/* Botón carrito en sidebar */}
@@ -353,7 +377,7 @@ export default function ClientLayout() {
                   <div className="flex items-center justify-between border-b border-app pb-2">
                     <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
                     {notifications.length > 0 && (
-                      <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
+                      <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
                     )}
                   </div>
                   {notifications.length === 0 ? (
@@ -471,88 +495,97 @@ export default function ClientLayout() {
         ))}
 
         {/* Botón Central Circular (Cupones / Ofertas) con animación magnética premium, sacudida de icono y barrido de brillo */}
-        <div className="flex-1 flex flex-col items-center justify-start relative group">
-          <button
-            onClick={() => setIsCouponsOpen(true)}
-            className="flex flex-col items-center justify-center -translate-y-2.5 relative"
-            aria-label="Ver ofertas y cupones"
-          >
-            {/* Ondas de pulso más notorias de fondo */}
-            <motion.div
-              animate={{
-                scale: [1, 1.3, 1.5],
-                opacity: [0.8, 0.4, 0]
-              }}
-              transition={{
-                duration: 2.2,
-                repeat: Infinity,
-                ease: "easeOut"
-              }}
-              className="absolute w-16 h-16 rounded-full bg-primary/30 z-0"
-              style={{ pointerEvents: 'none' }}
-            />
-            
-            <motion.div
-              animate={{
-                scale: [1, 1.2, 1.35],
-                opacity: [0.6, 0.2, 0]
-              }}
-              transition={{
-                duration: 2.2,
-                delay: 1.1,
-                repeat: Infinity,
-                ease: "easeOut"
-              }}
-              className="absolute w-16 h-16 rounded-full bg-primary/20 z-0"
-              style={{ pointerEvents: 'none' }}
-            />
-
-            {/* Botón Circular Principal con overflow-hidden para contener el barrido de brillo */}
-            <motion.div 
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.93 }}
-              className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white z-10 overflow-hidden relative"
+        {couponsEnabled && (
+          <div className="flex-1 flex flex-col items-center justify-start relative group">
+            <button
+              onClick={() => setIsCouponsOpen(true)}
+              className="flex flex-col items-center justify-center -translate-y-2.5 relative"
+              aria-label="Ver ofertas y cupones"
             >
-              {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
+              {/* Ondas de pulso más notorias de fondo */}
               <motion.div
                 animate={{
-                  x: ['-100%', '200%']
+                  scale: [1, 1.3, 1.5],
+                  opacity: [0.8, 0.4, 0]
                 }}
                 transition={{
-                  duration: 2.5,
+                  duration: 2.2,
                   repeat: Infinity,
-                  repeatDelay: 1,
-                  ease: "easeInOut"
+                  ease: "easeOut"
                 }}
-                className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
+                className="absolute w-16 h-16 rounded-full bg-primary/30 z-0"
+                style={{ pointerEvents: 'none' }}
+              />
+              
+              <motion.div
+                animate={{
+                  scale: [1, 1.2, 1.35],
+                  opacity: [0.6, 0.2, 0]
+                }}
+                transition={{
+                  duration: 2.2,
+                  delay: 1.1,
+                  repeat: Infinity,
+                  ease: "easeOut"
+                }}
+                className="absolute w-16 h-16 rounded-full bg-primary/20 z-0"
+                style={{ pointerEvents: 'none' }}
               />
 
-              {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
-              <motion.div
-                animate={{
-                  rotate: [0, -15, 12, -10, 8, -4, 0]
-                }}
-                transition={{
-                  duration: 1.2,
-                  repeat: Infinity,
-                  repeatDelay: 3.5,
-                  ease: "easeInOut"
-                }}
-                whileHover={{ rotate: 360, scale: 1.1 }}
-                className="z-20 flex items-center justify-center"
+              {/* Botón Circular Principal con overflow-hidden para contener el barrido de brillo */}
+              <motion.div 
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.93 }}
+                className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white z-10 overflow-hidden relative"
               >
-                <Tag size={26} aria-hidden="true" />
+                {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
+                <motion.div
+                  animate={{
+                    x: ['-100%', '200%']
+                  }}
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    repeatDelay: 1,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
+                />
+
+                {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
+                <motion.div
+                  animate={{
+                    rotate: [0, -15, 12, -10, 8, -4, 0]
+                  }}
+                  transition={{
+                    duration: 1.2,
+                    repeat: Infinity,
+                    repeatDelay: 3.5,
+                    ease: "easeInOut"
+                  }}
+                  whileHover={{ rotate: 360, scale: 1.1 }}
+                  className="z-20 flex items-center justify-center"
+                >
+                  <Tag size={26} aria-hidden="true" />
+                </motion.div>
+
+                {/* Badge de cupones activos */}
+                {activeCouponsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-white text-primary text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-primary shadow-md z-30">
+                    {activeCouponsCount}
+                  </span>
+                )}
               </motion.div>
-            </motion.div>
-            
-            <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-muted hover:text-primary transition-colors duration-300 z-10">
-              Ofertas
-            </span>
-          </button>
-        </div>
+              
+              <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-muted hover:text-primary transition-colors duration-300 z-10">
+                Ofertas
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Lado derecho */}
-        {NAV_ITEMS_RIGHT.map(({ path, icon: Icon, label }) => (
+        {navItemsRight.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}

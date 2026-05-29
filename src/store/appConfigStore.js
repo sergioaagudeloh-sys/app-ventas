@@ -14,8 +14,8 @@ const useAppConfigStore = create(
       sellerName: 'Vendedor',
       appIcon: null,
       welcomeWavesEnabled: true,
-      theme: 'rosa-elegante',    // Paleta activa
-      isDarkMode: false,         // Toggle light/dark
+      theme: 'carbon-oscuro',    // Paleta activa por defecto (neutral oscura y elegante antes de sincronizar)
+      isDarkMode: false,         // Por defecto claro para evitar forzar el modo oscuro al limpiar caché
       adminRegistered: false,    // Bandera para Auth Admin
       pwaAppName: '',            // Nombre al instalarse como app móvil
       pwaAppIcon: null,          // Icono personalizado de instalación PWA
@@ -24,6 +24,7 @@ const useAppConfigStore = create(
       whatsappAdmin: '',
       claimsEnabled: false,
       orderTrackingEnabled: false,
+      developerPhone: '',
       bankInfo: {
         numeroCuenta: '',
         banco: '',
@@ -60,6 +61,8 @@ const useAppConfigStore = create(
       guidedModeEnabled: true, // Toggle global de asistencia
       loginTrustMessage: '',  // Mensaje de confianza personalizable
       slogan: '',             // Eslogan de la tienda (aparece debajo del logo en login)
+      creditsEnabled: true,
+      couponsEnabled: true,
       deliverySettings: {
         pickup: {
           enabled: true,
@@ -138,6 +141,9 @@ const useAppConfigStore = create(
         whatsappAdmin: state.whatsappAdmin,
         claimsEnabled: state.claimsEnabled,
         orderTrackingEnabled: state.orderTrackingEnabled,
+        developerPhone: state.developerPhone,
+        creditsEnabled: state.creditsEnabled,
+        couponsEnabled: state.couponsEnabled,
       }),
     }
   )

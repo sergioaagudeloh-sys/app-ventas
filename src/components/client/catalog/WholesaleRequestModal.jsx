@@ -6,6 +6,8 @@ import { db } from '../../../config/firebaseConfig'
 import { COLLECTIONS, WHOLESALE_STATES, SUPPORT_WHATSAPP } from '../../../constants'
 import useAuthStore from '../../../store/authStore'
 import useAppConfigStore from '../../../store/appConfigStore'
+import { openWhatsAppChat } from '../../../services/whatsappService'
+
 
 export default function WholesaleRequestModal({ product, type, isOpen, onClose }) {
   const { user } = useAuthStore()
@@ -65,10 +67,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
 *Total Estimado:* $${totalEstimate.toLocaleString()} COP
 *Observaciones:* ${observaciones.trim() || 'Ninguna'}`
 
-      const adminPhone = whatsappAdmin || SUPPORT_WHATSAPP
-      const cleanPhone = adminPhone.replace(/\D/g, '')
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
-      window.open(whatsappUrl, '_blank')
+      openWhatsAppChat({ message: messageText })
 
       setTimeout(() => {
         setSuccess(false)

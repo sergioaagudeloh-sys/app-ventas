@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
 import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
@@ -10,6 +10,7 @@ import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD
 import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
 import * as orderService from '../../services/orderService'
+import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
 import { subscribeToClaims } from '../../services/claimsService'
 
@@ -1165,7 +1166,6 @@ export default function AdminOrders() {
       <WholesaleRequestsModal
         isOpen={showWholesaleModal}
         onClose={() => setShowWholesaleModal(false)}
-        requests={wholesaleRequests}
         onUpdateStatus={(id, status) => updateWholesaleStatus({ id, newStatus: status })}
       />
 
@@ -1173,9 +1173,13 @@ export default function AdminOrders() {
   )
 }
 
-function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
+function WholesaleRequestsModal({ isOpen, onClose, onUpdateStatus }) {
   const [filter, setFilter] = useState('Todos')
-  const [typeFilter, setTypeFilter] = useState('Todos')
+  const [typeFilter, setTypeFilter] = useState('mayorista') // 'mayorista' o 'encargo' (sin opción 'Todos')
+  const [requests, setRequests] = useState([])
+  const [lastDoc, setLastDoc] = useState(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   // Bloquear scroll de la página trasera cuando está abierto
   useEffect(() => {
@@ -1189,16 +1193,41 @@ function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
     }
   }, [isOpen])
 
-  const filteredRequests = useMemo(() => {
-    return requests.filter(r => {
-      const matchState = filter === 'Todos' || r.estado === filter
-      const isEncargo = r.tipo === 'encargo'
-      const matchType = typeFilter === 'Todos' || 
-                        (typeFilter === 'mayorista' && !isEncargo) ||
-                        (typeFilter === 'encargo' && isEncargo)
-      return matchState && matchType
-    })
-  }, [requests, filter, typeFilter])
+  // Resetear filtro de estado cuando cambia el tipo de pestaña para evitar inconsistencias
+  useEffect(() => {
+    setFilter('Todos')
+  }, [typeFilter])
+
+  const fetchPage = async (reset = false) => {
+    if (isLoading) return
+    setIsLoading(true)
+    const cursor = reset ? null : lastDoc
+    try {
+      const res = await wholesaleService.getWholesaleRequestsPaged(typeFilter, filter, 10, cursor)
+      if (reset) {
+        setRequests(res.requests)
+      } else {
+        setRequests(prev => [...prev, ...res.requests])
+      }
+      setLastDoc(res.lastDoc)
+      setHasMore(res.hasMore)
+    } catch (error) {
+      console.error("Error fetching wholesale requests page:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Carga inicial y cambio de filtros
+  useEffect(() => {
+    if (isOpen) {
+      fetchPage(true)
+    } else {
+      setRequests([])
+      setLastDoc(null)
+      setHasMore(false)
+    }
+  }, [isOpen, typeFilter, filter])
 
   if (!isOpen) return null
 
@@ -1253,44 +1282,46 @@ function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
               <PackagePlus size={20} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-app">Solicitudes por Encargo</h2>
+              <h2 className="text-lg font-black text-app">Solicitudes Especiales</h2>
               <p className="text-xs text-muted">Pedidos especiales y ventas al por mayor.</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface-2 hover:bg-surface border border-app text-muted hover:text-app transition-all cursor-pointer active:scale-90"
           >
-            <XCircle size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Filtros de Tipo */}
-        <div className="px-4 pt-4 pb-2 border-b border-app flex flex-col gap-2 bg-surface-2/30">
-          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Filtrar por tipo:</p>
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
-            {[
-              { id: 'Todos', label: 'Todos los tipos' },
-              { id: 'mayorista', label: 'Al por Mayor' },
-              { id: 'encargo', label: 'Por Encargo (Sin Stock)' }
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTypeFilter(t.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
-                  typeFilter === t.id
-                    ? 'bg-primary text-white border-primary shadow-xs'
-                    : 'bg-surface border-app text-muted hover:text-app'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+        {/* Pestañas de Selección Exclusiva de Tipo (Paso 1) */}
+        <div className="px-5 pt-5 pb-3 border-b border-app bg-surface-2/30 flex gap-2">
+          <button
+            onClick={() => setTypeFilter('mayorista')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+              typeFilter === 'mayorista'
+                ? 'bg-primary text-white border-primary shadow-xs'
+                : 'bg-surface border-app text-muted hover:text-app'
+            }`}
+          >
+            <Package size={16} />
+            Ventas al por Mayor
+          </button>
+          <button
+            onClick={() => setTypeFilter('encargo')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 border cursor-pointer ${
+              typeFilter === 'encargo'
+                ? 'bg-primary text-white border-primary shadow-xs'
+                : 'bg-surface border-app text-muted hover:text-app'
+            }`}
+          >
+            <PackagePlus size={16} />
+            Pedidos por Encargo
+          </button>
         </div>
 
-        {/* Filtros de Estado */}
-        <div className="px-4 py-3 border-b border-app flex flex-col gap-2 bg-surface-2/10">
+        {/* Filtros de Estado para el Tipo Seleccionado (Paso 2) */}
+        <div className="px-5 py-3 border-b border-app flex flex-col gap-2 bg-surface-2/10">
           <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Filtrar por estado:</p>
           <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
             {['Todos', 'pendiente', 'revisando', 'aprobado', 'rechazado'].map(f => (
@@ -1303,7 +1334,7 @@ function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
                     : 'bg-surface border-app text-muted hover:text-app'
                 }`}
               >
-                {f === 'Todos' ? 'Todos' : getStatusLabel(f)}
+                {f === 'Todos' ? 'Todos los estados' : getStatusLabel(f)}
               </button>
             ))}
           </div>
@@ -1311,98 +1342,153 @@ function WholesaleRequestsModal({ isOpen, onClose, requests, onUpdateStatus }) {
 
         {/* Lista */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {filteredRequests.length === 0 ? (
+          {requests.length === 0 && !isLoading ? (
             <div className="text-center py-12 text-muted bg-surface-2/30 rounded-2xl border border-dashed border-app">
               <p className="text-2xl mb-2">📦</p>
               <p className="text-xs font-bold">No hay solicitudes en esta categoría.</p>
             </div>
           ) : (
-            filteredRequests.map(req => {
-              const formattedDate = req.createdAt
-                ? (req.createdAt.toDate ? req.createdAt.toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(req.createdAt).toLocaleDateString('es-ES'))
-                : 'Reciente'
+            <>
+              {requests.map(req => {
+                const formattedDate = req.createdAt
+                  ? (req.createdAt.toDate ? req.createdAt.toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(req.createdAt).toLocaleDateString('es-ES'))
+                  : 'Reciente'
 
-              const isEncargo = req.tipo === 'encargo'
-              const concept = isEncargo ? 'por encargo' : 'al por mayor'
-              const waMsg = encodeURIComponent(`Hola ${req.clienteNombre}, te escribo del soporte de la tienda sobre tu solicitud ${concept} del producto "${req.productoNombre}" (Cantidad: ${req.cantidad}).`)
+                const isEncargo = req.tipo === 'encargo'
+                const concept = isEncargo ? 'por encargo' : 'al por mayor'
+                const waMsg = encodeURIComponent(`Hola ${req.clienteNombre}, te escribo del soporte de la tienda sobre tu solicitud ${concept} del producto "${req.productoNombre}" (Cantidad: ${req.cantidad}).`)
 
-              return (
-                <div key={req.id} className="bg-surface-2/40 border border-app rounded-2xl p-4 shadow-xs relative space-y-3">
-                  
-                  {/* Fila superior: Tipo + Estado */}
-                  <div className="flex justify-between items-center">
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${
-                      isEncargo 
-                        ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' 
-                        : 'text-primary bg-primary/10 border-primary/20'
-                    }`}>
-                      {isEncargo ? 'Por Encargo' : 'Al Por Mayor'}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${getStatusBadge(req.estado)}`}>
-                      {getStatusLabel(req.estado)}
-                    </span>
-                  </div>
-
-                  {/* Detalle Producto */}
-                  <div>
-                    <h3 className="font-bold text-app text-sm leading-tight">{req.productoNombre}</h3>
-                    <p className="text-[10px] text-muted font-semibold mt-1">Solicitado: {formattedDate}</p>
-                  </div>
-
-                  {/* Cantidad y observaciones */}
-                  <div className="bg-surface border border-app rounded-xl p-3 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted font-medium">Cantidad requerida:</span>
-                      <span className="font-black text-primary text-sm">{req.cantidad} unidades</span>
+                return (
+                  <div key={req.id} className="bg-surface-2/40 border border-app rounded-2xl p-4 shadow-xs relative space-y-3">
+                    
+                    {/* Fila superior: Tipo + Estado */}
+                    <div className="flex justify-between items-center">
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${
+                        isEncargo 
+                          ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' 
+                          : 'text-primary bg-primary/10 border-primary/20'
+                      }`}>
+                        {isEncargo ? 'Por Encargo' : 'Al Por Mayor'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${getStatusBadge(req.estado)}`}>
+                        {getStatusLabel(req.estado)}
+                      </span>
                     </div>
-                    {req.observaciones && (
-                      <div className="pt-2 border-t border-app">
-                        <p className="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">Notas del cliente:</p>
-                        <p className="text-xs text-app leading-relaxed italic bg-surface-2 p-2 rounded-lg">"{req.observaciones}"</p>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Fila de cliente y contacto */}
-                  <div className="flex items-center justify-between pt-2 border-t border-app">
+                    {/* Detalle Producto */}
                     <div>
-                      <p className="text-xs font-bold text-app">{req.clienteNombre}</p>
-                      <p className="text-[10px] text-muted font-medium">Cel: {req.clienteCelular}</p>
+                      <h3 className="font-bold text-app text-sm leading-tight">{req.productoNombre}</h3>
+                      <p className="text-[10px] text-muted font-semibold mt-1">Solicitado: {formattedDate}</p>
                     </div>
-                    <a
-                      href={`https://wa.me/${req.clienteCelular.replace(/\D/g, '')}?text=${waMsg}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors font-bold text-xs shadow-xs"
-                    >
-                      <Phone size={12} />
-                      Chat WhatsApp
-                    </a>
-                  </div>
 
-                  {/* Selector de estados para el admin */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-app">
-                    <span className="text-[10px] font-bold text-muted uppercase">Estado:</span>
-                    <div className="flex-1 grid grid-cols-3 gap-1">
-                      {['revisando', 'aprobado', 'rechazado'].map(st => (
-                        <button
-                          key={st}
-                          disabled={req.estado === st}
-                          onClick={() => onUpdateStatus(req.id, st)}
-                          className={`h-7 rounded-lg text-[9px] font-extrabold transition-all border cursor-pointer uppercase ${
-                            req.estado === st
-                              ? 'bg-app border-app text-muted opacity-50 pointer-events-none'
-                              : 'bg-surface border-app text-app hover:border-primary/50'
-                          }`}
-                        >
-                          {st === 'revisando' ? 'Revisar' : st === 'aprobado' ? 'Aprobar' : 'Rechazar'}
-                        </button>
-                      ))}
+                    {/* Cantidad y observaciones */}
+                    <div className="bg-surface border border-app rounded-xl p-3 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted font-medium">Cantidad requerida:</span>
+                        <span className="font-black text-primary text-sm">{req.cantidad} unidades</span>
+                      </div>
+                      {req.observaciones && (
+                        <div className="pt-2 border-t border-app">
+                          <p className="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">Notas del cliente:</p>
+                          <p className="text-xs text-app leading-relaxed italic bg-surface-2 p-2 rounded-lg">"{req.observaciones}"</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Fila de cliente y contacto */}
+                    <div className="flex items-center justify-between pt-2 border-t border-app">
+                      <div>
+                        <p className="text-xs font-bold text-app">{req.clienteNombre}</p>
+                        <p className="text-[10px] text-muted font-medium">Cel: {req.clienteCelular}</p>
+                      </div>
+                      <a
+                        href={`https://wa.me/${req.clienteCelular.replace(/\D/g, '')}?text=${waMsg}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors font-bold text-xs shadow-xs"
+                      >
+                        <Phone size={12} />
+                        Chat WhatsApp
+                      </a>
+                    </div>
+
+                    {/* Selector de estados para el admin */}
+                    <div className="flex items-center gap-2 pt-2 border-t border-app">
+                      <span className="text-[10px] font-bold text-muted uppercase">Estado:</span>
+                      <div className="flex-1 grid grid-cols-3 gap-1">
+                        {['revisando', 'aprobado', 'rechazado'].map(st => {
+                          const isFinalState = req.estado === 'aprobado' || req.estado === 'rechazado'
+                          const handleStatusUpdate = async () => {
+                            // Actualizar estado en DB
+                            await onUpdateStatus(req.id, st)
+                            // Actualizar localmente la solicitud en el estado
+                            setRequests(prev => prev.map(item => item.id === req.id ? { ...item, estado: st } : item))
+
+                            // Mensaje de notificación asistida
+                            const cleanPhone = req.clienteCelular.replace(/\D/g, '')
+                            const concept = req.tipo === 'encargo' ? 'por encargo' : 'al por mayor'
+                            const stLabel = st === 'revisando' ? 'En Revisión 🔍' : st === 'aprobado' ? 'Aprobado ✅' : 'Rechazado ❌'
+                            
+                            let customMsg = `Hola ${req.clienteNombre}, te escribimos para informarte que tu solicitud ${concept} de "${req.productoNombre}" (Cantidad: ${req.cantidad}) ha sido cambiada al estado: *${stLabel}*.`
+                            
+                            if (st === 'aprobado') {
+                              customMsg += ` ¡Ya puedes proceder con tu orden!`
+                            } else if (st === 'revisando') {
+                              customMsg += ` Estamos verificando la disponibilidad y cotización.`
+                            }
+
+                            const encoded = encodeURIComponent(customMsg)
+                            window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank')
+                          }
+
+                          const isActive = req.estado === st
+                          const isDisabled = isActive || isFinalState
+
+                          return (
+                            <button
+                              key={st}
+                              disabled={isDisabled}
+                              onClick={handleStatusUpdate}
+                              className={`h-7 rounded-lg text-[9px] font-extrabold transition-all border cursor-pointer uppercase ${
+                                isActive
+                                  ? 'bg-app border-app text-muted opacity-50 pointer-events-none'
+                                  : isDisabled
+                                  ? 'bg-surface border-app text-muted/40 opacity-40 pointer-events-none'
+                                  : 'bg-surface border-app text-app hover:border-primary/50'
+                              }`}
+                            >
+                              {st === 'revisando' ? 'Revisar' : st === 'aprobado' ? 'Aprobar' : 'Rechazar'}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
+                )
+              })}
+
+              {/* Botón de Paginación */}
+              {hasMore && (
+                <div className="pt-2 pb-6 flex justify-center">
+                  <button
+                    onClick={() => fetchPage(false)}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-primary hover:bg-primary/95 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isLoading ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : null}
+                    Cargar más solicitudes
+                  </button>
                 </div>
-              )
-            })
+              )}
+
+              {isLoading && requests.length > 0 && (
+                <div className="py-4 text-center text-xs text-muted font-bold">
+                  Cargando más...
+                </div>
+              )}
+            </>
           )}
         </div>
       </motion.div>

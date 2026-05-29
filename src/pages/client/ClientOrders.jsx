@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert } from 'lucide-react'
+import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert, PackagePlus } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useClientOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
+import { useClientWholesaleRequests } from '../../hooks/useWholesale'
 import { useProducts } from '../../hooks/useInventory'
 import * as orderService from '../../services/orderService'
+import * as wholesaleService from '../../services/wholesaleService'
 import useAuthStore from '../../store/authStore'
 import useCartStore from '../../store/cartStore'
 import useAppConfigStore from '../../store/appConfigStore'
@@ -61,21 +63,47 @@ const EMPTY_STATE_MESSAGES = {
 export default function ClientOrders() {
   const queryClient = useQueryClient()
   const { user } = useAuthStore()
-  const { data: orders = [], isLoading } = useClientOrders(user?.celular)
+  const { data: orders = [], isLoading: isLoadingOrders } = useClientOrders(user?.celular)
+  const { data: wholesaleRequests = [], isLoading: isLoadingWholesale } = useClientWholesaleRequests(user?.celular)
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus()
   const { data: activeProducts = [] } = useProducts(true)
   const { addItem, openCart } = useCartStore()
-  const { whatsappAdmin, appName, appIcon, claimsEnabled } = useAppConfigStore()
+  const { whatsappAdmin, appName, appIcon, claimsEnabled, wholesaleSettings } = useAppConfigStore()
   const navigate = useNavigate()
   const location = useLocation()
 
+  const [activeTab, setActiveTab] = useState('normal') // 'normal' o 'especial'
   const [showHidden, setShowHidden] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState(null)
+  const [expandedWholesaleId, setExpandedWholesaleId] = useState(null)
   const [confirmCancelOrder, setConfirmCancelOrder] = useState(null)
   const [confirmContactOrder, setConfirmContactOrder] = useState(null)
   const [confirmRepeatOrder, setConfirmRepeatOrder] = useState(null)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [claimOrder, setClaimOrder] = useState(null)
+
+  const isLoading = isLoadingOrders || isLoadingWholesale
+
+  const visibleWholesaleCount = useMemo(() => {
+    return wholesaleRequests.filter(r => {
+      if (wholesaleSettings?.enabled === false && r.tipo !== 'encargo') {
+        return false
+      }
+      return true
+    }).length
+  }, [wholesaleRequests, wholesaleSettings])
+
+  // Si el cliente no tiene pedidos especiales visibles y estaba en esa pestaña, regresarlo a normal
+  useEffect(() => {
+    if (visibleWholesaleCount === 0 && activeTab === 'especial') {
+      setActiveTab('normal')
+    }
+  }, [visibleWholesaleCount, activeTab])
+
+  // Resetear showHidden al cambiar de pestaña
+  useEffect(() => {
+    setShowHidden(false)
+  }, [activeTab])
 
   // Abrir y expandir automáticamente el pedido si viene desde una notificación
   useEffect(() => {
@@ -104,6 +132,22 @@ export default function ClientOrders() {
     })
     return { activeOrders: active, hiddenOrders: hidden }
   }, [orders, activeFilter])
+
+  const { activeWholesale, hiddenWholesale } = useMemo(() => {
+    const active = []
+    const hidden = []
+    wholesaleRequests.forEach(r => {
+      if (wholesaleSettings?.enabled === false && r.tipo !== 'encargo') {
+        return
+      }
+      if (r.ocultoCliente === true) {
+        hidden.push(r)
+      } else {
+        active.push(r)
+      }
+    })
+    return { activeWholesale: active, hiddenWholesale: hidden }
+  }, [wholesaleRequests, wholesaleSettings])
 
   const handleRepeatOrder = (order) => {
     try {
@@ -263,13 +307,17 @@ export default function ClientOrders() {
   }
 
   const hasCompletedOrCancelled = orders.some(
-    o => o.estado === ORDER_STATES.COMPLETED || o.estado === ORDER_STATES.CANCELLED
+    o => (o.estado === ORDER_STATES.COMPLETED || o.estado === ORDER_STATES.CANCELLED) && o.ocultoCliente !== true
+  )
+
+  const hasRejectedWholesale = wholesaleRequests.some(
+    r => r.estado === 'rechazado' && r.ocultoCliente !== true
   )
 
   const handleExecuteClearHistory = async () => {
     try {
       const completedOrCancelled = orders.filter(
-        o => o.estado === ORDER_STATES.COMPLETED || o.estado === ORDER_STATES.CANCELLED
+        o => (o.estado === ORDER_STATES.COMPLETED || o.estado === ORDER_STATES.CANCELLED) && o.ocultoCliente !== true
       )
       await orderService.clearClientOrderHistory(completedOrCancelled)
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -277,6 +325,141 @@ export default function ClientOrders() {
       console.error("Error al vaciar historial:", error)
       alert("Hubo un error al vaciar el historial. Por favor intenta de nuevo.")
     }
+  }
+
+  const handleExecuteClearWholesaleHistory = async () => {
+    try {
+      const rejectedRequests = wholesaleRequests.filter(
+        r => r.estado === 'rechazado' && r.ocultoCliente !== true
+      )
+      await wholesaleService.clearClientWholesaleHistory(rejectedRequests)
+      queryClient.invalidateQueries({ queryKey: ['clientWholesaleRequests', user?.celular] })
+    } catch (error) {
+      console.error("Error al vaciar historial de especiales:", error)
+      alert("Hubo un error al vaciar el historial de pedidos especiales. Por favor intenta de nuevo.")
+    }
+  }
+
+  const getWholesaleStatusBadge = (state) => {
+    switch (state) {
+      case 'pendiente':
+        return 'text-warning bg-warning/10 border-warning/20'
+      case 'revisando':
+        return 'text-blue-500 bg-blue-500/10 border-blue-500/20'
+      case 'aprobado':
+        return 'text-success bg-success/10 border-success/20'
+      case 'rechazado':
+        return 'text-red-500 bg-red-500/10 border-red-500/20'
+      default:
+        return 'text-muted bg-surface-2'
+    }
+  }
+
+  const getWholesaleStatusLabel = (state) => {
+    switch (state) {
+      case 'pendiente': return 'Pendiente'
+      case 'revisando': return 'En Revisión'
+      case 'aprobado': return 'Aprobado'
+      case 'rechazado': return 'Rechazado'
+      default: return state
+    }
+  }
+
+  const handleContactWholesale = (req) => {
+    const phone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
+    const concept = req.tipo === 'encargo' ? 'por encargo' : 'al por mayor'
+    const seller = useAppConfigStore.getState().sellerName || 'el Administrador'
+    const shop = useAppConfigStore.getState().appName || 'la Tienda'
+    const message = encodeURIComponent(`Hola ${seller} de *${shop}*, te escribo para consultar el estado de mi solicitud ${concept} de "${req.productoNombre}" (Cantidad: ${req.cantidad}) que figura como *${getWholesaleStatusLabel(req.estado)}*.`)
+    window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${message}&type=phone_number&app_absent=0`, '_blank')
+  }
+
+  const renderWholesaleCard = (req) => {
+    const isExpanded = expandedWholesaleId === req.id
+    const isEncargo = req.tipo === 'encargo'
+    const stateBadge = getWholesaleStatusBadge(req.estado)
+    const stateLabel = getWholesaleStatusLabel(req.estado)
+    
+    return (
+      <motion.div
+        key={req.id}
+        layout
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-surface border border-app rounded-3xl overflow-hidden shadow-sm transition-opacity duration-300"
+      >
+        <div 
+          onClick={() => setExpandedWholesaleId(isExpanded ? null : req.id)}
+          className="p-5 cursor-pointer hover:bg-surface-2/30 transition-colors"
+        >
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black border uppercase tracking-wider ${
+                isEncargo 
+                  ? 'text-orange-500 bg-orange-500/10 border-orange-500/20' 
+                  : 'text-primary bg-primary/10 border-primary/20'
+              }`}>
+                {isEncargo ? 'Por Encargo' : 'Al Por Mayor'}
+              </span>
+              <p className="text-xs text-muted mt-2">
+                Solicitado: {req.createdAt?.toDate ? req.createdAt.toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Reciente'}
+              </p>
+            </div>
+            <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${stateBadge}`}>
+              <Clock size={14} />
+              {stateLabel}
+            </div>
+          </div>
+
+          <div className="flex justify-between items-end">
+            <div>
+              <h3 className="font-bold text-app text-sm leading-tight line-clamp-1">{req.productoNombre}</h3>
+              <p className="text-xs text-muted mt-1">Cantidad: {req.cantidad} unidades</p>
+            </div>
+            <div className="text-right flex items-center gap-3">
+              <ChevronDown size={20} className={`text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </div>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="border-t border-app bg-surface-2/20"
+            >
+              <div className="p-5 space-y-4">
+                <div className="bg-surface border border-app rounded-xl p-3 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted">Concepto:</span>
+                    <span className="font-bold text-app">{isEncargo ? 'Pedido Especial sin Stock' : 'Compra Mayorista Mín. 12 Uds'}</span>
+                  </div>
+                  {req.observaciones && (
+                    <div className="pt-2 border-t border-app">
+                      <p className="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">Tus notas o especificaciones:</p>
+                      <p className="text-xs text-app leading-relaxed italic bg-surface-2 p-2 rounded-lg">"{req.observaciones}"</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-app">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleContactWholesale(req) }}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-10 bg-green-500 text-white rounded-xl font-bold text-xs hover:bg-green-600 transition-colors shadow-sm"
+                  >
+                    <MessageCircle size={14} />
+                    Consultar por WhatsApp
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    )
   }
 
   const renderOrderCard = (order) => {
@@ -453,24 +636,68 @@ export default function ClientOrders() {
           <h1 className="text-2xl font-bold text-app leading-tight">Mis Pedidos</h1>
           <p className="text-sm text-muted">Aquí puedes consultar el estado de tus pedidos.</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {activeOrders.length > 0 && (
-            <span className="h-9 px-3 bg-primary-soft border border-primary-soft text-primary rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap">
-              {activeOrders.length} activos
-            </span>
-          )}
-          <button
-            onClick={() => setShowConfirmClear(true)}
-            disabled={!hasCompletedOrCancelled}
-            className="flex items-center gap-1.5 px-3 h-9 bg-primary-soft text-primary border border-primary-soft rounded-xl text-xs font-bold hover:bg-primary/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <Archive size={14} />
-            Archivar historial
-          </button>
-        </div>
+        {activeTab === 'normal' ? (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {activeOrders.length > 0 && (
+              <span className="h-9 px-3 bg-primary-soft border border-primary-soft text-primary rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap">
+                {activeOrders.length} activos
+              </span>
+            )}
+            <button
+              onClick={() => setShowConfirmClear(true)}
+              disabled={!hasCompletedOrCancelled}
+              className="flex items-center gap-1.5 px-3 h-9 bg-primary-soft text-primary border border-primary-soft rounded-xl text-xs font-bold hover:bg-primary/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Archive size={14} />
+              Archivar historial
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {activeWholesale.length > 0 && (
+              <span className="h-9 px-3 bg-primary-soft border border-primary-soft text-primary rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap">
+                {activeWholesale.length} activos
+              </span>
+            )}
+            <button
+              onClick={() => setShowConfirmClear(true)}
+              disabled={!hasRejectedWholesale}
+              className="flex items-center gap-1.5 px-3 h-9 bg-primary-soft text-primary border border-primary-soft rounded-xl text-xs font-bold hover:bg-primary/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Archive size={14} />
+              Archivar historial
+            </button>
+          </div>
+        )}
       </motion.div>
 
-
+      {/* Selector Dinámico de Pestañas (Solo si hay pedidos especiales/encargos visibles) */}
+      {visibleWholesaleCount > 0 && (
+        <div className="flex gap-2 p-1 bg-surface-2 border border-app rounded-2xl mb-6">
+          <button
+            onClick={() => setActiveTab('normal')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'normal'
+                ? 'bg-surface text-primary shadow-xs border border-app'
+                : 'text-muted hover:text-app'
+            }`}
+          >
+            <Package size={16} />
+            Pedidos Comunes ({orders.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('especial')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === 'especial'
+                ? 'bg-surface text-primary shadow-xs border border-app'
+                : 'text-muted hover:text-app'
+            }`}
+          >
+            <PackagePlus size={16} />
+            Pedidos Especiales ({visibleWholesaleCount})
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col gap-4">
@@ -478,6 +705,76 @@ export default function ClientOrders() {
             <div key={i} className="h-32 bg-surface rounded-3xl animate-pulse border border-app" />
           ))}
         </div>
+      ) : activeTab === 'especial' ? (
+        <>
+          {activeWholesale.length === 0 && hiddenWholesale.length === 0 ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+              <div className="w-20 h-20 mx-auto bg-surface-2 rounded-full flex items-center justify-center mb-4">
+                <PackagePlus size={32} className="text-muted" />
+              </div>
+              <p className="text-app font-bold text-base mb-1">
+                No hay pedidos especiales aquí
+              </p>
+              <p className="text-sm text-muted px-4">
+                Aquí aparecerán las solicitudes de pedidos especiales que realices.
+              </p>
+            </motion.div>
+          ) : (
+            <div className="space-y-6">
+              {activeWholesale.length > 0 ? (
+                <div className="flex flex-col gap-4">
+                  <AnimatePresence>
+                    {activeWholesale.map(req => renderWholesaleCard(req))}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-10 bg-surface rounded-3xl border border-app text-muted">
+                  <p className="text-sm text-muted font-bold">No hay pedidos especiales activos.</p>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {/* Botón Ver Archivados Persistente para Especiales */}
+          <div className="flex flex-col items-center gap-4 mt-6">
+            {hiddenWholesale.length === 0 ? (
+              <button
+                disabled
+                className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 border border-app text-muted rounded-xl text-xs font-bold opacity-50 cursor-not-allowed uppercase tracking-wider"
+              >
+                Ver archivados (0)
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowHidden(!showHidden)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-app hover:bg-surface-2 text-app rounded-xl text-xs font-bold shadow-sm hover:border-primary transition-all active:scale-95 cursor-pointer uppercase tracking-wider"
+              >
+                {showHidden ? 'Ocultar archivados' : `Ver archivados (Últimos ${Math.min(3, hiddenWholesale.length)})`}
+              </button>
+            )}
+
+            {/* Lista de Pedidos Especiales Ocultados */}
+            <AnimatePresence>
+              {showHidden && hiddenWholesale.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="w-full space-y-4 overflow-hidden"
+                >
+                  <div className="flex items-center gap-3 px-1 my-3">
+                    <div className="h-[1px] bg-app flex-1 opacity-20"></div>
+                    <span className="text-[10px] font-black text-muted uppercase tracking-widest">Especiales archivados</span>
+                    <div className="h-[1px] bg-app flex-1 opacity-20"></div>
+                  </div>
+                  <div className="flex flex-col gap-4">
+                    {hiddenWholesale.slice(0, 3).map(req => renderWholesaleCard(req))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </>
       ) : (
         <>
           {activeOrders.length === 0 && hiddenOrders.length === 0 ? (
@@ -715,7 +1012,9 @@ export default function ClientOrders() {
               </div>
               <h2 className="text-xl font-black text-app text-center mb-2">Archivar Historial</h2>
               <p className="text-sm text-muted text-center mb-6">
-                ¿Estás seguro de que deseas archivar tu historial de pedidos completados y cancelados? Podrás seguir viéndolos y repetirlos desde la sección de archivados.
+                {activeTab === 'normal'
+                  ? '¿Estás seguro de que deseas archivar tu historial de pedidos completados y cancelados? Podrás seguir viéndolos y repetirlos desde la sección de archivados.'
+                  : '¿Estás seguro de que deseas archivar tu historial de pedidos especiales rechazados? Podrás seguir viéndolos desde la sección de archivados.'}
               </p>
               
               <div className="grid grid-cols-2 gap-3">
@@ -728,7 +1027,11 @@ export default function ClientOrders() {
                 <button
                   onClick={async () => {
                     setShowConfirmClear(false)
-                    await handleExecuteClearHistory()
+                    if (activeTab === 'normal') {
+                      await handleExecuteClearHistory()
+                    } else {
+                      await handleExecuteClearWholesaleHistory()
+                    }
                   }}
                   className="h-12 flex justify-center items-center rounded-xl font-bold text-white bg-primary shadow-md hover:opacity-90 transition-all active:scale-95"
                 >

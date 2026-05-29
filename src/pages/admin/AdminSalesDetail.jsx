@@ -1,17 +1,15 @@
 import { useMemo, useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  TrendingUp, BarChart2, ChevronLeft, ArrowLeft,
-  ShoppingBag, DollarSign, Package, CalendarDays, ChevronDown, FileText
-} from 'lucide-react'
+import { TrendingUp, BarChart2, ChevronLeft, ArrowLeft, ShoppingBag, DollarSign, Package, CalendarDays, ChevronDown, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import BackButton from '../../components/ui/BackButton'
 import { useOrders } from '../../hooks/useOrders'
 import { ORDER_STATES, PAYMENT_METHODS } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
 import { useProducts } from '../../hooks/useInventory'
+import { exportSalesReportPDF, exportRotationReportPDF } from '../../services/pdfService'
+
 
 // ─── Helpers de fecha ────────────────────────────────────────────────────────
 function toLocalDate(ts) {
@@ -241,236 +239,13 @@ export default function AdminSalesDetail() {
   const [dateTo, setDateTo] = useState(isoToday)
 
   // ─── EXPORTACIÓN PDF DE VENTAS Y CAJA ──────────────────────────────────────
-  const exportSalesReportPDF = () => {
-    const from = new Date(dateFrom + 'T00:00:00')
-    const to = new Date(dateTo + 'T23:59:59')
-
-    const filtered = orders.filter(o => {
-      if (o.estado !== ORDER_STATES.COMPLETED) return false
-      const fecha = toLocalDate(o.createdAt)
-      if (!fecha) return false
-      return fecha >= from && fecha <= to
-    })
-
-    let cashTotal = 0
-    let transferTotal = 0
-    let creditTotal = 0
-
-    filtered.forEach(o => {
-      if (o.metodoPago === PAYMENT_METHODS.CASH) {
-        cashTotal += o.total
-      } else if (o.metodoPago === PAYMENT_METHODS.TRANSFER) {
-        transferTotal += o.total
-      } else if (o.metodoPago === PAYMENT_METHODS.CREDIT) {
-        creditTotal += o.total
-      }
-    })
-
-    const totalVentas = cashTotal + transferTotal + creditTotal
-    const averageTicket = filtered.length > 0 ? totalVentas / filtered.length : 0
-
-    const doc = new jsPDF()
-    const primaryColor = [79, 70, 229]
-    
-    // Header
-    doc.setFillColor(...primaryColor)
-    doc.rect(0, 0, 210, 40, 'F')
-    
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(22)
-    doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE FINANCIERO DE VENTAS', 15, 25)
-    
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Periodo: ${dateFrom} al ${dateTo}`, 15, 33)
-    doc.text(`Generado: ${new Date().toLocaleString()}`, 140, 33)
-    
-    // Metricas clave
-    doc.setTextColor(31, 41, 55)
-    doc.setFontSize(14)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Resumen Ejecutivo', 15, 55)
-    
-    // Grid boxes
-    doc.setDrawColor(243, 244, 246)
-    doc.setFillColor(249, 250, 251)
-    
-    // Row 1
-    doc.rect(15, 62, 85, 25, 'F')
-    doc.rect(110, 62, 85, 25, 'F')
-    
-    doc.setFontSize(9)
-    doc.setTextColor(107, 114, 128)
-    doc.text('TOTAL FACTURADO', 20, 68)
-    doc.text('TRANSACCIONES EXITOSAS', 115, 68)
-    
-    doc.setFontSize(15)
-    doc.setTextColor(79, 70, 229)
-    doc.setFont('helvetica', 'bold')
-    doc.text(formatCurrency(totalVentas), 20, 80)
-    doc.text(`${filtered.length} pedidos`, 115, 80)
-    
-    // Row 2
-    doc.setFillColor(249, 250, 251)
-    doc.rect(15, 92, 85, 25, 'F')
-    doc.rect(110, 92, 85, 25, 'F')
-    
-    doc.setFontSize(9)
-    doc.setTextColor(107, 114, 128)
-    doc.setFont('helvetica', 'normal')
-    doc.text('TICKET PROMEDIO', 20, 98)
-    doc.text('DESGLOSE METODOS DE PAGO', 115, 98)
-    
-    doc.setFontSize(13)
-    doc.setTextColor(31, 41, 55)
-    doc.setFont('helvetica', 'bold')
-    doc.text(formatCurrency(averageTicket), 20, 110)
-    
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Efectivo: ${formatCurrency(cashTotal)}`, 115, 107)
-    doc.text(`Transferencia: ${formatCurrency(transferTotal)}`, 115, 112)
-    doc.text(`Credito: ${formatCurrency(creditTotal)}`, 115, 117)
-    
-    // Table
-    doc.setFontSize(14)
-    doc.setTextColor(31, 41, 55)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Detalle de Ventas', 15, 132)
-    
-    const tableHeaders = [['Fecha/Hora', 'Cliente', 'Celular', 'Metodo de Pago', 'Total']]
-    const tableData = filtered.map(o => {
-      const fecha = toLocalDate(o.createdAt)?.toLocaleString('es-ES') || 'N/A'
-      const cliente = o.cliente?.nombre || 'Cliente General'
-      const celular = o.cliente?.celular || 'N/A'
-      const pago = o.metodoPago === PAYMENT_METHODS.CASH 
-        ? 'Efectivo' 
-        : o.metodoPago === PAYMENT_METHODS.TRANSFER 
-        ? 'Transferencia' 
-        : 'Credito'
-      return [fecha, cliente, celular, pago, formatCurrency(o.total)]
-    })
-    
-    autoTable(doc, {
-      startY: 138,
-      head: tableHeaders,
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: primaryColor, halign: 'left' },
-      styles: { fontSize: 8, cellPadding: 3 },
-      columnStyles: {
-        4: { halign: 'right' }
-      }
-    })
-    
-    doc.save(`Reporte_Ventas_${dateFrom}_a_${dateTo}.pdf`)
+  const handleExportSalesReportPDF = () => {
+    exportSalesReportPDF({ dateFrom, dateTo, orders })
   }
 
   // ─── EXPORTACIÓN PDF DE ROTACIÓN E INVENTARIO ──────────────────────────────
-  const exportRotationReportPDF = () => {
-    const from = new Date(dateFrom + 'T00:00:00')
-    const to = new Date(dateTo + 'T23:59:59')
-
-    const filtered = orders.filter(o => {
-      if (o.estado !== ORDER_STATES.COMPLETED) return false
-      const fecha = toLocalDate(o.createdAt)
-      if (!fecha) return false
-      return fecha >= from && fecha <= to
-    })
-
-    const conteo = {}
-    filtered.forEach(order => {
-      (order.items || []).forEach(item => {
-        const nombre = item.nombre || 'Sin nombre'
-        if (!conteo[nombre]) conteo[nombre] = { cantidad: 0, total: 0 }
-        conteo[nombre].cantidad += item.cantidad || 1
-        conteo[nombre].total += (item.precio || 0) * (item.cantidad || 1)
-      })
-    })
-
-    const stats = products.map(p => {
-      const sales = conteo[p.nombre] || { cantidad: 0, total: 0 }
-      const totalStock = (p.variantes || []).reduce((sum, v) => sum + (v.stock || 0), 0)
-      
-      let recomendacion = 'Mantener'
-      
-      if (sales.cantidad > 0 && totalStock <= (p.umbralAlerta || 5)) {
-        recomendacion = 'Surtir Urgente'
-      } else if (sales.cantidad === 0) {
-        recomendacion = 'Descontinuar / Liquidar'
-      }
-      
-      return {
-        nombre: p.nombre,
-        vendidas: sales.cantidad,
-        ingresos: sales.total,
-        stock: totalStock,
-        recomendacion
-      }
-    })
-
-    stats.sort((a, b) => b.vendidas - a.vendidas)
-
-    const doc = new jsPDF()
-    const primaryColor = [79, 70, 229]
-    
-    // Header
-    doc.setFillColor(...primaryColor)
-    doc.rect(0, 0, 210, 40, 'F')
-    
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(20)
-    doc.setFont('helvetica', 'bold')
-    doc.text('REPORTE DE ROTACIÓN E INVENTARIO', 15, 25)
-    
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Periodo analizado: ${dateFrom} al ${dateTo}`, 15, 33)
-    doc.text(`Generado: ${new Date().toLocaleString()}`, 140, 33)
-    
-    // Titulo
-    doc.setTextColor(31, 41, 55)
-    doc.setFontSize(14)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Análisis de Rotación de Productos', 15, 55)
-    
-    const tableHeaders = [['Producto', 'Unidades Vendidas', 'Ingresos Generados', 'Stock Actual', 'Acción Recomendada']]
-    const tableData = stats.map(s => [
-      s.nombre,
-      s.vendidas,
-      formatCurrency(s.ingresos),
-      s.stock,
-      s.recomendacion
-    ])
-    
-    autoTable(doc, {
-      startY: 62,
-      head: tableHeaders,
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: primaryColor, halign: 'left' },
-      styles: { fontSize: 8, cellPadding: 3 },
-      columnStyles: {
-        1: { halign: 'center' },
-        2: { halign: 'right' },
-        3: { halign: 'center' }
-      },
-      didParseCell: function(data) {
-        if (data.column.index === 4 && data.cell.section === 'body') {
-          const text = data.cell.raw
-          if (text.includes('Surtir')) {
-            data.cell.styles.textColor = [16, 185, 129]
-            data.cell.styles.fontStyle = 'bold'
-          } else if (text.includes('Descontinuar')) {
-            data.cell.styles.textColor = [239, 68, 68]
-            data.cell.styles.fontStyle = 'bold'
-          }
-        }
-      }
-    })
-    
-    doc.save(`Reporte_Rotacion_Stock_${dateFrom}_a_${dateTo}.pdf`)
+  const handleExportRotationReportPDF = () => {
+    exportRotationReportPDF({ dateFrom, dateTo, orders, products })
   }
 
   // ─── CÁLCULO DE VENTAS FILTRADAS POR PRODUCTOS ───────────────────────────
@@ -527,12 +302,7 @@ export default function AdminSalesDetail() {
     >
       {/* Botón de retroceso y Título */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/admin/inicio')}
-          className="w-10 h-10 rounded-2xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-app active:scale-95 transition-all shadow-sm"
-        >
-          <ArrowLeft size={18} />
-        </button>
+        <BackButton to="/admin/inicio" />
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-app">Análisis de Ventas</h1>
           <p className="text-xs md:text-sm text-muted">Revisa el rendimiento del mes y productos más vendidos.</p>
@@ -605,7 +375,7 @@ export default function AdminSalesDetail() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
-                onClick={exportSalesReportPDF}
+                onClick={handleExportSalesReportPDF}
                 className="flex items-center gap-3 p-4 bg-surface hover:bg-surface-2 active:scale-[0.98] transition-all rounded-2xl shadow-sm text-left group cursor-pointer"
               >
                 <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -618,7 +388,7 @@ export default function AdminSalesDetail() {
               </button>
               
               <button
-                onClick={exportRotationReportPDF}
+                onClick={handleExportRotationReportPDF}
                 className="flex items-center gap-3 p-4 bg-surface hover:bg-surface-2 active:scale-[0.98] transition-all rounded-2xl shadow-sm text-left group cursor-pointer"
               >
                 <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">

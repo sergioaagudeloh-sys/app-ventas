@@ -6,15 +6,36 @@ import { COLLECTIONS } from '../constants'
 const COUPONS_COLLECTION = COLLECTIONS?.COUPONS || 'coupons'
 
 export const couponService = {
-  // Obtener todos los cupones ordenados por fecha de creación
+  // Obtener todos los cupones ordenados por fecha de creación.
+  // Normaliza campos en inglés → español para compatibilidad con el modal del cliente.
   async getCoupons() {
     const ref = collection(db, COUPONS_COLLECTION)
     const q = query(ref, orderBy('createdAt', 'desc'))
     const snap = await getDocs(q)
-    return snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    }))
+    return snap.docs.map(d => {
+      const data = d.data()
+      // Soporte para documentos guardados con campos en inglés (AdminSettings)
+      // y en español (esquema legacy del cliente)
+      return {
+        id: d.id,
+        ...data,
+        // Campos normalizados en español (usados por ClientCouponsModal y CheckoutModal)
+        codigo:          data.codigo          ?? data.code          ?? '',
+        activo:          data.activo          ?? data.active         ?? false,
+        tipoDescuento:   data.tipoDescuento   ?? (data.type === 'percentage' ? 'porcentaje' : 'fijo'),
+        valorDescuento:  data.valorDescuento  ?? data.value         ?? 0,
+        minimoCompra:    data.minimoCompra    ?? data.minPurchase   ?? 0,
+        fechaExpiracion: data.fechaExpiracion ?? data.endDate       ?? null,
+        // Campos en inglés también presentes para AdminSettings
+        code:        data.code        ?? data.codigo        ?? '',
+        active:      data.active      ?? data.activo        ?? false,
+        type:        data.type        ?? (data.tipoDescuento === 'porcentaje' ? 'percentage' : 'fixed'),
+        value:       data.value       ?? data.valorDescuento ?? 0,
+        minPurchase: data.minPurchase ?? data.minimoCompra  ?? 0,
+        endDate:     data.endDate     ?? data.fechaExpiracion ?? '',
+        startDate:   data.startDate   ?? '',
+      }
+    })
   },
 
   // Crear nuevo cupón

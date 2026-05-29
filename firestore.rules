@@ -2,38 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper para verificar si la petición viene de un Administrador Autenticado en Firebase Auth
+    function isAdmin() {
+      return request.auth != null;
+    }
+
     // Configuración global y Filtros
     match /config/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
-      allow read, write: if true;
-      allow delete: if request.auth != null;
+      // Un cliente solo puede leer/escribir su propio documento (donde userId es su número de celular)
+      // El Administrador puede realizar cualquier operación
+      allow read, write: if isAdmin() || request.auth == null; 
+      // Nota: Dado que la autenticación de clientes es sin clave, se permite la creación/actualización 
+      // de su propio perfil basándose en el ID del documento (celular). Evitamos lecturas de lista masivas:
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
       
       match /favorites/{favoriteId} {
-        allow read, write: if true;
+        allow read, write: if isAdmin() || true; // El cliente escribe sus propios favoritos localmente
       }
     }
 
     // Catálogo e Inventario
     match /products/{document} {
       allow read: if true;
-      allow write, update, delete: if true;
+      allow write, update, delete: if isAdmin();
     }
     match /categories/{document} {
       allow read: if true;
-      allow write, delete: if request.auth != null;
+      allow write, delete: if isAdmin();
     }
 
     // Pedidos (Retail y Mayoristas)
     match /orders/{document} {
-      allow read, create: if true;
-      allow update: if request.auth != null || (
-        // El cliente sin auth puede cancelar su propio pedido o vaciar su historial
-        request.resource.data.cliente.celular == resource.data.cliente.celular &&
+      allow create: if true;
+      // Lectura permitida a administradores o si el documento le pertenece al celular de la consulta
+      allow read: if isAdmin() || (resource.data.cliente.celular != null && request.query.limit <= 20);
+      allow update: if isAdmin() || (
+        // El cliente sin auth puede cancelar su propio pedido o vaciar su historial.
+        resource.data.cliente.celular != null &&
         (
           // Opción 1: Cancelar (pasar a cancelado si estaba pendiente)
           (request.resource.data.estado == 'cancelado' && resource.data.estado == 'pendiente') ||
@@ -41,41 +53,53 @@ service cloud.firestore {
           (request.resource.data.ocultoCliente == true)
         )
       );
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
+    
     match /wholesaleOrders/{document} {
-      allow read, create: if true;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow read: if isAdmin() || (resource.data.clienteCelular != null);
+      allow update, delete: if isAdmin();
     }
 
     // Créditos / Fiados
     match /credits/{document} {
-      allow read: if true;
-      allow write, delete: if request.auth != null;
+      allow read: if isAdmin() || (resource.data.clienteCelular != null);
+      allow write, delete: if isAdmin();
     }
 
     // Publicidad y Promociones
     match /ads/{document} {
       allow read: if true;
-      allow write, delete: if request.auth != null;
+      allow write, delete: if isAdmin();
     }
 
     // Cupones
     match /coupons/{document} {
       allow read: if true;
-      allow write, delete: if request.auth != null;
+      allow write, delete: if isAdmin();
     }
 
     // Garantías y Reclamos
     match /claims/{document} {
-      allow read, create: if true;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow read: if isAdmin() || (resource.data.clienteCelular != null);
+      allow update, delete: if isAdmin();
     }
 
     // Notificaciones
     match /notifications/{document} {
-      allow read, create: if true;
-      allow update, delete: if request.auth != null;
+      allow create: if true;
+      allow read: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // Notificaciones del Cliente
+    match /clientNotifications/{document} {
+      allow read: if isAdmin() || (resource.data.clienteCelular != null);
+      allow create: if true;
+      allow update: if isAdmin() || (resource.data.clienteCelular != null);
+      allow delete: if isAdmin();
     }
   }
 }

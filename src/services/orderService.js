@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS } from '../constants'
+import { createClientNotification } from './clientNotificationService'
 
 const ordersRef = collection(db, COLLECTIONS.ORDERS)
 
@@ -211,6 +212,17 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
   const orderRef = doc(db, COLLECTIONS.ORDERS, orderId)
   const stockYaDescontado = currentOrder?.stockDescontado === true
 
+  const notifyClient = async () => {
+    if (currentOrder?.cliente?.celular && currentOrder.cliente.celular !== 'Desconocido') {
+      await createClientNotification({
+        clienteCelular: currentOrder.cliente.celular,
+        message: `Tu pedido ${currentOrder.orderNumber || ''} cambió a ${newStatus.toUpperCase()}`,
+        type: 'status',
+        orderId: orderId
+      })
+    }
+  }
+
   // ─── CANCELAR ─────────────────────────────────────────────────────────────
   // Si el pedido tenía stock reservado, hay que devolverlo al inventario
   if (newStatus === ORDER_STATES.CANCELLED) {
@@ -264,6 +276,7 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
       // Pedido viejo sin reserva: solo cambiar estado
       await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
     }
+    await notifyClient()
     return
   }
 
@@ -338,11 +351,13 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
         updatedAt: serverTimestamp()
       })
     }
+    await notifyClient()
     return
   }
 
   // ─── CUALQUIER OTRO ESTADO (simple update) ────────────────────────────────
   await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
+  await notifyClient()
 }
 
 /**

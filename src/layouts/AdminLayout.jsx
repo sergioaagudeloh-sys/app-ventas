@@ -17,10 +17,11 @@ import { signOut } from 'firebase/auth'
 import { auth } from '../config/firebaseConfig'
 import useAppConfigStore from '../store/appConfigStore'
 import useAuthStore from '../store/authStore'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { subscribeToOrders } from '../services/orderService'
 import { subscribeToNotifications } from '../services/creditService'
 import { subscribeToClaims } from '../services/claimsService'
+import { subscribeToWholesaleRequests } from '../services/wholesaleService'
 import { formatCurrency } from '../utils/formatters'
 import { playAdminSound } from '../utils/audio'
 import { ORDER_STATES } from '../constants'
@@ -40,9 +41,18 @@ const NAV_ITEMS = [
  * Exclusión mutua garantizada (Guía Maestra §3.6).
  */
 export default function AdminLayout() {
-  const { appName, appIcon } = useAppConfigStore()
+  const { appName, appIcon, creditsEnabled } = useAppConfigStore()
   const { logout } = useAuthStore()
   const navigate = useNavigate()
+
+  // Navegación adaptativa según feature flags de módulos
+  const filteredNavItems = useMemo(() => {
+    return NAV_ITEMS.filter(item => {
+      // Si la ruta contiene credito y creditsEnabled es falso, la removemos
+      if (item.path.includes('credito') && !creditsEnabled) return false
+      return true
+    })
+  }, [creditsEnabled])
 
   // Notificaciones Globales del Administrador
   const [notifications, setNotifications] = useState([])
@@ -60,9 +70,37 @@ export default function AdminLayout() {
     try {
       const seen = getSeenOrders()
       seen.add(id)
-      // Guardar solo los últimos 500 IDs para no crecer infinitamente
       const arr = Array.from(seen).slice(-500)
       localStorage.setItem('admin_seen_orders', JSON.stringify(arr))
+    } catch {}
+  }
+
+  // Persistir IDs de solicitudes especiales (wholesale)
+  const getSeenWholesale = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('admin_seen_wholesale') || '[]'))
+    } catch { return new Set() }
+  }
+  const markWholesaleSeen = (id) => {
+    try {
+      const seen = getSeenWholesale()
+      seen.add(id)
+      const arr = Array.from(seen).slice(-500)
+      localStorage.setItem('admin_seen_wholesale', JSON.stringify(arr))
+    } catch {}
+  }
+
+  // Persistir estados previos de mayorista/encargo para detectar cambios
+  const getWholesaleStates = () => {
+    try {
+      return JSON.parse(localStorage.getItem('admin_wholesale_states') || '{}')
+    } catch { return {} }
+  }
+  const updateWholesaleStateCache = (id, state) => {
+    try {
+      const states = getWholesaleStates()
+      states[id] = state
+      localStorage.setItem('admin_wholesale_states', JSON.stringify(states))
     } catch {}
   }
 
@@ -78,13 +116,11 @@ export default function AdminLayout() {
   }
 
   useEffect(() => {
-    // Al montar: cargar los IDs ya vistos ANTES de suscribirse
     const seenOnMount = getSeenOrders()
     let initialized = false
 
     const unsubscribe = subscribeToOrders((orders) => {
       if (!initialized) {
-        // Primer snapshot: marcar todos los pedidos actuales como vistos
         orders.forEach(o => {
           if (!seenOnMount.has(o.id)) {
             markOrderSeen(o.id)
@@ -94,7 +130,6 @@ export default function AdminLayout() {
         return
       }
 
-      // Snapshots posteriores: solo notificar pedidos nuevos no vistos
       const currentSeen = getSeenOrders()
       orders.forEach(o => {
         if (!currentSeen.has(o.id)) {
@@ -115,6 +150,55 @@ export default function AdminLayout() {
             triggerToast(msg, '/admin/pedidos')
           }
           markOrderSeen(o.id)
+        }
+      })
+    })
+
+    // Suscribirse a solicitudes al por mayor y encargos (especiales)
+    const mountTime = Date.now()
+    console.log("[AdminLayout] Montando suscripción de solicitudes especiales en tiempo real. MountTime:", mountTime)
+
+    const unsubscribeWholesale = subscribeToWholesaleRequests((requests) => {
+      console.log("[AdminLayout] Snapshot de solicitudes recibido. Cantidad:", requests.length)
+      
+      requests.forEach(r => {
+        const concept = r.tipo === 'encargo' ? 'por encargo' : 'al por mayor'
+        
+        // Obtener la fecha de creación en milisegundos
+        let createdMs = 0
+        if (r.createdAt) {
+          createdMs = r.createdAt.toDate ? r.createdAt.toDate().getTime() : new Date(r.createdAt).getTime()
+        }
+
+        // Si la solicitud se creó después de montar la aplicación (es nueva)
+        // y su estado es pendiente, y no la hemos notificado en esta sesión
+        const seenWholesale = getSeenWholesale()
+        
+        if (createdMs > mountTime - 10000) { // Tolerancia de 10s por diferencias de reloj del servidor
+          if (!seenWholesale.has(r.id)) {
+            console.log("[AdminLayout] ¡Nueva solicitud especial detectada en tiempo real!", r.id, r.productoNombre)
+            
+            if (r.estado === 'pendiente') {
+              const msg = `Nueva solicitud ${concept} de "${r.productoNombre}" recibida de ${r.clienteNombre || 'Cliente'}.`
+              setNotifications(prev => [
+                {
+                  id: r.id,
+                  concept,
+                  message: msg,
+                  isWholesaleRequest: true,
+                },
+                ...prev
+              ])
+              triggerToast(msg, '/admin/pedidos')
+            }
+            markWholesaleSeen(r.id)
+            updateWholesaleStateCache(r.id, r.estado)
+          }
+        }
+
+        // Actualizar caché de estados silenciosamente para pedidos existentes (sin disparar alertas redundantes al admin)
+        if (r.estado) {
+          updateWholesaleStateCache(r.id, r.estado)
         }
       })
     })
@@ -188,6 +272,7 @@ export default function AdminLayout() {
 
     return () => {
       unsubscribe()
+      unsubscribeWholesale()
       unsubscribeNotifications()
       unsubscribeClaims()
     }
@@ -304,7 +389,7 @@ export default function AdminLayout() {
 
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Secciones">
-          {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
+          {filteredNavItems.map(({ path, icon: Icon, label }) => {
             const isConfig = path === '/admin/configuracion'
             return (
               <NavLink
@@ -367,7 +452,7 @@ export default function AdminLayout() {
         className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-2"
         aria-label="Navegación inferior administrador"
       >
-        {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
+        {filteredNavItems.map(({ path, icon: Icon, label }) => {
           const isVentas = path === '/admin/ventas'
           const isConfig = path === '/admin/configuracion'
 
@@ -464,7 +549,7 @@ export default function AdminLayout() {
                 initial={{ opacity: 0, scale: 0.95, y: -8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                className="absolute right-0 top-13 mt-1 w-72 bg-surface/95 backdrop-blur-xl border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-50"
+                className="absolute right-0 top-13 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-50"
               >
                 <div className="flex items-center justify-between border-b border-app pb-2">
                   <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>

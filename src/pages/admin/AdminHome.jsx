@@ -17,7 +17,7 @@ import useAppConfigStore from '../../store/appConfigStore'
 
 export default function AdminHome() {
   const { user } = useAuthStore()
-  const { sellerName, appIcon, appName } = useAppConfigStore()
+  const { sellerName, appIcon, appName, creditsEnabled } = useAppConfigStore()
   const navigate = useNavigate()
   const { data: orders = [] } = useOrders()
   const { data: credits = [] } = useCredits('activo')
@@ -169,7 +169,7 @@ export default function AdminHome() {
       </motion.div>
 
       {/* ─── TARJETAS DE MÉTRICAS ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+      <div className={`grid grid-cols-2 ${creditsEnabled ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-3 md:gap-4 mb-8`}>
 
         {/* Ventas */}
         <motion.div
@@ -193,27 +193,29 @@ export default function AdminHome() {
           </div>
         </motion.div>
 
-        {/* Por Cobrar */}
-        <motion.div
-          variants={itemVariants}
-          onClick={() => navigate('/admin/credito')}
-          className="bg-surface rounded-2xl md:rounded-3xl p-3.5 md:p-5 border border-app shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[110px] md:min-h-[140px] cursor-pointer hover:border-warning/50 hover:shadow-md transition-all duration-200 active:scale-[0.98]"
-        >
-          <div className="absolute -right-4 -top-4 w-20 h-20 bg-warning/10 rounded-full blur-2xl pointer-events-none" />
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-lg bg-warning/15 text-warning flex items-center justify-center shrink-0">
-                <DollarSign size={16} />
+        {/* Por Cobrar (Solo si créditos están activos) */}
+        {creditsEnabled && (
+          <motion.div
+            variants={itemVariants}
+            onClick={() => navigate('/admin/credito')}
+            className="bg-surface rounded-2xl md:rounded-3xl p-3.5 md:p-5 border border-app shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[110px] md:min-h-[140px] cursor-pointer hover:border-warning/50 hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+          >
+            <div className="absolute -right-4 -top-4 w-20 h-20 bg-warning/10 rounded-full blur-2xl pointer-events-none" />
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-warning/15 text-warning flex items-center justify-center shrink-0">
+                  <DollarSign size={16} />
+                </div>
+                <h3 className="font-bold text-app text-xs md:text-sm truncate">Por Cobrar</h3>
               </div>
-              <h3 className="font-bold text-app text-xs md:text-sm truncate">Por Cobrar</h3>
+              <p className="text-lg md:text-2xl font-black text-app mt-2">{formatCurrency(metricas.fiado)}</p>
             </div>
-            <p className="text-lg md:text-2xl font-black text-app mt-2">{formatCurrency(metricas.fiado)}</p>
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <p className="text-[10px] md:text-xs text-muted">Saldo en créditos activos.</p>
-            <ChevronRight size={14} className="text-muted shrink-0" />
-          </div>
-        </motion.div>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] md:text-xs text-muted">Saldo en créditos activos.</p>
+              <ChevronRight size={14} className="text-muted shrink-0" />
+            </div>
+          </motion.div>
+        )}
 
         {/* Nuevos Pedidos */}
         <motion.div
@@ -273,7 +275,7 @@ export default function AdminHome() {
         <h2 className="text-[11px] font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5 opacity-80">
           🚀 Accesos Rápidos
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <div className={`grid grid-cols-2 ${creditsEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-2.5`}>
           <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
             <Link to="/admin/inventario" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
               <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -290,14 +292,16 @@ export default function AdminHome() {
               <span className="font-bold text-app text-xs tracking-tight">Pedidos</span>
             </Link>
           </motion.div>
-          <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
-            <Link to="/admin/credito" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
-              <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <CreditCard size={16} />
-              </div>
-              <span className="font-bold text-app text-xs tracking-tight">Créditos</span>
-            </Link>
-          </motion.div>
+          {creditsEnabled && (
+            <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
+              <Link to="/admin/credito" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
+                <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <CreditCard size={16} />
+                </div>
+                <span className="font-bold text-app text-xs tracking-tight">Créditos</span>
+              </Link>
+            </motion.div>
+          )}
           <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
             <Link to="/admin/configuracion" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
               <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -328,7 +332,7 @@ export default function AdminHome() {
               </div>
             </div>
 
-            {/* Barra de distribución hoy */}
+             {/* Barra de distribución hoy */}
             {metricas.cajaTotal > 0 ? (
               <div className="space-y-4">
                 <div className="w-full h-3 rounded-full bg-surface-2 overflow-hidden flex">
@@ -346,7 +350,7 @@ export default function AdminHome() {
                       title={`Transferencia: ${((metricas.transferTotal / metricas.cajaTotal) * 100).toFixed(0)}%`}
                     />
                   )}
-                  {metricas.creditTotal > 0 && (
+                  {config.creditsEnabled && metricas.creditTotal > 0 && (
                     <div 
                       className="h-full bg-violet-500 transition-all" 
                       style={{ width: `${(metricas.creditTotal / metricas.cajaTotal) * 100}%` }}
@@ -355,7 +359,7 @@ export default function AdminHome() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className={`grid grid-cols-1 ${config.creditsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
                   <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
@@ -370,13 +374,15 @@ export default function AdminHome() {
                     </div>
                     <span className="font-extrabold text-xs text-app">{formatCurrency(metricas.transferTotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-violet-500/5 border border-violet-500/10">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0" />
-                      <span className="text-xs font-bold text-app">Crédito (Fiado)</span>
+                  {config.creditsEnabled && (
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-violet-500/5 border border-violet-500/10">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0" />
+                        <span className="text-xs font-bold text-app">Crédito (Fiado)</span>
+                      </div>
+                      <span className="font-extrabold text-xs text-app">{formatCurrency(metricas.creditTotal)}</span>
                     </div>
-                    <span className="font-extrabold text-xs text-app">{formatCurrency(metricas.creditTotal)}</span>
-                  </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -404,15 +410,15 @@ export default function AdminHome() {
               </div>
             ) : billingMetrics?.pagoBreakdown && (() => {
               const bp = billingMetrics.pagoBreakdown
-              const total = bp.efectivo + bp.transferencia + bp.credito
+              const total = bp.efectivo + bp.transferencia + (creditsEnabled ? bp.credito : 0)
               if (total === 0) return (
                 <p className="text-xs text-muted text-center py-2">Sin datos históricos aún.</p>
               )
               const methods = [
-                { label: 'Efectivo', val: bp.efectivo, color: '#10b981', bg: 'bg-emerald-500' },
-                { label: 'Transferencia', val: bp.transferencia, color: '#3b82f6', bg: 'bg-blue-500' },
-                { label: 'Crédito', val: bp.credito, color: '#8b5cf6', bg: 'bg-violet-500' },
-              ].sort((a, b) => b.val - a.val)
+                { label: 'Efectivo', val: bp.efectivo, color: '#10b981', bg: 'bg-emerald-500', enabled: true },
+                { label: 'Transferencia', val: bp.transferencia, color: '#3b82f6', bg: 'bg-blue-500', enabled: true },
+                { label: 'Crédito', val: bp.credito, color: '#8b5cf6', bg: 'bg-violet-500', enabled: creditsEnabled },
+              ].filter(m => m.enabled).sort((a, b) => b.val - a.val)
 
               return (
                 <div className="space-y-2.5">
@@ -432,8 +438,8 @@ export default function AdminHome() {
                         </div>
                         <div className="h-2 rounded-full bg-surface-2 overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-700 ${m.bg}`}
-                            style={{ width: `${pct}%` }}
+                              className={`h-full rounded-full transition-all duration-700 ${m.bg}`}
+                              style={{ width: `${pct}%` }}
                           />
                         </div>
                       </div>

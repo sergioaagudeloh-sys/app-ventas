@@ -8,6 +8,8 @@ import { productSchema } from '../../../schemas/inventorySchemas'
 import { PRODUCT_GENDERS } from '../../../constants'
 import { useCategories } from '../../../hooks/useInventory'
 import useAppConfigStore from '../../../store/appConfigStore'
+import ModalTemplate from '../../common/ModalTemplate'
+
 
 const COMMON_TALLAS = ['Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '35', '36', '37', '38', '39', '40', '41', '42']
 const COMMON_COLORES = ['Negro', 'Blanco', 'Gris', 'Azul', 'Rojo', 'Verde', 'Amarillo', 'Rosa', 'Beige', 'Café', 'Morado', 'Naranja']
@@ -1374,122 +1376,80 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     )
   }
 
-  return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Fondo del Modal */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={handleClose}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        />
-
-        {/* Contenedor Modal */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-2xl max-h-[95vh] bg-surface rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-app"
-        >
-          {/* Cabecera */}
-          <div className="flex items-center justify-between p-6 border-b border-app bg-surface z-10">
-            <div>
-              <h2 className="text-xl font-extrabold text-app">
-                {initialData ? 'Editar Producto' : 'Crear Nuevo Producto'}
-              </h2>
-              {!initialData && (
-                <p className="text-[10px] text-muted font-bold uppercase tracking-wider mt-0.5">
-                  Asistente de registro rápido
-                </p>
-              )}
-            </div>
+  const modalFooterActions = (
+    <div className="w-full flex justify-between items-center">
+      <div className="flex-1 mr-4">
+        {Object.keys(errors).length > 0 && !initialData && (
+          <p className="text-red-500 text-xs font-bold leading-tight animate-pulse">
+            {Object.values(errors)[0]}
+          </p>
+        )}
+      </div>
+      <div className="flex gap-3 shrink-0 font-semibold">
+        {initialData ? (
+          <>
             <button
               type="button"
               onClick={handleClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
+              className="px-6 py-2.5 rounded-xl font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
             >
-              <X size={18} />
+              Cancelar
             </button>
-          </div>
-
-          {/* Barra de progreso si estamos en creación */}
-          {renderProgressBar()}
-
-          {/* Contenido del Formulario */}
-          <div className="flex-1 overflow-y-auto p-6 bg-surface-3/20">
-            {initialData ? renderClassicForm() : (
-              <AnimatePresence mode="wait">
-                {renderWizardStep()}
-              </AnimatePresence>
+            <button
+              type="submit"
+              form="product-form"
+              className="px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-md shadow-blue-600/20"
+            >
+              Guardar Cambios
+            </button>
+          </>
+        ) : (
+          <>
+            {currentStep < 5 ? (
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:opacity-95 active:scale-95 transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                Siguiente
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="px-6 py-2.5 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-600/20 cursor-pointer"
+              >
+                Guardar Producto
+              </button>
             )}
-          </div>
-
-          {/* Pie de Página */}
-          <div className="p-4 border-t border-app bg-surface z-10 flex justify-between items-center">
-            {/* Errores del paso actual */}
-            <div className="flex-1 mr-4">
-              {Object.keys(errors).length > 0 && !initialData && (
-                <p className="text-error text-xs font-bold leading-tight animate-pulse">
-                  {Object.values(errors)[0]}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-3 shrink-0">
-              {initialData ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="px-6 py-2.5 rounded-xl font-semibold text-app bg-surface-2 hover:bg-app transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    form="product-form"
-                    className="px-6 py-2.5 rounded-xl font-semibold text-white bg-primary hover:opacity-90 active:scale-95 transition-all"
-                  >
-                    Guardar Cambios
-                  </button>
-                </>
-              ) : (
-                <>
-                  {currentStep > 1 && (
-                    <button
-                      type="button"
-                      onClick={handlePrevStep}
-                      className="px-5 py-2.5 rounded-xl font-bold text-app bg-surface-2 hover:bg-app transition-all active:scale-95"
-                    >
-                      Atrás
-                    </button>
-                  )}
-                  
-                  {currentStep < 5 ? (
-                    <button
-                      type="button"
-                      onClick={handleNextStep}
-                      className="px-6 py-2.5 rounded-xl font-bold text-white bg-primary hover:opacity-95 active:scale-95 transition-all shadow-md shadow-primary/20"
-                    >
-                      Siguiente
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSubmit}
-                      className="px-6 py-2.5 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-600/20"
-                    >
-                      Guardar Producto
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </motion.div>
+          </>
+        )}
       </div>
-    </AnimatePresence>
+    </div>
+  )
+
+  return (
+    <ModalTemplate
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={initialData ? 'Editar Producto' : 'Crear Nuevo Producto'}
+      subtitle={initialData ? 'Administración de Catálogo' : 'Asistente de registro rápido'}
+      icon={Sparkles}
+      onBack={(!initialData && currentStep > 1) ? handlePrevStep : null}
+      footerActions={modalFooterActions}
+    >
+      {/* Barra de progreso si estamos en creación */}
+      {renderProgressBar()}
+
+      {/* Contenido del Formulario */}
+      <div className="mt-4">
+        {initialData ? renderClassicForm() : (
+          <AnimatePresence mode="wait">
+            {renderWizardStep()}
+          </AnimatePresence>
+        )}
+      </div>
+
+    </ModalTemplate>
   )
 }

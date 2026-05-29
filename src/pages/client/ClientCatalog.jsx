@@ -14,6 +14,41 @@ import CatalogBanner from '../../components/client/catalog/CatalogBanner'
 import { SUPPORT_WHATSAPP } from '../../constants'
 import { fuzzyMatch } from '../../utils/search'
 
+/**
+ * Retorna el botón de acción secundaria (al por mayor / por encargo) de una tarjeta de producto.
+ * - Si wholesaleSettings.enabled === false: no se muestra ningún botón.
+ * - Si el producto está agotado: muestra "Pedir por encargo" (independiente del flag de mayoreo).
+ * - Si hay stock: muestra "Solicitar al por mayor".
+ */
+function WholesaleButton({ product, wholesaleSettings, onRequest }) {
+  if (product.isTemporal) return null
+
+  const wholesaleEnabled = wholesaleSettings?.enabled ?? true
+  const totalStock = product.variantes?.reduce((sum, v) => sum + (v.stock || 0), 0) ?? 0
+  const isOutOfStock = totalStock <= 0
+
+  // Si no hay stock ni el módulo está activo: nada
+  if (!wholesaleEnabled && !isOutOfStock) return null
+  // Si está agotado pero el módulo está desactivado: tampoco (no queremos encargos si el admin lo deshabilitó)
+  if (!wholesaleEnabled) return null
+
+  const isEncargo = isOutOfStock
+
+  return (
+    <button
+      onClick={() => onRequest({ product, type: isEncargo ? 'encargo' : 'mayorista' })}
+      className={`mt-2 text-xs font-bold transition-all py-1.5 text-center bg-surface rounded-xl border hover:scale-102 active:scale-98 cursor-pointer ${
+        isEncargo
+          ? 'text-orange-500 border-orange-200 hover:border-orange-500 hover:bg-orange-50/10'
+          : 'text-primary border-app hover:border-primary/50'
+      }`}
+      style={{ borderRadius: 'var(--radius-base)' }}
+    >
+      {isEncargo ? 'Pedir por encargo' : 'Solicitar al por mayor'}
+    </button>
+  )
+}
+
 export default function ClientCatalog() {
   // Datos
   const { data: allProducts = [], isLoading: isLoadingProducts } = useProducts(true) // Solo activos
@@ -283,7 +318,7 @@ export default function ClientCatalog() {
                 className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                   selectedCategoryId === 'all'
                     ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
-                    : 'bg-surface text-app border-primary/5 hover:border-primary/20 hover:bg-surface-2'
+                    : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                 }`}
               >
                 <Tag 
@@ -309,7 +344,7 @@ export default function ClientCatalog() {
                     className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                       isSelected
                         ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
-                        : 'bg-surface text-app border-primary/5 hover:border-primary/20 hover:bg-surface-2'
+                        : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                     }`}
                   >
                     <IconComponent 
@@ -374,30 +409,11 @@ export default function ClientCatalog() {
                   }} 
                   layout={catalogLayout}
                 />
-                {/* Ocultar solicitar al por encargo/mayor en productos temporales */}
-                {!product.isTemporal && (() => {
-                  const totalStock = product.variantes?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
-                  const isOutOfStock = totalStock <= 0
-                  
-                  // Si no está agotado y las solicitudes al por mayor están desactivadas globalmente, no mostramos el botón
-                  if (!isOutOfStock && !(wholesaleSettings?.enabled ?? true)) {
-                    return null
-                  }
-
-                  return (
-                    <button
-                      onClick={() => setWholesaleRequest({ product, type: isOutOfStock ? 'encargo' : 'mayorista' })}
-                      className={`mt-2 text-xs font-bold transition-all py-1.5 text-center bg-surface rounded-xl border hover:scale-102 active:scale-98 cursor-pointer ${
-                        isOutOfStock 
-                          ? 'text-orange-500 border-orange-200 hover:border-orange-500 hover:bg-orange-50/10' 
-                          : 'text-primary border-app hover:border-primary/50'
-                      }`}
-                      style={{ borderRadius: 'var(--radius-base)' }}
-                    >
-                      {isOutOfStock ? 'Pedir por encargo' : 'Solicitar al por mayor'}
-                    </button>
-                  )
-                })()}
+                <WholesaleButton
+                  product={product}
+                  wholesaleSettings={wholesaleSettings}
+                  onRequest={setWholesaleRequest}
+                />
               </div>
             ))}
           </div>

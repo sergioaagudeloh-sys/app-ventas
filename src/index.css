@@ -7,24 +7,24 @@
    Modo oscuro: clase 'dark' en <html>
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─── Variables base del sistema ─────────────────────────────────────────── */
+/* ─── Variables base del sistema (Fallback neutral antes de cargar la base de datos) ──────────────── */
 :root {
-  /* Tema por defecto: Rosa Elegante (femenino) */
-  --color-primary: #e91e8c;
-  --color-primary-light: #f48fb1;
-  --color-primary-dark: #ad1457;
-  --color-secondary: #f8bbd9;
-  --color-accent: #ff4081;
-  --color-bg: #fff5f9;
+  /* Tema neutral por defecto (blanco/azul oscuro neutro) */
+  --color-primary: #1e293b;         /* Slate 800 */
+  --color-primary-light: #64748b;   /* Slate 500 */
+  --color-primary-dark: #0f172a;    /* Slate 900 */
+  --color-secondary: #e2e8f0;      /* Slate 200 */
+  --color-accent: #3b82f6;         /* Blue 500 */
+  --color-bg: #f8fafc;             /* Slate 50 */
   --color-surface: #ffffff;
-  --color-surface-2: #fce4ec;
-  --color-text: #1a0a12;
-  --color-text-muted: #6d4c5e;
-  --color-border: #f8bbd0;
-  --color-success: #4caf50;
-  --color-warning: #ff9800;
-  --color-error: #f44336;
-  --color-info: #2196f3;
+  --color-surface-2: #f1f5f9;      /* Slate 100 */
+  --color-text: #0f172a;           /* Slate 900 */
+  --color-text-muted: #475569;     /* Slate 600 */
+  --color-border: #cbd5e1;         /* Slate 300 */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
 
   /* ─── Nuevas variables de apariencia ─────────────────────── */
   --font-body: 'Inter', system-ui, sans-serif;
@@ -354,4 +354,19 @@ select option {
   background-color: var(--color-surface);
   color: var(--color-text);
 }
+
+/* ─── Animación de flotación premium ────────────────────────────────────── */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3.5s ease-in-out infinite;
+}
+
 

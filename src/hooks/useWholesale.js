@@ -18,7 +18,27 @@ export function useWholesaleRequests() {
 
   return useQuery({
     queryKey: KEYS.wholesale,
-    queryFn: () => [], // El caché y el feed los maneja onSnapshot
+    queryFn: () => queryClient.getQueryData(KEYS.wholesale) || [], // Evita devolver [] si se invalida
+    staleTime: Infinity,
+  })
+}
+
+export function useClientWholesaleRequests(celular) {
+  const queryClient = useQueryClient()
+  const queryKey = ['clientWholesaleRequests', celular]
+
+  useEffect(() => {
+    if (!celular) return
+    const unsubscribe = wholesaleService.subscribeToClientWholesaleRequests(celular, (requests) => {
+      queryClient.setQueryData(queryKey, requests)
+    })
+    return () => unsubscribe()
+  }, [celular, queryClient])
+
+  return useQuery({
+    queryKey,
+    queryFn: () => queryClient.getQueryData(queryKey) || [],
+    enabled: !!celular,
     staleTime: Infinity,
   })
 }
@@ -28,8 +48,8 @@ export function useUpdateWholesaleStatus() {
   return useMutation({
     mutationFn: ({ id, newStatus }) => 
       wholesaleService.updateWholesaleRequestStatus(id, newStatus),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: KEYS.wholesale })
+    onSuccess: (data, variables) => {
+      // No invalidamos la lista completa de forma destructiva porque se gestiona por onSnapshot en tiempo real
     },
   })
 }

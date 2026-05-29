@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, MapPin, CreditCard, CheckCircle2, ChevronRight, Store, Truck, User, Phone, Tag, Check, AlertCircle } from 'lucide-react'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_MESSAGES, SUPPORT_WHATSAPP } from '../../../constants'
+import ModalTemplate from '../../common/ModalTemplate'
 import { checkoutSchema } from '../../../schemas/orderSchemas'
 import useCartStore from '../../../store/cartStore'
 import useAuthStore from '../../../store/authStore'
@@ -12,24 +13,35 @@ import { formatCurrency } from '../../../utils/formatters'
 import useGuidedStore from '../../../store/guidedStore'
 import useInactivityTimer from '../../../hooks/useInactivityTimer'
 import SmartHint from '../guided/SmartHint'
+import { openWhatsAppChat } from '../../../services/whatsappService'
+import useCopyToClipboard from '../../../hooks/useCopyToClipboard'
 
-const PAYMENT_METHODS_OPTIONS = [
-  {
-    id: PAYMENT_METHODS.CASH,
-    title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.CASH],
-    description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.CASH],
-  },
-  {
-    id: PAYMENT_METHODS.TRANSFER,
-    title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.TRANSFER],
-    description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.TRANSFER],
-  },
-  {
-    id: PAYMENT_METHODS.CREDIT,
-    title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.CREDIT],
-    description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.CREDIT],
-  },
-]
+
+// Métodos de pago base
+const getPaymentMethodsOptions = (creditsEnabled) => {
+  const options = [
+    {
+      id: PAYMENT_METHODS.CASH,
+      title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.CASH],
+      description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.CASH],
+    },
+    {
+      id: PAYMENT_METHODS.TRANSFER,
+      title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.TRANSFER],
+      description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.TRANSFER],
+    },
+  ]
+
+  if (creditsEnabled) {
+    options.push({
+      id: PAYMENT_METHODS.CREDIT,
+      title: PAYMENT_METHOD_LABELS[PAYMENT_METHODS.CREDIT],
+      description: PAYMENT_METHOD_MESSAGES[PAYMENT_METHODS.CREDIT],
+    })
+  }
+
+  return options
+}
 
 // Opciones de entrega
 const DELIVERY_OPTIONS = [
@@ -61,7 +73,7 @@ const STEP_TITLES = {
 export default function CheckoutModal({ isOpen, onClose }) {
   const { items, getTotal, clearCart } = useCartStore()
   const { user } = useAuthStore()
-  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings, orderTrackingEnabled } = useAppConfigStore()
+  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings, orderTrackingEnabled, creditsEnabled } = useAppConfigStore()
   const { mutateAsync: createOrder, isPending } = useCreateOrder()
   const { completedSteps, markStepCompleted } = useGuidedStore()
   const { data: coupons = [] } = useCoupons()
@@ -119,6 +131,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponError, setCouponError] = useState('')
   const [showCouponSelector, setShowCouponSelector] = useState(false)
+  const [copied, copyLink] = useCopyToClipboard()
 
   const { isInactive: isShippingInactive } = useInactivityTimer(10000, step === 2 && isOpen)
 
@@ -368,15 +381,6 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   // ── Mensaje WhatsApp ──────────────────────────────────────────────────────
   const handleWhatsApp = () => {
-    const adminPhone = whatsappAdmin || SUPPORT_WHATSAPP
-    if (!adminPhone) return
-    
-    let adminPhoneClean = adminPhone.replace(/\D/g, '')
-    // Si tiene 10 dígitos (formato celular local en Colombia), le anteponemos el indicativo de país 57
-    if (adminPhoneClean.length === 10) {
-      adminPhoneClean = '57' + adminPhoneClean
-    }
-
     const snap = orderSnapshot
     const num = snap?.numero || orderNumber
     const isDomicilio = snap?.tipoEntrega === 'domicilio'
@@ -436,12 +440,6 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
     const seller = useAppConfigStore.getState().sellerName || 'el Administrador'
 
-    let trackingLine = ''
-    if (orderTrackingEnabled && snap?.trackingToken) {
-      const trackingUrl = `${window.location.origin}/pedido/status?t=${snap.trackingToken}`
-      trackingLine = `\n\n📍 *Sigue tu pedido en vivo aquí:*\n${trackingUrl}`
-    }
-
     const text =
 `Hola ${seller} de *${appName || 'la Tienda'}*.
 ${e.carrito} *Nuevo Pedido #${num}*
@@ -454,11 +452,9 @@ ${e.caja} *Productos:*
 ${itemsText}
 ${subtotalLine}${couponLine}${shippingLine}
 ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodoPago}${bancoLine}
-${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLine}`
+${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
 
-    const encoded = encodeURIComponent(text)
-    const url = `https://api.whatsapp.com/send/?phone=${adminPhoneClean}&text=${encoded}&type=phone_number&app_absent=0`
-    window.open(url, '_blank')
+    openWhatsAppChat({ message: text })
     onClose()
   }
 
@@ -473,71 +469,34 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLi
     return true
   })
 
-  return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={step === 4 ? onClose : undefined}
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+  const stepperSubtitle = step === 4 ? null : (
+    <div className="flex items-center gap-1.5 mt-1">
+      {[1, 2, 3].map(s => (
+        <div
+          key={s}
+          className="h-1 rounded-full transition-all duration-300"
+          style={{
+            width: s === step ? '16px' : '6px',
+            backgroundColor: s <= step ? 'var(--color-primary)' : 'var(--color-border)',
+          }}
         />
+      ))}
+    </div>
+  )
 
-        <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-lg bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]"
-        >
-          {/* Header */}
-          {step !== 4 && (
-            <div className="flex items-center justify-between p-4 border-b border-app bg-surface z-10 shrink-0">
-              <div className="flex items-center gap-3">
-                {step > 1 && (
-                  <button
-                    onClick={() => setStep(step - 1)}
-                    className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center hover:bg-app text-app transition-colors"
-                  >
-                    <ChevronRight className="rotate-180" size={18} />
-                  </button>
-                )}
-                <div>
-                  <h2 className="text-lg font-bold text-app">{STEP_TITLES[step]}</h2>
-                  {/* Indicadores de paso */}
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {[1, 2, 3].map(s => (
-                      <div
-                        key={s}
-                        className="h-1 rounded-full transition-all duration-300"
-                        style={{
-                          width: s === step ? '20px' : '6px',
-                          backgroundColor: s <= step ? 'var(--color-primary)' : 'var(--color-border)',
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-          )}
-
-          {/* Contenido */}
-          <div className="flex-1 overflow-y-auto p-6">
-
-            {errors.global && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-error rounded-xl text-sm font-medium">
-                {errors.global}
-              </div>
-            )}
+  return (
+    <ModalTemplate
+      isOpen={isOpen}
+      onClose={onClose}
+      title={step === 4 ? null : STEP_TITLES[step]}
+      subtitle={stepperSubtitle}
+      onBack={step > 1 && step < 4 ? () => setStep(step - 1) : null}
+    >
+      {errors.global && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-error rounded-xl text-sm font-medium">
+          {errors.global}
+        </div>
+      )}
 
             {/* ══ PASO 1: SELECCIÓN DE ENTREGA ══════════════════════════════════ */}
             {step === 1 && (
@@ -713,7 +672,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLi
                 </div>
 
                 <div className="space-y-3">
-                  {PAYMENT_METHODS_OPTIONS.map((method) => {
+                  {getPaymentMethodsOptions(creditsEnabled).map((method) => {
                     const isSelected = formData.metodoPago === method.id
                     return (
                       <motion.div
@@ -846,54 +805,127 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLi
 
             {/* ══ PASO 4: ÉXITO ════════════════════════════════════════════════ */}
             {step === 4 && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
+              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.1 }}
-                  className="w-20 h-20 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-6"
+                  className="w-16 h-16 bg-success/20 text-success rounded-full flex items-center justify-center mx-auto mb-4"
                 >
-                  <CheckCircle2 size={40} />
+                  <CheckCircle2 size={32} />
                 </motion.div>
 
-                <div className="relative max-w-[280px] mx-auto mb-4">
-                  <SmartHint
-                    stepId="checkout_success"
-                    message="¡Felicidades! Lograste realizar tu pedido. Nosotros nos encargaremos del resto."
-                    position="bottom"
-                    delay={300}
-                  />
-                </div>
-
-                <h2 className="text-2xl font-bold text-app mb-2">¡Pedido Exitoso!</h2>
-                <p className="text-muted mb-2">
+                <h2 className="text-xl font-bold text-app mb-1">¡Pedido Exitoso!</h2>
+                <p className="text-sm text-muted mb-2">
                   Tu pedido <span className="font-mono font-bold text-app">#{orderNumber}</span> ha sido recibido.
                 </p>
 
                 {/* Resumen de entrega */}
                 <div
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-6"
+                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4"
                   style={{ background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: 'var(--color-primary)' }}
                 >
-                  {orderSnapshot?.tipoEntrega === 'domicilio' && <><Truck size={13} /> Domicilio</>}
-                  {orderSnapshot?.tipoEntrega === 'retiro' && <><Store size={13} /> Retiro en Tienda</>}
-                  {orderSnapshot?.tipoEntrega === 'digital' && <><CheckCircle2 size={13} /> Digital / Servicio</>}
+                  {orderSnapshot?.tipoEntrega === 'domicilio' && <><Truck size={12} /> Domicilio</>}
+                  {orderSnapshot?.tipoEntrega === 'retiro' && <><Store size={12} /> Retiro en Tienda</>}
+                  {orderSnapshot?.tipoEntrega === 'digital' && <><CheckCircle2 size={12} /> Digital / Servicio</>}
                 </div>
 
+                {/* Bloque de Seguimiento en Vivo para el Cliente */}
+                {orderTrackingEnabled && orderSnapshot?.trackingToken && (
+                  <div className="mb-5 p-4 rounded-xl bg-surface-2 border border-app text-left space-y-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-app flex items-center gap-1.5">
+                        📍 Seguimiento en vivo
+                      </h4>
+                      <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
+                        Guarda este enlace para consultar el progreso de tu pedido en cualquier momento.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}/pedido/status?t=${orderSnapshot.trackingToken}`
+                          copyLink(url)
+                        }}
+                        className="flex-1 h-9 rounded-lg border border-neutral-400 bg-white text-[11px] font-bold text-neutral-800 hover:bg-neutral-100 flex items-center justify-center gap-1 transition-all duration-200"
+                      >
+                        {copied ? (
+                          <>
+                            <Check size={12} className="text-success animate-bounce" />
+                            ¡Copiado!
+                          </>
+                        ) : (
+                          'Copiar Enlace'
+                        )}
+                      </button>
+                      
+                      <a
+                        href={`/pedido/status?t=${orderSnapshot.trackingToken}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 h-9 rounded-lg text-white text-[11px] font-bold hover:opacity-90 flex items-center justify-center gap-1 transition-all duration-200"
+                        style={{ backgroundColor: 'var(--color-primary)' }}
+                      >
+                        Ver Estado
+                      </a>
+                    </div>
+                  </div>
+                )}
+
                 {whatsappAdmin || SUPPORT_WHATSAPP ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-app font-medium">
-                      Para agilizar el proceso, notifícanos por WhatsApp:
-                    </p>
+                  <div className="flex gap-3 mt-4 w-full relative">
+                    <style>{`
+                      @keyframes whatsapp-glow {
+                        0% {
+                          box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+                          transform: scale(1);
+                        }
+                        50% {
+                          box-shadow: 0 0 0 12px rgba(37, 211, 102, 0);
+                          transform: scale(1.03);
+                        }
+                        100% {
+                          box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
+                          transform: scale(1);
+                        }
+                      }
+                      @keyframes whatsapp-icon-swing {
+                        0%, 100% { transform: rotate(0deg); }
+                        20% { transform: rotate(-8deg); }
+                        40% { transform: rotate(10deg); }
+                        60% { transform: rotate(-5deg); }
+                        80% { transform: rotate(5deg); }
+                      }
+                      .animate-whatsapp-btn {
+                        animation: whatsapp-glow 2s infinite ease-in-out;
+                      }
+                      .animate-whatsapp-btn:hover {
+                        animation: none;
+                        transform: scale(1.05);
+                        box-shadow: 0 0 15px rgba(37, 211, 102, 0.6);
+                      }
+                      .animate-whatsapp-icon {
+                        animation: whatsapp-icon-swing 2.5s infinite ease-in-out;
+                      }
+                    `}</style>
                     <button
                       onClick={handleWhatsApp}
-                      className="w-full h-12 bg-[#25D366] text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2"
+                      className="w-1/2 h-11 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center justify-center gap-2 animate-whatsapp-btn border-0 shadow-lg shadow-green-500/20"
                     >
+                      <svg 
+                        className="w-5 h-5 fill-none stroke-current stroke-2 animate-whatsapp-icon" 
+                        viewBox="0 0 24 24" 
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.74.175-7.043.513C3.373 3.748 2.25 5.14 2.25 6.741v5.028z" />
+                      </svg>
                       Avisar por WhatsApp
                     </button>
                     <button
                       onClick={onClose}
-                      className="w-full h-12 bg-surface-2 text-app rounded-xl font-bold transition-all active:scale-95"
+                      className="w-1/2 h-11 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm"
                     >
                       Cerrar
                     </button>
@@ -901,16 +933,13 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}${trackingLi
                 ) : (
                   <button
                     onClick={onClose}
-                    className="w-full h-14 bg-primary text-white rounded-2xl font-bold transition-all active:scale-95"
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold text-sm transition-all active:scale-95"
                   >
                     Entendido
                   </button>
                 )}
               </motion.div>
             )}
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+    </ModalTemplate>
   )
 }

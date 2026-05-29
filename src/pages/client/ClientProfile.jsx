@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, LogOut, Package, CreditCard, Sparkles, ChevronRight, Info, Edit2, Download, CheckCircle } from 'lucide-react'
+import { User, LogOut, Package, CreditCard, Sparkles, ChevronRight, Info, Edit2, Download, CheckCircle, Smartphone } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import useGuidedStore from '../../store/guidedStore'
@@ -15,7 +15,7 @@ const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', 
 export default function ClientProfile() {
   const { user, logout, updateClient } = useAuthStore()
   const { isAssistanceMode, enableAssistance, disableAssistance, resetProgress } = useGuidedStore()
-  const { guidedModeEnabled } = useAppConfigStore()
+  const { guidedModeEnabled, developerPhone, appName } = useAppConfigStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
   const navigate = useNavigate()
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -50,6 +50,13 @@ export default function ClientProfile() {
       resetProgress() // Reinicia los tutoriales al volver a activar
       enableAssistance()
     }
+  }
+
+  const handleContactDeveloper = () => {
+    if (!developerPhone) return
+    const phone = developerPhone.replace(/\D/g, '')
+    const message = encodeURIComponent(`Hola, vi tu contacto en la app *${appName}*. Me interesa cotizar una aplicación para mi propio negocio.`)
+    window.open(`https://api.whatsapp.com/send/?phone=${phone}&text=${message}&type=phone_number&app_absent=0`, '_blank')
   }
 
   return (
@@ -98,7 +105,7 @@ export default function ClientProfile() {
                         <button 
                           key={e} 
                           onClick={() => { handleUpdateEmoji(e); setShowEmojiPicker(false) }}
-                          className={`text-2xl hover:bg-surface-2 rounded-xl p-2 transition-colors flex items-center justify-center ${user?.emoji === e ? 'bg-primary/10 border border-primary/30' : ''}`}
+                          className={`text-2xl hover:bg-surface-2 rounded-xl p-2 transition-colors flex items-center justify-center ${user?.emoji === e ? 'bg-primary-soft border border-primary-soft' : ''}`}
                         >
                           {e}
                         </button>
@@ -213,6 +220,32 @@ export default function ClientProfile() {
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner Publicitario del Desarrollador (Limpio y Profesional) */}
+        {developerPhone && (
+          <div className="relative overflow-hidden rounded-3xl bg-primary-soft border border-primary-soft p-5 shadow-xs">
+            <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-primary/5 blur-xl pointer-events-none" />
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Sparkles size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-app text-sm leading-tight">¿Quieres una app para tu negocio?</h3>
+                <p className="text-xs text-muted mt-1 leading-relaxed">
+                  Creamos aplicaciones móviles y herramientas digitales personalizadas para ayudarte a vender y organizar tu negocio.
+                </p>
+                <button
+                  onClick={handleContactDeveloper}
+                  className="mt-3 px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-xs hover:opacity-90 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                  style={{ borderRadius: 'var(--radius-base)' }}
+                >
+                  <Smartphone size={14} />
+                  Cotizar mi Aplicación
+                </button>
+              </div>
             </div>
           </div>
         )}

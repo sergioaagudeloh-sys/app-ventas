@@ -1,0 +1,138 @@
+# 🗺️ Mapa de Arquitectura y Rutas Semánticas para Inteligencia Artificial
+
+> [!IMPORTANT]
+> **INSTRUCCIONES PARA LA IA:** Lee este archivo para comprender instantáneamente la estructura física, los roles de los módulos y las dependencias de este proyecto. Utiliza los enlaces directos en formato URL absoluta para abrir o editar archivos directamente sin realizar búsquedas recursivas (grep) innecesarias en el espacio de trabajo.
+
+---
+
+## 📂 Directorio de Archivos y Roles Técnicos
+
+### ⚙️ Componente UI (Interfaz de usuario reusable)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **CategoryManager.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `CategoryManager` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/admin/inventory/CategoryManager.jsx) |
+| **ProductFormModal.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `inventorySchemas`, `constants`, `useInventory`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/admin/inventory/ProductFormModal.jsx) |
+| **CartDrawer.jsx** | Componente o módulo funcional de la aplicación. | `formatters`, `cartStore`, `guidedStore`, `CheckoutModal`, `SmartHint` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/cart/CartDrawer.jsx) |
+| **CatalogBanner.jsx** | Filtrar anuncios activos en el rango de fechas | `appConfigStore`, `useAds`, `useInventory` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/catalog/CatalogBanner.jsx) |
+| **ClientFilterModal.jsx** | Local state for the filters being selected in the modal | `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/catalog/ClientFilterModal.jsx) |
+| **ProductCard.jsx** | Componente o módulo funcional de la aplicación. | `formatters`, `favoritesStore`, `authStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/catalog/ProductCard.jsx) |
+| **ProductDetailModal.jsx** | Componente o módulo funcional de la aplicación. | `formatters`, `cartStore`, `guidedStore`, `SmartHint`, `ModalTemplate`, `QuantitySelector` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/catalog/ProductDetailModal.jsx) |
+| **WholesaleRequestModal.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `constants`, `authStore`, `appConfigStore`, `whatsappService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/catalog/WholesaleRequestModal.jsx) |
+| **CheckoutModal.jsx** | Componente o módulo funcional de la aplicación. | `constants`, `ModalTemplate`, `orderSchemas`, `cartStore`, `authStore`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/checkout/CheckoutModal.jsx) |
+| **ClaimRequestModal.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `constants`, `ModalTemplate`, `QuantitySelector` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/claims/ClaimRequestModal.jsx) |
+| **ClientCouponsModal.jsx** | Filtrar cupones activos y no expirados | `useCopyToClipboard`, `useCoupons`, `formatters`, `ModalTemplate` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/coupons/ClientCouponsModal.jsx) |
+| **SmartHint.jsx** | 'top', 'bottom', 'floating', 'banner', 'none' | `appConfigStore`, `guidedStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/guided/SmartHint.jsx) |
+| **ModalTemplate.jsx** | Componente o módulo funcional de la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/common/ModalTemplate.jsx) |
+| **AppLoader.jsx** | Loader global de la aplicación. Se muestra durante lazy loading de rutas y carga inicial. Usa el nombre de la app configurado para personalizarlo. | `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/AppLoader.jsx) |
+| **BackButton.jsx** | Componente atómico de navegación para ir atrás. Garantiza consistencia visual y de comportamiento en toda la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/BackButton.jsx) |
+| **CategoryManager.jsx** | Compact SVG Icons dictionary to replace lucide-react and keep the component 100% portable | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/CategoryManager.jsx) |
+| **GuidedToast.jsx** | Componente o módulo funcional de la aplicación. | `guidedStore`, `cartStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/GuidedToast.jsx) |
+| **PWAInstallBanner.jsx** | Componente o módulo funcional de la aplicación. | `usePWAInstall` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/PWAInstallBanner.jsx) |
+| **QuantitySelector.jsx** | Componente atómico para la selección y ajuste de cantidades. Garantiza consistencia en comportamiento, bordes, estados deshabilitados y transiciones. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/QuantitySelector.jsx) |
+| **SeasonalOverlay.jsx** | Componente o módulo funcional de la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/SeasonalOverlay.jsx) |
+
+### ⚙️ Enrutador (Navegación de vistas)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **AppRoutes.jsx** | ─── Lazy loading de páginas (Guía Maestra §11.3) ──────────────────────────── | `authStore`, `constants`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/routes/AppRoutes.jsx) |
+
+### ⚙️ Estado Global (Zustand Store de sincronización)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **appConfigStore.js** | Store de configuración de la aplicación. Refleja en tiempo real los datos cargados desde Firestore /config/settings. Controla: nombre de la app, tema, modo oscuro, paleta de colores. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/appConfigStore.js) |
+| **authStore.js** | Store de autenticación global. Maneja el estado del usuario actual (admin o cliente). Persiste en localStorage para mantener sesión activa. | `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/authStore.js) |
+| **cartStore.js** | Store del carrito de compras. Persiste en localStorage para que el carrito no se pierda al navegar. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/cartStore.js) |
+| **favoritesStore.js** | Store global para gestionar los favoritos del usuario en tiempo real con Firestore. Esto evita crear múltiples 'listeners' al renderizar muchos ProductCards. | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/favoritesStore.js) |
+| **guidedStore.js** | Store del Sistema de Compra Guiada Inteligente. Registra qué pasos ya aprendió el usuario para no repetir ayudas innecesariamente. Controla el Modo Asistencia (activado/desactivado). | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/guidedStore.js) |
+
+### ⚙️ Hook Custom (Lógica reactiva modular)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **useAds.js** | Hook para obtener todos los anuncios (activos e inactivos) con suscripción en tiempo real | `react-query`, `adService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useAds.js) |
+| **useAppConfigSync.js** | Hook global que sincroniza la configuración de Firestore con Zustand. Debe ser llamado una sola vez en la raíz de la aplicación (App.jsx). | `appConfigService`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useAppConfigSync.js) |
+| **useAuthInit.js** | Hook para inicializar la autenticación de la aplicación. Maneja la lógica híbrida: 1. Clientes: Viven en LocalStorage (hidratación de Zustand). 2. Administradores: Viven en Firebase Auth. | `firebaseConfig`, `authStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useAuthInit.js) |
+| **useBilling.js** | Hook para el módulo de Facturación del Desarrollador. Se suscribe en tiempo real a métricas de comisión calculadas sobre los pedidos completados y el porcentaje configurado. @returns {{ metrics: object|null, isLoading: boolean, savePercent: (percent: number) => Promise<void>, isSaving: boolean, }} | `billingService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useBilling.js) |
+| **useCopyToClipboard.js** | Hook personalizado para copiar texto al portapapeles con reset automático de estado. @param {number} resetInterval - Tiempo en milisegundos para restablecer el estado "copiado". @returns {[boolean, function, any]} [isCopied, copy, copiedValue] | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useCopyToClipboard.js) |
+| **useCoupons.js** | 5 minutos de caché | `react-query`, `couponService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useCoupons.js) |
+| **useCredits.js** | ─── ADMIN HOOKS ───────────────────────────────────────────────────────────── | `react-query`, `creditService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useCredits.js) |
+| **useInactivityTimer.js** | Hook para detectar inactividad del usuario en una pantalla. @param {number} timeoutMs - Tiempo en milisegundos para considerar inactividad (ej. 15000) @param {boolean} isActive - Si el timer debe estar encendido | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useInactivityTimer.js) |
+| **useInventory.js** | ─── HOOKS DE CATEGORÍAS ───────────────────────────────────────────────────── | `react-query`, `inventoryService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useInventory.js) |
+| **useOrders.js** | ─── ADMIN HOOKS ───────────────────────────────────────────────────────────── | `react-query`, `orderService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useOrders.js) |
+| **usePWAInstall.js** | 1. Verificar si está descartado permanentemente | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/usePWAInstall.js) |
+| **useWholesale.js** | Componente o módulo funcional de la aplicación. | `react-query`, `wholesaleService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/hooks/useWholesale.js) |
+
+### ⚙️ Página / Vista (Vistas principales de navegación)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **AdminClaims.jsx** | Componente o módulo funcional de la aplicación. | `claimsService`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminClaims.jsx) |
+| **AdminCredits.jsx** | activo | pagado | `useCredits`, `creditSchemas`, `formatters`, `creditService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminCredits.jsx) |
+| **AdminHome.jsx** | Componente o módulo funcional de la aplicación. | `useOrders`, `useCredits`, `useInventory`, `useBilling`, `constants`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminHome.jsx) |
+| **AdminInventory.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `CategoryManager`, `ProductFormModal`, `formatters`, `search` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminInventory.jsx) |
+| **AdminOrders.jsx** | Componente o módulo funcional de la aplicación. | `useOrders`, `useCredits`, `useWholesale`, `constants`, `formatters`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminOrders.jsx) |
+| **AdminSales.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `useOrders`, `userService`, `authStore`, `appConfigStore`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSales.jsx) |
+| **AdminSalesDetail.jsx** | ─── Helpers de fecha ──────────────────────────────────────────────────────── | `BackButton`, `useOrders`, `constants`, `formatters`, `useInventory`, `pdfService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSalesDetail.jsx) |
+| **AdminSettings.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `constants`, `appConfigService`, `appConfigStore`, `authStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSettings.jsx) |
+| **AdminStockAlerts.jsx** | Buscador local de alertas | `BackButton`, `QuantitySelector`, `useInventory` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminStockAlerts.jsx) |
+| **ClientCatalog.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `categoryIcons`, `useAds`, `appConfigStore`, `SmartHint`, `ProductCard` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientCatalog.jsx) |
+| **ClientCredits.jsx** | Componente o módulo funcional de la aplicación. | `useCredits`, `authStore`, `appConfigStore`, `formatters`, `constants`, `creditService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientCredits.jsx) |
+| **ClientFavorites.jsx** | Componente o módulo funcional de la aplicación. | `favoritesStore`, `useInventory`, `authStore`, `cartStore`, `formatters`, `ProductDetailModal` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientFavorites.jsx) |
+| **ClientOrders.jsx** | Componente o módulo funcional de la aplicación. | `react-query`, `useOrders`, `useWholesale`, `useInventory`, `orderService`, `wholesaleService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientOrders.jsx) |
+| **ClientProfile.jsx** | Componente o módulo funcional de la aplicación. | `authStore`, `guidedStore`, `appConfigStore`, `usePWAInstall`, `constants`, `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientProfile.jsx) |
+| **OrderTracking.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `appConfigStore`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/OrderTracking.jsx) |
+| **LoginPage.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `authStore`, `appConfigStore`, `appConfigService`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/LoginPage.jsx) |
+| **WelcomePage.jsx** | Leer color primario real desde las variables CSS del DOM | `appConfigStore`, `authStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/WelcomePage.jsx) |
+
+### ⚙️ Servicio de Backend / API (Integración de persistencia)
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **adService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/adService.js) |
+| **appConfigService.js** | Ruta del documento de configuración global en Firestore | `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/appConfigService.js) |
+| **billingService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `appConfigService`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/billingService.js) |
+| **claimsService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/claimsService.js) |
+| **clientNotificationService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/clientNotificationService.js) |
+| **couponService.js** | Definir constante de colección local si no está en constants | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/couponService.js) |
+| **creditService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants`, `clientNotificationService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/creditService.js) |
+| **inventoryService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/inventoryService.js) |
+| **orderService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants`, `clientNotificationService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/orderService.js) |
+| **pdfService.js** | Helper to convert Firestore timestamp or other date representation to a local Date object | `formatters`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/pdfService.js) |
+| **telemetryService.js** | Reporta los acumulados mensuales de la tienda al panel central del desarrollador. @param {number} totalVentas - Monto total acumulado facturado en el mes. @param {number} comisionPorcentaje - Porcentaje comisionado pactado con el desarrollador. @param {string} periodo - Periodo formateado en año-mes (ej: "2026-05"). | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/telemetryService.js) |
+| **userService.js** | Busca un cliente en Firestore por su número de celular. @param {string} celular - Número de teléfono del cliente @returns {Promise<object|null>} Los datos del cliente si existe, o null | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/userService.js) |
+| **whatsappService.js** | Servicio / Utilidad para estructurar y abrir enlaces de chat hacia WhatsApp. Centraliza la sanitización de teléfonos y la codificación de mensajes. | `appConfigStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/whatsappService.js) |
+| **wholesaleService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants`, `clientNotificationService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/wholesaleService.js) |
+
+### ⚙️ Utilidad/Helper
+
+| Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
+| :--- | :--- | :--- | :--- |
+| **App.css** | Componente o módulo funcional de la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/App.css) |
+| **App.jsx** | Componente o módulo funcional de la aplicación. | `react-query`, `AppRoutes`, `CartDrawer`, `GuidedToast`, `PWAInstallBanner`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/App.jsx) |
+| **firebaseConfig.js** | Configuración oficial de Firebase para la aplicación. Las credenciales se obtienen desde variables de entorno (.env.local) para no exponerlas en el código fuente. | `firestore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/config/firebaseConfig.js) |
+| **categoryIcons.js** | Moda y Accesorios | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/constants/categoryIcons.js) |
+| **fonts.js** | ─── TIPOGRAFÍAS DE LA APLICACIÓN ─────────────────────────────────────────── 20 fuentes organizadas por categoría estética. Cada fuente se carga dinámicamente desde Google Fonts. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/constants/fonts.js) |
+| **index.js** | Constantes globales del sistema. Centraliza todos los valores fijos de la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/constants/index.js) |
+| **palettes.js** | Colores base para fondos y superficies si no se especifican en la paleta | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/constants/palettes.js) |
+| **index.css** | ═══════════════════════════════════════════════════════════════════════════ SISTEMA DE PALETAS DE COLORES — App Ventas 8 temas: Femeninos | Masculinos | Neutros | Oscuros Aplicados via atributo data-theme en el elemento raíz <html> Modo oscuro: clase 'dark' en <html> ═══════════════════════════════════════════════════════════════════════════ | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/index.css) |
+| **AdminLayout.jsx** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `appConfigStore`, `authStore`, `orderService`, `creditService`, `claimsService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/layouts/AdminLayout.jsx) |
+| **ClientLayout.jsx** | Componente o módulo funcional de la aplicación. | `appConfigStore`, `cartStore`, `authStore`, `favoritesStore`, `useInactivityTimer`, `SmartHint` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/layouts/ClientLayout.jsx) |
+| **main.jsx** | Registrar Service Worker para PWA (auto-update) | `App.jsx` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/main.jsx) |
+| **creditSchemas.js** | Esquema para validar un abono (pago parcial) a una deuda | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/schemas/creditSchemas.js) |
+| **inventorySchemas.js** | Esquema de validación para una Categoría. | `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/schemas/inventorySchemas.js) |
+| **orderSchemas.js** | Tipo de entrega: domicilio o retiro en tienda | `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/schemas/orderSchemas.js) |
+| **audio.js** | Utilidades para generar y reproducir sonidos de alerta sintetizados en tiempo real utilizando la Web Audio API nativa del navegador. Evita la necesidad de descargar archivos de audio externos. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/utils/audio.js) |
+| **dynamicManifest.js** | Dibuja un rectángulo con esquinas redondeadas. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/utils/dynamicManifest.js) |
+| **formatters.js** | Funciones utilitarias puras para formateo. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/utils/formatters.js) |
+| **search.js** | Normaliza una cadena de texto eliminando acentos/tildes y convirtiéndola a minúsculas. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/utils/search.js) |
+
+---
+
+## 📐 Prompt de Asimilación del Entorno (Para la IA)
+Cuando te sea provisto este mapa:
+1. **Asimila el Dominio:** Identifica qué páginas de negocio interactúan con qué servicios o almacenes de Zustand.
+2. **Navegación Directa:** Cuando debas modificar código, utiliza estrictamente las rutas absolutas indicadas en la tabla anterior en tus herramientas de edición o lectura de archivos para ahorrar ciclos de búsqueda.
+3. **Análisis de Impacto:** Antes de refactorizar un archivo, revisa la columna "Dependencias Críticas" para prevenir regresiones en componentes que lo consuman.

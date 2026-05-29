@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  AlertTriangle, ArrowLeft, Package, Plus, Minus, Check, Loader2, Search, RotateCcw
-} from 'lucide-react'
+import { AlertTriangle, Package, Plus, Minus, Check, Loader2, Search, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import BackButton from '../../components/ui/BackButton'
+import QuantitySelector from '../../components/ui/QuantitySelector'
 import { useProducts, useUpdateProduct } from '../../hooks/useInventory'
+
 
 export default function AdminStockAlerts() {
   const navigate = useNavigate()
@@ -130,17 +131,13 @@ export default function AdminStockAlerts() {
       {/* Cabecera */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/admin/inicio')}
-            className="w-10 h-10 rounded-2xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-app active:scale-95 transition-all shadow-sm"
-          >
-            <ArrowLeft size={18} />
-          </button>
+          <BackButton to="/admin/inicio" />
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-app">Reabastecer Inventario</h1>
             <p className="text-xs md:text-sm text-muted">Carga inventario directamente a los productos con stock bajo.</p>
           </div>
         </div>
+
 
         {/* Contador de Alertas */}
         <span className="px-4 py-1.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-2xl text-xs font-black uppercase tracking-wider shrink-0">
@@ -214,29 +211,14 @@ export default function AdminStockAlerts() {
 
                 {/* Formulario de Carga Directa */}
                 <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 justify-end">
-                  {/* Selector Numérico */}
-                  <div className="flex items-center bg-surface-2 rounded-2xl p-1 border border-app h-11 w-[130px] shrink-0">
-                    <button
-                      onClick={() => adjustQty(key, -1)}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-app hover:bg-surface transition-colors active:scale-95 border border-app/10"
-                      disabled={!loadVal}
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <input
-                      type="number"
-                      value={loadVal}
-                      onChange={(e) => handleQtyChange(key, e.target.value)}
-                      placeholder="0"
-                      className="w-10 text-center font-bold text-app bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      onClick={() => adjustQty(key, 1)}
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-app hover:bg-surface transition-colors active:scale-95 border border-app/10"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                  {/* Selector Numérico Atómico */}
+                  <QuantitySelector
+                    value={parseInt(loadVal, 10) || 0}
+                    onChange={(val) => handleQtyChange(key, val)}
+                    min={0}
+                    max={999}
+                    className="w-[130px]"
+                  />
 
                   {/* Botón de Cargar */}
                   <button

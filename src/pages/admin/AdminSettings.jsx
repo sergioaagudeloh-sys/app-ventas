@@ -1,15 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
 import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS, DEV_PASSWORD } from '../../constants'
-import { updateAppConfig } from '../../services/appConfigService'
+import { updateAppConfig, updateCatalogFilters } from '../../services/appConfigService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
+import BackButton from '../../components/ui/BackButton'
+import { reportMonthlyBillingToDeveloper } from '../../services/telemetryService'
+
 import { ADVANCED_PALETTES, getActiveColors } from '../../constants/palettes'
 import { FONTS, FONT_CATEGORIES, FONTS_BY_CATEGORY } from '../../constants/fonts'
 import usePWAInstall from '../../hooks/usePWAInstall'
@@ -17,9 +20,9 @@ import { useAds, useCreateAd, useUpdateAd, useDeleteAd } from '../../hooks/useAd
 import { useProducts } from '../../hooks/useInventory'
 import { useBilling } from '../../hooks/useBilling'
 import { useOrders } from '../../hooks/useOrders'
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
+import { exportDeveloperReceiptPDF } from '../../services/pdfService'
 import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '../../hooks/useCoupons'
+import { formatCurrency } from '../../utils/formatters'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -422,6 +425,19 @@ export default function AdminSettings() {
   const [commissionInput, setCommissionInput] = useState(null)
   const [animatedValues, setAnimatedValues] = useState({ totalMes: 0, comisionMes: 0, pedidosMes: 0, comisionHistorica: 0 })
 
+  // Reporte automático de telemetría de facturación al panel central del desarrollador
+  useEffect(() => {
+    if (!billingLoading && billingMetrics) {
+      const now = new Date()
+      const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      reportMonthlyBillingToDeveloper(
+        billingMetrics.totalMes || 0,
+        billingMetrics.commissionPercent || 1,
+        periodo
+      )
+    }
+  }, [billingLoading, billingMetrics])
+
   // ─── FIRMA Y FACTURACIÓN DESARROLLADOR ─────────────────────────────────────
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -478,150 +494,19 @@ export default function AdminSettings() {
     }
   }
 
-  const exportDeveloperReceiptPDF = () => {
+  const handleExportDeveloperReceiptPDF = () => {
     try {
       const canvas = canvasRef.current
       if (!canvas) {
-        console.error("Canvas ref is null");
+        console.error("Canvas ref is null")
         return
       }
       const signatureDataUrl = canvas.toDataURL('image/png')
-
-      const now = new Date()
-      const currentYear = now.getFullYear()
-      const currentMonth = now.getMonth()
-      const MONTH_NAMES_ES = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-      ]
-      const monthLabel = `${MONTH_NAMES_ES[currentMonth]} ${currentYear}`
-
-      const currentPercent = billingMetrics?.commissionPercent ?? 1
-      
-      const toLocalDateLocal = (ts) => {
-        if (!ts) return null
-        if (ts.toDate) return ts.toDate()
-        if (ts instanceof Date) return ts
-        return new Date(ts)
-      }
-
-      const currentMonthOrders = orders.filter(o => {
-        if (o.estado !== ORDER_STATES.COMPLETED) return false
-        if (!o.createdAt) return false
-        const fecha = toLocalDateLocal(o.createdAt)
-        return fecha && fecha.getFullYear() === currentYear && fecha.getMonth() === currentMonth
-      })
-
-      const totalVentas = currentMonthOrders.reduce((sum, o) => sum + (o.total || 0), 0)
-      const totalComision = (totalVentas * currentPercent) / 100
-
-      const doc = new jsPDF()
-      const primaryColor = [16, 185, 129]
-
-      // Header banner
-      doc.setFillColor(...primaryColor)
-      doc.rect(0, 0, 210, 40, 'F')
-      
-      doc.setTextColor(255, 255, 255)
-      doc.setFontSize(18)
-      doc.setFont('helvetica', 'bold')
-      doc.text('RECIBO DE COMISIÓN DE DESARROLLADOR', 15, 22)
-      
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Periodo: ${monthLabel}`, 15, 30)
-      doc.text(`Generado: ${new Date().toLocaleString()}`, 140, 30)
-
-      // Detalle de las Partes
-      doc.setTextColor(31, 41, 55)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('INFORMACIÓN DE COBRO', 15, 52)
-      
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.text(`Desarrollador: Soporte Técnico / Administrador del Sistema`, 15, 59)
-      doc.text(`Cliente: ${config.sellerName || 'Propietaria de la Tienda'} (Dueña de la Tienda)`, 15, 64)
-      doc.text(`Porcentaje de Comisión: ${currentPercent}%`, 15, 69)
-
-      // Grid boxes
-      doc.setDrawColor(243, 244, 246)
-      doc.setFillColor(249, 250, 251)
-      doc.rect(15, 76, 85, 20, 'F')
-      doc.rect(110, 76, 85, 20, 'F')
-
-      doc.setFontSize(8)
-      doc.setTextColor(107, 114, 128)
-      doc.text('VENTAS TOTALES PROCESADAS', 20, 82)
-      doc.text('TOTAL COMISIÓN NETO A PAGAR', 115, 82)
-
-      doc.setFontSize(13)
-      doc.setTextColor(31, 41, 55)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`$${totalVentas.toLocaleString('es-CO')}`, 20, 91)
-      doc.setTextColor(16, 185, 129)
-      doc.text(`$${totalComision.toLocaleString('es-CO')}`, 115, 91)
-
-      // Table de Detalle
-      doc.setFontSize(11)
-      doc.setTextColor(31, 41, 55)
-      doc.text('Desglose de Pedidos del Periodo', 15, 107)
-
-      const tableHeaders = [['Fecha/Hora', 'Cliente Venta', 'Total Venta', 'Comisión']]
-      const tableData = currentMonthOrders.map(o => {
-        const fecha = toLocalDateLocal(o.createdAt)?.toLocaleString('es-ES') || 'N/A'
-        const clienteVenta = o.cliente?.nombre || 'Cliente General'
-        const comisionIndividual = (o.total * currentPercent) / 100
-        return [
-          fecha, 
-          clienteVenta, 
-          `$${(o.total || 0).toLocaleString('es-CO')}`, 
-          `$${comisionIndividual.toLocaleString('es-CO')}`
-        ]
-      })
-
-      const result = autoTable(doc, {
-        startY: 112,
-        head: tableHeaders,
-        body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: primaryColor, halign: 'left' },
-        styles: { fontSize: 8, cellPadding: 2.5 },
-        columnStyles: {
-          2: { halign: 'right' },
-          3: { halign: 'right' }
-        }
-      })
-
-      // Seccion de Firma
-      const finalY = (result && result.lastY) ? result.lastY + 15 : (doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 15 : 150);
-
-      if (finalY + 45 > 297) {
-        doc.addPage()
-        doc.text('Firma de Conformidad', 15, 30)
-        doc.addImage(signatureDataUrl, 'PNG', 15, 35, 60, 30)
-        doc.setFontSize(8)
-        doc.setTextColor(107, 114, 128)
-        doc.text('_____________________________________', 15, 75)
-        doc.text(`Firma del Cliente: ${config.sellerName || 'Propietaria de la Tienda'}`, 15, 80)
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, 84)
-      } else {
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Firma de Conformidad', 15, finalY)
-        doc.addImage(signatureDataUrl, 'PNG', 15, finalY + 5, 60, 30)
-        doc.setFontSize(8)
-        doc.setTextColor(107, 114, 128)
-        doc.text('_____________________________________', 15, finalY + 40)
-        doc.text(`Firma del Cliente: ${config.sellerName || 'Propietaria de la Tienda'}`, 15, finalY + 45)
-        doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 15, finalY + 49)
-      }
-
-      doc.save(`Recibo_Comision_${monthLabel.replace(' ', '_')}.pdf`)
+      exportDeveloperReceiptPDF({ signatureDataUrl, orders, config, billingMetrics })
       setIsSignatureModalOpen(false)
     } catch (error) {
-      console.error("Error al exportar el recibo en PDF:", error);
-      alert("Error al generar el PDF: " + error.message);
+      console.error("Error al exportar el recibo en PDF:", error)
+      alert("Error al generar el PDF: " + error.message)
     }
   }
 
@@ -778,6 +663,18 @@ export default function AdminSettings() {
     active: true
   })
 
+  // Mapa de usos de cupones: { 'CODIGO': número_de_pedidos }
+  const couponUsageMap = useMemo(() => {
+    const map = {}
+    orders.forEach(order => {
+      if (order.couponCode) {
+        const code = order.couponCode.toUpperCase()
+        map[code] = (map[code] || 0) + 1
+      }
+    })
+    return map
+  }, [orders])
+
   const handleSaveCoupon = () => {
     if (!couponFormData.code) {
       alert('Ingresa el código del cupón')
@@ -869,7 +766,10 @@ export default function AdminSettings() {
     catalogMode: 'standard',
     activeSeasonalEvent: 'none',
     claimsEnabled: false,
-    orderTrackingEnabled: false
+    orderTrackingEnabled: false,
+    developerPhone: '',
+    creditsEnabled: true,
+    couponsEnabled: true
   })
 
   // Sincronizar store local con formulario al cargar
@@ -934,7 +834,10 @@ export default function AdminSettings() {
         },
         catalogMode: config.catalogMode || 'standard',
         claimsEnabled: config.claimsEnabled ?? false,
-        orderTrackingEnabled: config.orderTrackingEnabled ?? false
+        orderTrackingEnabled: config.orderTrackingEnabled ?? false,
+        developerPhone: config.developerPhone || '',
+        creditsEnabled: config.creditsEnabled ?? true,
+        couponsEnabled: config.couponsEnabled ?? true
       })
     }
   }, [
@@ -966,7 +869,10 @@ export default function AdminSettings() {
     config.catalogMode,
     config.activeSeasonalEvent,
     config.claimsEnabled,
-    config.orderTrackingEnabled
+    config.orderTrackingEnabled,
+    config.developerPhone,
+    config.creditsEnabled,
+    config.couponsEnabled
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -995,7 +901,14 @@ export default function AdminSettings() {
     setIsSaving(true)
     setSaveMessage(null)
     try {
+      // Guardar configuración general
       await updateAppConfig(formData)
+
+      // Guardar filtros de catálogo en su documento independiente
+      if (formData.catalogFilters) {
+        await updateCatalogFilters(formData.catalogFilters)
+      }
+
       config.setConfig(formData)
       setSaveMessage({ type: 'success', text: 'Configuraciones guardadas y aplicadas a toda la aplicación.' })
       setTimeout(() => setSaveMessage(null), 4000)
@@ -1503,37 +1416,42 @@ export default function AdminSettings() {
           : 'max-w-2xl'
       }`}
     >
-      {/* Toast de guardado */}
-      <AnimatePresence>
-        {saveMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 50, x: '-50%' }}
-            className={`fixed bottom-6 left-1/2 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 w-[90%] max-w-sm text-sm font-extrabold transition-all duration-300 ${
-              saveMessage.type === 'error' 
-                ? 'bg-surface/85 border-red-500/20 text-app shadow-red-500/10' 
-                : 'bg-surface/85 border-primary/20 text-app shadow-primary/10'
-            }`}
-          >
-            {saveMessage.type === 'error' ? (
-              <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
-                <AlertTriangle size={14} className="stroke-[3]" />
-              </div>
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <CheckCircle size={14} className="stroke-[3]" />
-              </div>
-            )}
-            <p className="text-app mt-0.5">{saveMessage.text}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Toast de guardado renderizado en Portal para evitar brincos de animación */}
+      {ReactDOM.createPortal(
+        <AnimatePresence>
+          {saveMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -40, x: '-50%', scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
+              exit={{ opacity: 0, y: -20, x: '-50%', scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+              className={`fixed top-4 left-1/2 z-[9999] px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 w-[calc(100%-2rem)] max-w-sm text-sm font-extrabold transition-colors duration-300 md:left-auto md:right-4 md:translate-x-0 md:initial-none`}
+              style={{
+                // En desktop sobrescribimos el centrado en x de Tailwind usando variables responsivas
+                transform: window.innerWidth >= 768 ? 'none' : undefined,
+                left: window.innerWidth >= 768 ? 'auto' : '50%',
+              }}
+            >
+              {saveMessage.type === 'error' ? (
+                <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                  <AlertTriangle size={14} className="stroke-[3]" />
+                </div>
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                  <CheckCircle size={14} className="stroke-[3]" />
+                </div>
+              )}
+              <p className="text-app mt-0.5 flex-1">{saveMessage.text}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ─── HEADER ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 mb-8">
         {activeSection ? (
-          <button
+          <BackButton
             onClick={() => {
               if (activeSubSection) {
                 setActiveSubSection(null)
@@ -1541,11 +1459,8 @@ export default function AdminSettings() {
                 setActiveSection(null)
               }
             }}
-            className="w-10 h-10 rounded-2xl bg-surface-2 border border-app flex items-center justify-center text-app hover:bg-primary hover:text-white hover:border-primary transition-all active:scale-95 shrink-0"
-            aria-label="Volver"
-          >
-            <ArrowLeft size={20} />
-          </button>
+            className="hover:bg-primary hover:text-white hover:border-primary shrink-0"
+          />
         ) : (
           <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shrink-0">
             <Settings size={20} className="text-white" />
@@ -1996,6 +1911,23 @@ export default function AdminSettings() {
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Seguimiento de Pedidos</p>
                       <p className="text-xs text-muted leading-relaxed">Permite a tus clientes seguir sus pedidos en tiempo real por WhatsApp sin iniciar sesión.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
+                  </motion.button>
+
+                  {/* Tarjeta Gestión de Módulos (Feature Flags) */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('modulos')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <ToggleLeft size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Módulos Activos</p>
+                      <p className="text-xs text-muted leading-relaxed">Configura y activa/desactiva los módulos del negocio (Crédito, Reclamos, Cupones, Mayoreo).</p>
                     </div>
                     <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
@@ -2558,6 +2490,96 @@ export default function AdminSettings() {
                     className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
                   >
                     <Save size={18} /> Guardar Configuración de Seguimiento
+                  </button>
+                </div>
+              </>
+            )}
+            {activeSubSection === 'modulos' && (
+              <>
+                <div className="p-5 sm:p-6 space-y-5">
+                  <p className="text-xs text-muted">Habilita o deshabilita los módulos globales del negocio. Los cambios se aplicarán en tiempo real para clientes y administradores.</p>
+                  
+                  {/* Switch Crédito */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Módulo de Crédito y Cuentas por Cobrar</p>
+                      <p className="text-xs text-muted mt-0.5">Permite a los clientes seleccionar "Crédito" como forma de pago y habilita el control de fiados.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.creditsEnabled}
+                        onChange={(e) => setFormData({ ...formData, creditsEnabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {/* Switch Cupones */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Módulo de Cupones y Ofertas Flash</p>
+                      <p className="text-xs text-muted mt-0.5">Habilita cupones promocionales y barra de inserción de códigos de descuento en checkout.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.couponsEnabled}
+                        onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {/* Switch Reclamaciones */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Módulo de Garantías y Reclamos</p>
+                      <p className="text-xs text-muted mt-0.5">Permite a los clientes iniciar solicitudes de cambio o reclamo de garantía para pedidos completados.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.claimsEnabled}
+                        onChange={(e) => setFormData({ ...formData, claimsEnabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+
+                  {/* Switch Mayoreo */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Módulo de Ventas al por Mayor</p>
+                      <p className="text-xs text-muted mt-0.5">Permite aplicar descuentos automáticos por volumen de compra mayorista configurado.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.wholesaleSettings?.enabled}
+                        onChange={(e) => setFormData({ 
+                          ...formData, 
+                          wholesaleSettings: { ...formData.wholesaleSettings, enabled: e.target.checked } 
+                        })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-app bg-surface-2/30">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const payload = {
+                          creditsEnabled: formData.creditsEnabled ?? true,
+                          couponsEnabled: formData.couponsEnabled ?? true,
+                          claimsEnabled: formData.claimsEnabled ?? false,
+                          wholesaleSettings: formData.wholesaleSettings
+                        }
+                        await updateAppConfig(payload)
+                        config.setConfig(payload)
+                        setSaveMessage({ type: 'success', text: 'Módulos actualizados correctamente.' })
+                        setTimeout(() => setSaveMessage(null), 3000)
+                      } catch (e) {
+                        setSaveMessage({ type: 'error', text: 'Error al guardar configuración de módulos.' })
+                      }
+                    }}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                  >
+                    <Save size={18} /> Guardar Configuración de Módulos
                   </button>
                 </div>
               </>
@@ -4310,6 +4332,14 @@ export default function AdminSettings() {
                       icon: Trash2,
                       iconBg: 'bg-red-500/10 hover:bg-red-500/15',
                       iconColor: 'text-red-500'
+                    },
+                    {
+                      id: 'dev-contacto',
+                      label: 'Contacto del Desarrollador',
+                      description: 'Configura el WhatsApp del desarrollador para la publicidad del cliente',
+                      icon: Smartphone,
+                      iconBg: 'bg-blue-500/10 hover:bg-blue-500/15',
+                      iconColor: 'text-blue-500'
                     }
                   ].map(tool => {
                     const ToolIcon = tool.icon
@@ -4661,7 +4691,7 @@ export default function AdminSettings() {
                                   Limpiar Firma
                                 </button>
                                 <button
-                                  onClick={exportDeveloperReceiptPDF}
+                                  onClick={handleExportDeveloperReceiptPDF}
                                   className="flex-1 h-11 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all cursor-pointer"
                                 >
                                   Generar PDF
@@ -4721,6 +4751,36 @@ export default function AdminSettings() {
                       <Trash2 size={16} className="shrink-0" /> <span>Restaurar Aplicación a Cero (Borrado Real)</span>
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* 4. Subsección: Contacto del Desarrollador */}
+            {activeSubSection === 'dev-contacto' && (
+              <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+                <div className="p-5 sm:p-6 space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-app mb-2 flex items-center gap-2">
+                      WhatsApp del Desarrollador
+                      <span className="text-xs font-normal text-muted bg-surface-2 px-2 py-0.5 rounded-full border border-app">Sin el "+"</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.developerPhone || ''}
+                      onChange={(e) => setFormData({ ...formData, developerPhone: e.target.value })}
+                      placeholder="Ej. 573001234567"
+                      className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                    />
+                    <p className="text-xs text-muted mt-2">
+                      Este número se usará para que los clientes te contacten si están interesados en una aplicación para su propio negocio.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-5 border-t border-app bg-surface">
+                  <button onClick={handleSaveConfig} disabled={isSaving}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+                    <Save size={18} /> Guardar Contacto
+                  </button>
                 </div>
               </div>
             )}
@@ -5129,7 +5189,7 @@ export default function AdminSettings() {
                           Limpiar Firma
                         </button>
                         <button
-                          onClick={exportDeveloperReceiptPDF}
+                          onClick={handleExportDeveloperReceiptPDF}
                           className="flex-1 h-11 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transition-all cursor-pointer"
                         >
                           Generar PDF

@@ -19,6 +19,7 @@ import { COLLECTIONS } from '../constants'
 
 const creditsRef = collection(db, COLLECTIONS.CREDITS)
 const notificationsRef = collection(db, 'notifications')
+import { createClientNotification } from './clientNotificationService'
 
 /**
  * Obtener todos los créditos (Para el Admin)
@@ -50,12 +51,14 @@ export async function getClientCredits(celular) {
  */
 export async function addPaymentToCredit(creditId, paymentData) {
   const creditRef = doc(db, COLLECTIONS.CREDITS, creditId)
+  let creditData = null
 
   await runTransaction(db, async (transaction) => {
     const creditDoc = await transaction.get(creditRef)
     if (!creditDoc.exists()) throw new Error('Crédito no encontrado')
     
     const data = creditDoc.data()
+    creditData = data
     
     if (data.estado === 'pagado') {
       throw new Error('Esta deuda ya se encuentra totalmente pagada.')
@@ -87,6 +90,16 @@ export async function addPaymentToCredit(creditId, paymentData) {
       })
     }
   })
+
+  // Crear notificación persistente para el cliente después de que el abono se registre con éxito
+  if (creditData) {
+    await createClientNotification({
+      clienteCelular: creditData.clienteCelular,
+      message: `Se aplicó un abono de $${paymentData.monto.toLocaleString()} a tu crédito para el pedido #${creditData.orderNumber || ''}`,
+      type: 'abono',
+      orderId: creditData.orderId
+    })
+  }
 }
 
 /**

@@ -496,7 +496,7 @@ export function getActiveColors(themeConfig, isDarkMode, activeSeasonalEvent = '
 
   // Fallback de seguridad final
   if (!baseColors) {
-    baseColors = ADVANCED_PALETTES['rosa-elegante'].light;
+    baseColors = ADVANCED_PALETTES['carbon-oscuro'].light;
   }
 
   return {

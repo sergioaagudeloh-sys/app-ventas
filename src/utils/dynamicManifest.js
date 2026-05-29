@@ -15,12 +15,20 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath()
 }
 
+// Helper para verificar si un string es una URL o ruta válida
+function isValidUrlOrPath(str) {
+  if (!str || typeof str !== 'string') return false
+  const trimmed = str.trim()
+  if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') return false
+  return trimmed.startsWith('/') || trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')
+}
+
 /**
  * Genera una imagen PNG en Base64 colocando el logo de la tienda centrado sobre un fondo redondeado de color.
  */
 export function generateBrandIcon(appIcon, primaryColor) {
   return new Promise((resolve) => {
-    if (!appIcon) {
+    if (!isValidUrlOrPath(appIcon)) {
       resolve('/pwa-192x192.png')
       return
     }
@@ -62,20 +70,34 @@ export function generateBrandIcon(appIcon, primaryColor) {
  * Utilidad para generar e inyectar dinámicamente el manifest de la PWA
  * basado en la configuración real de marca (Nombre e Icono) en runtime.
  */
-export async function updateDynamicManifest(appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, primaryColor) {
+export async function updateDynamicManifest(appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, primaryColor, themeBgColor) {
   const finalAppName = pwaAppName || appName
   if (!finalAppName) return
 
   const displayName = finalAppName
   const shortName = finalAppName.substring(0, 12)
 
-  // Determinar la URL final del icono
+  // Determinar la URL final del icono con validación
   let iconUrl = '/pwa-192x192.png'
-  if (pwaUseBrandIcon && appIcon) {
-    iconUrl = await generateBrandIcon(appIcon, primaryColor)
+  const validPwaAppIcon = isValidUrlOrPath(pwaAppIcon) ? pwaAppIcon : null
+  const validAppIcon = isValidUrlOrPath(appIcon) ? appIcon : null
+
+  if (pwaUseBrandIcon && validAppIcon) {
+    iconUrl = await generateBrandIcon(validAppIcon, primaryColor)
   } else {
-    iconUrl = pwaAppIcon || appIcon || '/pwa-192x192.png'
+    iconUrl = validPwaAppIcon || validAppIcon || '/pwa-192x192.png'
   }
+
+  // Asegurar que la URL sea absoluta para evitar que el navegador falle al resolverla desde el Blob del manifiesto
+  let absoluteIconUrl = '/pwa-192x192.png'
+  try {
+    absoluteIconUrl = new URL(iconUrl, window.location.origin).href
+  } catch (e) {
+    console.error('Error al convertir la URL del icono PWA a absoluta:', e)
+    absoluteIconUrl = new URL('/pwa-192x192.png', window.location.origin).href
+  }
+
+  const resolvedBgColor = themeBgColor || '#ffffff'
 
   const manifest = {
     name: displayName,
@@ -83,17 +105,17 @@ export async function updateDynamicManifest(appName, appIcon, pwaAppName, pwaApp
     description: `Catálogo de compras y pedidos para ${displayName}`,
     start_url: window.location.origin + '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: primaryColor || '#6d28d9',
+    background_color: resolvedBgColor,
+    theme_color: resolvedBgColor,
     icons: [
       {
-        src: iconUrl,
+        src: absoluteIconUrl,
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any maskable'
       },
       {
-        src: iconUrl,
+        src: absoluteIconUrl,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any maskable'
