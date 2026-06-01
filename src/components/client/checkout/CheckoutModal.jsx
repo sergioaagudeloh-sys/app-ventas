@@ -149,6 +149,9 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   // Banco seleccionado para transferencia (cuando hay dos cuentas)
   const [selectedBank, setSelectedBank] = useState(1) // 1 | 2
+  
+  // Controlar visualización del mapa de recogida
+  const [showPickupMap, setShowPickupMap] = useState(false)
 
   // Limpiar cupones si cambia el método de pago para re-validar compatibilidad
   useEffect(() => {
@@ -185,6 +188,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
         notas: '',
       })
       setSelectedBank(1)
+      setShowPickupMap(false)
     }
   }, [isOpen, user])
 
@@ -578,26 +582,50 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   />
                 </div>
 
-                {/* Información de Retiro en Tienda con Mapa Fijo de Solo Lectura */}
-                {formData.tipoEntrega === 'retiro' && currentSettings.pickup?.coords && (
-                  <div className="p-4 bg-surface-2 border border-app rounded-2xl space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Store size={16} className="text-primary" />
-                      <p className="text-xs font-bold text-muted uppercase tracking-wider">Punto de Recogida</p>
-                    </div>
-                    <p className="text-sm font-semibold text-app">{currentSettings.pickup?.address || 'Nuestra Tienda Física'}</p>
-                    {currentSettings.pickup?.instructions && (
-                      <p className="text-xs text-muted leading-relaxed italic bg-surface/50 p-2.5 rounded-lg border border-app/40">{currentSettings.pickup.instructions}</p>
-                    )}
-                    <div className="mt-1">
-                      <LeafletMapPicker
-                        address={currentSettings.pickup?.address || ''}
-                        coords={currentSettings.pickup?.coords}
-                        readOnly={true}
-                      />
-                    </div>
-                  </div>
-                )}
+                 {/* Información de Retiro en Tienda con Mapa y Estilo Premium */}
+                 {formData.tipoEntrega === 'retiro' && currentSettings.pickup?.coords && (
+                   <div className="p-4 bg-surface-2 border border-app rounded-2xl space-y-4">
+                     <div className="flex items-center gap-2">
+                       <Store size={16} className="text-primary" />
+                       <p className="text-xs font-bold text-muted uppercase tracking-wider">Punto de Recogida</p>
+                     </div>
+                     <p className="text-sm font-semibold text-app leading-tight">{currentSettings.pickup?.address || 'Nuestra Tienda Física'}</p>
+                     {currentSettings.pickup?.instructions && (
+                       <p className="text-xs text-muted leading-relaxed italic bg-surface-3 p-3.5 rounded-xl border-l-4 border-primary">
+                         {currentSettings.pickup.instructions}
+                       </p>
+                     )}
+                     
+                     {/* Toggle del Mapa para evitar toques accidentales de scroll */}
+                     <div className="pt-1">
+                       <button
+                         type="button"
+                         onClick={() => setShowPickupMap(v => !v)}
+                         className="flex items-center justify-between w-full h-11 px-4 rounded-xl bg-surface hover:bg-surface-3 border border-app text-xs font-bold text-app transition-all active:scale-[0.99]"
+                       >
+                         <span>{showPickupMap ? '🗺️ Ocultar Mapa de Ubicación' : '🗺️ Ver Ubicación en el Mapa'}</span>
+                         <span className="text-[10px] text-muted">{showPickupMap ? '▲' : '▼'}</span>
+                       </button>
+                       
+                       <AnimatePresence>
+                         {showPickupMap && (
+                           <motion.div
+                             initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                             animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                             exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                             className="overflow-hidden"
+                           >
+                             <LeafletMapPicker
+                               address={currentSettings.pickup?.address || ''}
+                               coords={currentSettings.pickup?.coords}
+                               readOnly={true}
+                             />
+                           </motion.div>
+                         )}
+                       </AnimatePresence>
+                     </div>
+                   </div>
+                 )}
 
                 {/* Celular */}
                 <div>
