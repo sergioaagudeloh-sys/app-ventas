@@ -271,38 +271,41 @@ export default function LeafletMapPicker({
       {/* Search Input for Admin Mode */}
       {!readOnly && (
         <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                handleSearch()
-              }
-            }}
-            placeholder="Buscar dirección (ej: Carrera 15 # 12-45, Bogotá)..."
-            className="flex-1 h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:outline-none focus:border-primary transition-colors"
-          />
+          {/* Input con GPS integrado de forma absoluta a la derecha */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleSearch()
+                }
+              }}
+              placeholder="Buscar dirección (ej: Carrera 15 # 12-45)..."
+              className="w-full h-11 pl-4 pr-12 rounded-xl bg-surface border border-app text-xs text-app focus:outline-none focus:border-primary transition-colors"
+            />
+            <button
+              type="button"
+              onClick={handleGPSLocation}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-surface-2 hover:bg-surface-3 border border-app flex items-center justify-center text-xs font-bold transition-all active:scale-90"
+              title="Usar mi ubicación GPS"
+            >
+              📍
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleSearch}
             disabled={searching}
-            className="h-11 px-4 bg-primary text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+            className="h-11 px-4 bg-primary text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
           >
             {searching ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               'Buscar'
             )}
-          </button>
-          <button
-            type="button"
-            onClick={handleGPSLocation}
-            className="h-11 px-3 bg-surface-2 border border-app text-app rounded-xl text-xs font-bold transition-all active:scale-95 hover:bg-surface-3 flex items-center justify-center"
-            title="Usar mi ubicación GPS"
-          >
-            📍 GPS
           </button>
         </div>
       )}
