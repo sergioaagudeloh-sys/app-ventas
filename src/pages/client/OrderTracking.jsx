@@ -302,7 +302,7 @@ export default function OrderTracking() {
                   Celular: {order.cliente?.celular ? `*******${order.cliente.celular.slice(-4)}` : 'N/A'}
                 </p>
                 <p className="text-[var(--text-secondary)] text-xs mt-0.5">
-                  Método de Entrega: <span className="font-semibold text-[var(--text-primary)]">{order.metodoEntrega === 'DOMICILIO' ? 'Envío a Domicilio' : 'Retiro en Tienda'}</span>
+                  Método de Entrega: <span className="font-semibold text-[var(--text-primary)]">{order.tipoEntrega === 'domicilio' ? 'Envío a Domicilio' : order.tipoEntrega === 'digital' ? 'Digital / Servicio' : 'Retiro en Tienda'}</span>
                 </p>
               </div>
             </div>
@@ -332,17 +332,34 @@ export default function OrderTracking() {
               Detalle de Productos
             </h3>
             <div className="divide-y divide-slate-100 dark:divide-slate-800/40 border border-slate-100 dark:border-slate-800/40 rounded-2xl overflow-hidden bg-slate-50/10">
-              {order.productos?.map((prod, idx) => (
-                <div key={idx} className="flex justify-between items-center p-3.5 text-sm hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors duration-200">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-[var(--text-primary)]">{prod.nombre}</span>
-                    <span className="text-xs text-[var(--text-secondary)] mt-0.5">Cant: {prod.cantidad} x {formatCurrency(prod.precio)}</span>
+              {(order.items || order.productos || []).map((prod, idx) => {
+                const variant = [prod.talla, prod.color].filter(Boolean).join(' · ')
+                const subtotal = (prod.precio || 0) * (prod.cantidad || 1)
+                return (
+                  <div key={idx} className="flex items-center gap-3 p-3.5 text-sm hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors duration-200">
+                    {prod.imageUrl && (
+                      <img
+                        src={prod.imageUrl}
+                        alt={prod.nombre}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-100 dark:border-slate-800/40 shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-[var(--text-primary)] block truncate">{prod.nombre}</span>
+                      {variant && (
+                        <span className="text-xs text-[var(--text-secondary)]">{variant}</span>
+                      )}
+                      <span className="text-xs text-[var(--text-secondary)] block">x{prod.cantidad} · {formatCurrency(prod.precio)}</span>
+                    </div>
+                    <span className="font-mono font-bold text-[var(--text-primary)] text-sm shrink-0">
+                      {formatCurrency(subtotal)}
+                    </span>
                   </div>
-                  <span className="font-mono font-bold text-[var(--text-primary)] text-sm">
-                    {formatCurrency(prod.precio * prod.cantidad)}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
+              {!(order.items?.length || order.productos?.length) && (
+                <p className="text-center text-xs text-[var(--text-secondary)] py-6">No hay productos registrados en este pedido.</p>
+              )}
             </div>
           </div>
 
