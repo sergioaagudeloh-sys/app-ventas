@@ -10,8 +10,11 @@ import { COLLECTIONS } from '../constants'
 export async function getClientByPhone(celular) {
   if (!celular) return null
   
-  // Usaremos el celular directamente como el ID del documento para búsquedas súper rápidas
-  const userRef = doc(db, COLLECTIONS.USERS, celular)
+  // Normalizar: el documento se guarda con dígitos puros
+  const cleanPhone = String(celular).replace(/\D/g, '')
+  if (!cleanPhone) return null
+
+  const userRef = doc(db, COLLECTIONS.USERS, cleanPhone)
   const snap = await getDoc(userRef)
   
   if (snap.exists()) {

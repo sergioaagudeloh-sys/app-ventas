@@ -135,7 +135,19 @@ const initialForm = {
   atributos: {},
   discountActive: false,
   discountType: 'percentage',
-  discountValue: 0
+  discountValue: 0,
+  galeria: [],
+  varianteImages: {},
+  videoUrl: '',
+  descripcionLarga: '',
+  beneficios: [],
+  caracteristicas: {},
+  garantiaInfo: '',
+  productosRelacionados: [],
+  productosComplementarios: [],
+  seoTitle: '',
+  seoDescription: '',
+  estado: 'activo'
 }
 
 export default function ProductFormModal({ isOpen, onClose, onSave, initialData = null }) {
@@ -151,6 +163,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
   // Estados del Wizard (Solo creación)
   const [currentStep, setCurrentStep] = useState(1)
+  const [showCommercialConfig, setShowCommercialConfig] = useState(false)
 
   const steps = [
     { number: 1, title: 'Imagen' },
@@ -184,61 +197,52 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     const file = e.target.files[0]
     if (!file) return
 
-    // Limpiar borrador anterior si existe
-    if (currentDraftId) {
-      await handleCleanupTemp(currentDraftId, currentDraftFilePath)
-    }
-
-    const draftId = crypto.randomUUID()
-    const extension = file.name.split('.').pop() || 'jpg'
-    const filePath = `artifacts/temp_uploads/${draftId}.${extension}`
-    
-    setCurrentDraftId(draftId)
-    setCurrentDraftFilePath(filePath)
     setLoadingIA(true)
     setUploadProgress(0)
 
     try {
-      const storageRef = ref(storage, filePath)
+      if (currentDraftId) {
+        await handleCleanupTemp(currentDraftId, currentDraftFilePath)
+      }
+
+      const draftId = `draft_${crypto.randomUUID()}`
+      const storageRef = ref(storage, `products_drafts/${draftId}_${file.name}`)
       const uploadTask = uploadBytesResumable(storageRef, file)
 
-      uploadTask.on('state_changed', 
+      uploadTask.on(
+        'state_changed',
         (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-          setUploadProgress(Math.round(progress))
-        }, 
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+          setUploadProgress(progress)
+        },
         (error) => {
-          console.error("Error subiendo archivo:", error)
-          alert("Error al subir la imagen.")
+          console.error(error)
           setLoadingIA(false)
-        }, 
+        },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
           setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
+          setCurrentDraftId(draftId)
+          setCurrentDraftFilePath(storageRef.fullPath)
           
-          // Micro-interacción: Si estamos creando, avanzar automáticamente al paso 2
-          // para que el admin pueda rellenar los datos mientras Gemini analiza la imagen.
-          if (!initialData) {
-            setCurrentStep(2)
-          }
-          
-          // Escuchar cambios en el documento borrador creado por la Cloud Function
-          const unsub = onSnapshot(doc(db, "draft_products", draftId), (docSnap) => {
-            if (docSnap.exists()) {
-              const data = docSnap.data()
-              if (data.error) {
-                alert(data.error)
-                setLoadingIA(false)
-                unsub()
-              } else if (data.nombre_sugerido && data.descripcion_comercial) {
-                setFormData(prev => ({
-                  ...prev,
-                  nombre: prev.nombre || data.nombre_sugerido,
-                  descripcion: prev.descripcion || data.descripcion_comercial
-                }))
-                setLoadingIA(false)
-                unsub()
-              }
+          await setDoc(doc(db, "draft_products", draftId), {
+            imageUrl: downloadURL,
+            filePath: storageRef.fullPath,
+            createdAt: new Date()
+          })
+
+          const docRef = doc(db, "draft_products", draftId)
+          onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().suggestions) {
+              const suggestions = docSnap.data().suggestions
+              setFormData(prev => ({
+                ...prev,
+                nombre: suggestions.nombre || prev.nombre,
+                descripcion: suggestions.descripcion || prev.descripcion,
+                precioBase: suggestions.precioBase?.toString() || prev.precioBase,
+                categoriaId: suggestions.categoriaId || prev.categoriaId,
+              }))
+              setLoadingIA(false)
             }
           })
         }
@@ -253,6 +257,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   useEffect(() => {
     if (initialData && isOpen) {
       setFormData({
+        ...initialForm,
         ...initialData,
         precioBase: initialData.precioBase?.toString() || '',
         precioMayorista: initialData.precioMayorista?.toString() || '',
@@ -260,7 +265,19 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         atributos: initialData.atributos || {},
         discountActive: initialData.discountActive || false,
         discountType: initialData.discountType || 'percentage',
-        discountValue: initialData.discountValue || 0
+        discountValue: initialData.discountValue || 0,
+        galeria: initialData.galeria || [],
+        varianteImages: initialData.varianteImages || {},
+        videoUrl: initialData.videoUrl || '',
+        descripcionLarga: initialData.descripcionLarga || '',
+        beneficios: initialData.beneficios || [],
+        caracteristicas: initialData.caracteristicas || {},
+        garantiaInfo: initialData.garantiaInfo || '',
+        productosRelacionados: initialData.productosRelacionados || [],
+        productosComplementarios: initialData.productosComplementarios || [],
+        seoTitle: initialData.seoTitle || '',
+        seoDescription: initialData.seoDescription || '',
+        estado: initialData.estado || 'activo'
       })
       setCurrentStep(1)
     } else if (isOpen) {
@@ -1371,6 +1388,163 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
               )
             })}
           </div>
+        </div>
+
+        {/* Sección de Configuración Comercial, QR y SEO */}
+        <div className="border-t border-app pt-6 mt-6">
+          <button
+            type="button"
+            onClick={() => setShowCommercialConfig(!showCommercialConfig)}
+            className="w-full flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app hover:bg-surface transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-black text-app uppercase tracking-wider">Configuración Comercial, QR y SEO Avanzado</span>
+            </div>
+            <ChevronDown size={18} className={`text-muted transition-transform ${showCommercialConfig ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showCommercialConfig && (
+            <div className="mt-4 p-4 rounded-2xl bg-surface-2 border border-app space-y-4 animate-in fade-in duration-200">
+              {/* Estado Público */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Estado Público del Producto</label>
+                <CustomSelect
+                  value={formData.estado || 'activo'}
+                  onChange={(val) => setFormData({ ...formData, estado: val })}
+                  options={[
+                    { value: 'activo', label: 'Activo (Venta normal)' },
+                    { value: 'agotado', label: 'Agotado (Bloquea compra / Encargo)' },
+                    { value: 'oculto', label: 'Oculto (No aparece en catálogo público)' },
+                    { value: 'archivado', label: 'Archivado (Solo histórico)' },
+                    { value: 'descontinuado', label: 'Descontinuado (Mensaje de no disponible)' },
+                    { value: 'eliminado', label: 'Eliminado (Conserva URL con mensaje especial)' }
+                  ]}
+                  placeholder="Selecciona estado..."
+                />
+              </div>
+
+              {/* Galería de imágenes secundarias */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Galería de Imágenes Secundarias (URLs separadas por comas)</label>
+                <textarea
+                  rows={2}
+                  value={formData.galeria?.join(', ') || ''}
+                  onChange={e => setFormData({
+                    ...formData,
+                    galeria: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                  })}
+                  placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg"
+                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+
+              {/* Multimedia / Video */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">URL de Vídeo Comercial (YouTube / Vimeo / Directo)</label>
+                <input
+                  type="url"
+                  value={formData.videoUrl || ''}
+                  onChange={e => setFormData({ ...formData, videoUrl: e.target.value })}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* Información comercial extendida */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Descripción Comercial Detallada / Características</label>
+                <textarea
+                  rows={3}
+                  value={formData.descripcionLarga || ''}
+                  onChange={e => setFormData({ ...formData, descripcionLarga: e.target.value })}
+                  placeholder="Escribe especificaciones, materiales, o información comercial adicional..."
+                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none animate-in fade-in"
+                />
+              </div>
+
+              {/* Beneficios (Uno por línea) */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Beneficios del Producto (Uno por línea)</label>
+                <textarea
+                  rows={3}
+                  value={formData.beneficios?.join('\n') || ''}
+                  onChange={e => setFormData({
+                    ...formData,
+                    beneficios: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                  })}
+                  placeholder="✓ Envío gratis hoy&#10;✓ Garantía de 12 meses&#10;✓ Devolución fácil"
+                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
+                />
+              </div>
+
+              {/* Garantía */}
+              <div>
+                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Información de Garantía y Soporte</label>
+                <input
+                  type="text"
+                  value={formData.garantiaInfo || ''}
+                  onChange={e => setFormData({ ...formData, garantiaInfo: e.target.value })}
+                  placeholder="Ej: 6 meses de garantía por defectos de fábrica"
+                  className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* SEO Title & Description */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">SEO Título (Open Graph)</label>
+                  <input
+                    type="text"
+                    value={formData.seoTitle || ''}
+                    onChange={e => setFormData({ ...formData, seoTitle: e.target.value })}
+                    placeholder="Título optimizado para buscadores"
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">SEO Descripción</label>
+                  <input
+                    type="text"
+                    value={formData.seoDescription || ''}
+                    onChange={e => setFormData({ ...formData, seoDescription: e.target.value })}
+                    placeholder="Descripción resumida para compartir"
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Relacionados y Complementarios */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Relacionados (IDs separados por coma)</label>
+                  <input
+                    type="text"
+                    value={formData.productosRelacionados?.join(', ') || ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      productosRelacionados: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    })}
+                    placeholder="ID1, ID2, ID3"
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Complementarios (IDs separados por coma)</label>
+                  <input
+                    type="text"
+                    value={formData.productosComplementarios?.join(', ') || ''}
+                    onChange={e => setFormData({
+                      ...formData,
+                      productosComplementarios: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                    })}
+                    placeholder="ID4, ID5"
+                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
       </form>
     )

@@ -142,5 +142,12 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create, update: if true;
     }
+
+    // Analíticas de Códigos QR
+    match /qrAnalytics/{analyticsId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
   }
 }

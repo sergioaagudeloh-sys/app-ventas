@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, MapPin, CreditCard, CheckCircle2, ChevronRight, Store, Truck, User, Phone, Tag, Check, AlertCircle } from 'lucide-react'
+import { X, MapPin, CreditCard, CheckCircle2, ChevronRight, Store, Truck, User, Phone, Tag, Check, AlertCircle, Copy } from 'lucide-react'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_MESSAGES, SUPPORT_WHATSAPP } from '../../../constants'
 import ModalTemplate from '../../common/ModalTemplate'
 import { checkoutSchema } from '../../../schemas/orderSchemas'
@@ -16,6 +16,7 @@ import SmartHint from '../guided/SmartHint'
 import { openWhatsAppChat } from '../../../services/whatsappService'
 import useCopyToClipboard from '../../../hooks/useCopyToClipboard'
 import LeafletMapPicker from '../../ui/LeafletMapPicker'
+import { getClientByPhone } from '../../../services/userService'
 
 
 // Métodos de pago base
@@ -127,12 +128,24 @@ export default function CheckoutModal({ isOpen, onClose }) {
   const [orderSnapshot, setOrderSnapshot] = useState(null)
   const isSubmittingRef = useRef(false)
 
+  // Lookup de cliente por celular
+  const [phoneLookup, setPhoneLookup] = useState('idle') // 'idle' | 'loading' | 'found' | 'new'
+  const [showNameField, setShowNameField] = useState(false)
+
   // Cupones state
   const [couponCodeInput, setCouponCodeInput] = useState('')
   const [appliedCoupon, setAppliedCoupon] = useState(null)
   const [couponError, setCouponError] = useState('')
   const [showCouponSelector, setShowCouponSelector] = useState(false)
   const [copied, copyLink] = useCopyToClipboard()
+  const [copiedAccount, setCopiedAccount] = useState(null) // null | 1 | 2
+
+  const copyAccountNumber = (num, accountNumber) => {
+    navigator.clipboard.writeText(accountNumber).then(() => {
+      setCopiedAccount(num)
+      setTimeout(() => setCopiedAccount(null), 2000)
+    }).catch(() => {})
+  }
 
   const { isInactive: isShippingInactive } = useInactivityTimer(10000, step === 2 && isOpen)
 
@@ -200,6 +213,14 @@ export default function CheckoutModal({ isOpen, onClose }) {
       })
       setSelectedBank(1)
       setShowPickupMap(false)
+      // Si ya hay usuario logueado, mostrar nombre directamente
+      if (user?.nombre) {
+        setPhoneLookup('found')
+        setShowNameField(true)
+      } else {
+        setPhoneLookup('idle')
+        setShowNameField(false)
+      }
     }
   }, [isOpen, user, deliverySettings])
 
@@ -209,6 +230,36 @@ export default function CheckoutModal({ isOpen, onClose }) {
     setErrors({})
     setStep(2)
   }
+
+  // ── Lookup de cliente por celular en tiempo real (debounced) ──────────────
+  useEffect(() => {
+    const phone = formData.celular?.replace(/\D/g, '')
+    // No buscar si el usuario ya está logueado o el número es muy corto
+    if (user?.nombre || !phone || phone.length < 7) return
+
+    // Resetear estado mientras se escribe
+    setPhoneLookup('loading')
+
+    const timer = setTimeout(async () => {
+      try {
+        const client = await getClientByPhone(phone)
+        if (client?.nombre) {
+          setFormData(prev => ({ ...prev, nombre: client.nombre }))
+          setPhoneLookup('found')
+          setShowNameField(true)
+        } else {
+          setPhoneLookup('new')
+          setShowNameField(true)
+        }
+      } catch {
+        setPhoneLookup('new')
+        setShowNameField(true)
+      }
+    }, 600)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.celular])
 
   // ── Paso 2 → 3: validación de datos ──────────────────────────────────────
   const handleNextStep = () => {
@@ -579,78 +630,128 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   )}
                 </div>
 
-                {/* Nombre */}
+                {/* ── CELULAR (primer campo) ───────────────────────────────── */}
                 <div>
                   <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1.5">
-                    <User size={11} className="inline mr-1" />Nombre completo *
+                    <Phone size={11} className="inline mr-1" />Número de contacto *
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Tu nombre"
-                    value={formData.nombre}
-                    onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-                  />
+                  <div className="relative">
+                    <input
+                      type="tel"
+                      placeholder="Ej: 300 123 4567"
+                      value={formData.celular}
+                      onChange={e => {
+                        // Resetear lookup al cambiar el número
+                        setPhoneLookup('idle')
+                        setShowNameField(false)
+                        setFormData(prev => ({ ...prev, nombre: '', celular: e.target.value }))
+                      }}
+                      className={`w-full h-12 px-4 rounded-xl bg-surface-2 border text-app focus:outline-none transition-colors ${
+                        phoneLookup === 'found' ? 'border-success focus:border-success' : 'border-app focus:border-primary'
+                      }`}
+                    />
+                    {/* Spinner de búsqueda */}
+                    {phoneLookup === 'loading' && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {/* Check verde si se encontró */}
+                    {phoneLookup === 'found' && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Check size={16} className="text-success" />
+                      </div>
+                    )}
+                  </div>
+                  {/* Mensaje de confianza */}
+                  <p className="text-[11px] text-muted mt-1.5 flex items-start gap-1 leading-snug">
+                    <span className="shrink-0">🔒</span>
+                    <span>Tu número es privado y solo lo usaremos para contactarte sobre tus pedidos. Nada más.</span>
+                  </p>
+                  {/* Badge de cliente encontrado */}
+                  {phoneLookup === 'found' && formData.nombre && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+                      style={{ background: 'color-mix(in srgb, var(--color-success, #22c55e) 12%, transparent)', color: 'var(--color-success, #16a34a)' }}
+                    >
+                      <Check size={13} />
+                      <span>¡Hola de nuevo, <strong>{formData.nombre}</strong>! 👋 Tus datos están listos.</span>
+                    </motion.div>
+                  )}
                 </div>
 
-                 {/* Información de Retiro en Tienda con Mapa y Estilo Premium */}
-                 {formData.tipoEntrega === 'retiro' && currentSettings.pickup?.coords && (
-                   <div className="p-4 bg-surface-2 border border-app rounded-2xl space-y-4">
-                     <div className="flex items-center gap-2">
-                       <Store size={16} className="text-primary" />
-                       <p className="text-xs font-bold text-muted uppercase tracking-wider">Punto de Recogida</p>
-                     </div>
-                     <p className="text-sm font-semibold text-app leading-tight">{currentSettings.pickup?.address || 'Nuestra Tienda Física'}</p>
-                     {currentSettings.pickup?.instructions && (
-                       <p className="text-xs text-muted leading-relaxed italic bg-surface-3 p-3.5 rounded-xl border-l-4 border-primary">
-                         {currentSettings.pickup.instructions}
-                       </p>
-                     )}
-                     
-                     {/* Toggle del Mapa para evitar toques accidentales de scroll */}
-                     <div className="pt-1">
-                       <button
-                         type="button"
-                         onClick={() => setShowPickupMap(v => !v)}
-                         className="flex items-center justify-between w-full h-11 px-4 rounded-xl bg-surface hover:bg-surface-3 border border-app text-xs font-bold text-app transition-all active:scale-[0.99]"
-                       >
-                         <span>{showPickupMap ? '🗺️ Ocultar Mapa de Ubicación' : '🗺️ Ver Ubicación en el Mapa'}</span>
-                         <span className="text-[10px] text-muted">{showPickupMap ? '▲' : '▼'}</span>
-                       </button>
-                       
-                       <AnimatePresence>
-                         {showPickupMap && (
-                           <motion.div
-                             initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                             animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
-                             exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                             className="overflow-hidden"
-                           >
-                             <LeafletMapPicker
-                               address={currentSettings.pickup?.address || ''}
-                               coords={currentSettings.pickup?.coords}
-                               readOnly={true}
-                             />
-                           </motion.div>
-                         )}
-                       </AnimatePresence>
-                     </div>
-                   </div>
-                 )}
+                {/* ── NOMBRE (aparece animado según el lookup) ─────────────── */}
+                <AnimatePresence>
+                  {showNameField && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1.5">
+                        <User size={11} className="inline mr-1" />Nombre completo *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={phoneLookup === 'new' ? '¿Cuál es tu nombre? 😊' : 'Tu nombre'}
+                        value={formData.nombre}
+                        onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+                        autoFocus={phoneLookup === 'new'}
+                        className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
+                      />
+                      {phoneLookup === 'new' && (
+                        <p className="text-[11px] text-muted mt-1.5 leading-snug">
+                          ✨ Parece que es tu primera vez aquí. ¡Bienvenido/a! Ingresa tu nombre para que podamos atenderte mejor.
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                {/* Celular */}
-                <div>
-                  <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1.5">
-                    <Phone size={11} className="inline mr-1" />Celular *
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="Número de contacto"
-                    value={formData.celular}
-                    onChange={e => setFormData({ ...formData, celular: e.target.value })}
-                    className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-                  />
-                </div>
+                {/* Información de Retiro en Tienda con Mapa y Estilo Premium */}
+                {formData.tipoEntrega === 'retiro' && currentSettings.pickup?.coords && (
+                  <div className="p-4 bg-surface-2 border border-app rounded-2xl space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Store size={16} className="text-primary" />
+                      <p className="text-xs font-bold text-muted uppercase tracking-wider">Punto de Recogida</p>
+                    </div>
+                    <p className="text-sm font-semibold text-app leading-tight">{currentSettings.pickup?.address || 'Nuestra Tienda Física'}</p>
+                    {currentSettings.pickup?.instructions && (
+                      <p className="text-xs text-muted leading-relaxed italic bg-surface-3 p-3.5 rounded-xl border-l-4 border-primary">
+                        {currentSettings.pickup.instructions}
+                      </p>
+                    )}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPickupMap(v => !v)}
+                        className="flex items-center justify-between w-full h-11 px-4 rounded-xl bg-surface hover:bg-surface-3 border border-app text-xs font-bold text-app transition-all active:scale-[0.99]"
+                      >
+                        <span>{showPickupMap ? '🗺️ Ocultar Mapa de Ubicación' : '🗺️ Ver Ubicación en el Mapa'}</span>
+                        <span className="text-[10px] text-muted">{showPickupMap ? '▲' : '▼'}</span>
+                      </button>
+                      <AnimatePresence>
+                        {showPickupMap && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                            animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <LeafletMapPicker
+                              address={currentSettings.pickup?.address || ''}
+                              coords={currentSettings.pickup?.coords}
+                              readOnly={true}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
 
                 {/* Campos de dirección — SOLO para domicilio */}
                 {isDomicilio && (
@@ -822,16 +923,50 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                                           {info.titular && <span className="text-muted text-xs">· {info.titular}</span>}
                                         </div>
                                       </div>
+                                      {/* Botón copiar número de cuenta */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); copyAccountNumber(num, info.numeroCuenta) }}
+                                        className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                                          copiedAccount === num
+                                            ? 'bg-success/15 text-success'
+                                            : 'bg-surface-2 text-muted hover:bg-primary/10 hover:text-primary'
+                                        }`}
+                                        title="Copiar número de cuenta"
+                                      >
+                                        {copiedAccount === num
+                                          ? <><Check size={11} /> Copiado</>  
+                                          : <><Copy size={11} /> Copiar</>  
+                                        }
+                                      </button>
                                     </button>
                                   ))}
                                 </>
                               ) : (
                                 // ─── Una sola cuenta ───
-                                <div className="p-3 bg-surface rounded-xl border border-app text-sm">
-                                  <p className="text-muted mb-1">Transfiere a:</p>
+                                <div className="p-3 bg-surface rounded-xl border border-app text-sm space-y-1">
+                                  <p className="text-muted text-xs mb-1.5">Transfiere a:</p>
                                   <p className="font-bold text-app">{bankInfo.banco}</p>
-                                  <p className="text-app font-mono">{bankInfo.numeroCuenta}</p>
-                                  <p className="text-muted text-xs capitalize">{bankInfo.tipoCuenta}</p>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-app font-mono font-semibold tracking-wide">{bankInfo.numeroCuenta}</p>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); copyAccountNumber(1, bankInfo.numeroCuenta) }}
+                                      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        copiedAccount === 1
+                                          ? 'bg-success/15 text-success'
+                                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                                      }`}
+                                    >
+                                      {copiedAccount === 1
+                                        ? <><Check size={12} /> ¡Copiado!</>
+                                        : <><Copy size={12} /> Copiar</>
+                                      }
+                                    </button>
+                                  </div>
+                                  {bankInfo.tipoCuenta && (
+                                    <p className="text-muted text-xs capitalize">{bankInfo.tipoCuenta}{bankInfo.titular ? ` · ${bankInfo.titular}` : ''}</p>
+                                  )}
                                 </div>
                               )}
                             </motion.div>

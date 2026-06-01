@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import * as orderService from '../services/orderService'
+import { saveClientProfile } from '../services/userService'
 
 const KEYS = {
   orders: ['orders'],
@@ -68,11 +69,23 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: orderService.createOrder,
     onSuccess: (_, variables) => {
-      // Invalidar los pedidos de ese cliente específico para que vea su nuevo pedido
+      // Invalidar caché de pedidos
       if (variables.cliente?.celular) {
         queryClient.invalidateQueries({ queryKey: KEYS.clientOrders(variables.cliente.celular) })
       }
       queryClient.invalidateQueries({ queryKey: KEYS.orders })
+
+      // — Fidelización automática del cliente —
+      // Guardar/actualizar el perfil del cliente en Firestore usando el número limpio
+      // como ID del documento. Si ya existía, el merge:true conserva sus datos previos.
+      const rawPhone = variables.cliente?.celular || ''
+      const cleanPhone = rawPhone.replace(/\D/g, '')
+      const nombre = variables.cliente?.nombre || ''
+      if (cleanPhone && nombre) {
+        saveClientProfile(cleanPhone, nombre).catch(err =>
+          console.error('[useCreateOrder] Error al registrar cliente:', err)
+        )
+      }
     },
   })
 }

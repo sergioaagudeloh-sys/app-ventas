@@ -23,6 +23,7 @@ const AdminCredits = lazy(() => import('../pages/admin/AdminCredits'))
 const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'))
 const AdminClaims = lazy(() => import('../pages/admin/AdminClaims'))
 const AdminPortalQR = lazy(() => import('../pages/admin/AdminPortalQR'))
+const AdminQRPerformance = lazy(() => import('../pages/admin/AdminQRPerformance'))
 
 // Páginas Cliente
 const ClientCatalog = lazy(() => import('../pages/client/ClientCatalog'))
@@ -31,6 +32,7 @@ const ClientOrders = lazy(() => import('../pages/client/ClientOrders'))
 const ClientCredits = lazy(() => import('../pages/client/ClientCredits'))
 const ClientProfile = lazy(() => import('../pages/client/ClientProfile'))
 const OrderTracking = lazy(() => import('../pages/client/OrderTracking'))
+const ProductPublicDetail = lazy(() => import('../pages/client/ProductPublicDetail'))
 
 // Páginas Portal Operativo
 const PortalAuth = lazy(() => import('../pages/portal/PortalAuth'))
@@ -79,6 +81,7 @@ export default function AppRoutes() {
           <Route path="configuracion" element={<AdminSettings />} />
           <Route path="reclamos" element={<AdminClaims />} />
           <Route path="portales-qr" element={<AdminPortalQR />} />
+          <Route path="rendimiento-qr" element={<AdminQRPerformance />} />
         </Route>
 
         {/* ─── Rutas del Cliente ───────────────────────────────────────── */}
@@ -140,6 +143,7 @@ export default function AppRoutes() {
 
         {/* ─── Ruta raíz: Bienvenida y Seguimiento Público ────────────────── */}
         <Route path="/pedido/status" element={<OrderTracking />} />
+        <Route path="/compra-qr/:productId" element={<ProductPublicDetail />} />
         <Route path="/" element={<WelcomePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

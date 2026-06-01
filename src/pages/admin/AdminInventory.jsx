@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, Eye, EyeOff, Image as ImageIcon, Check, AlertCircle } from 'lucide-react'
+import { Package, Plus, Search, Edit2, Trash2, AlertTriangle, Eye, EyeOff, Image as ImageIcon, Check, AlertCircle, QrCode, Download, Printer, Copy, X } from 'lucide-react'
+import QRCode from 'qrcode'
 import { useProducts, useCreateProduct, useUpdateProduct, useDeleteProduct, useToggleProductStatus, useCategories } from '../../hooks/useInventory'
 import CategoryManager from '../../components/admin/inventory/CategoryManager'
 import ProductFormModal from '../../components/admin/inventory/ProductFormModal'
@@ -25,6 +26,9 @@ export default function AdminInventory() {
 
   // Modal de confirmación de eliminación
   const [productToDelete, setProductToDelete] = useState(null)
+  
+  // Modal de gestión de QR
+  const [selectedQRProduct, setSelectedQRProduct] = useState(null)
   
   // Toast de notificación
   const [toastMessage, setToastMessage] = useState(null)
@@ -245,6 +249,13 @@ export default function AdminInventory() {
                           <td className="p-4 text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
+                                onClick={() => setSelectedQRProduct(product)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-primary hover:bg-surface-2 transition-colors"
+                                title="Código QR de Compra"
+                              >
+                                <QrCode size={16} />
+                              </button>
+                              <button
                                 onClick={() => openEditProductModal(product)}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-primary hover:bg-surface-2 transition-colors"
                                 title="Editar"
@@ -278,6 +289,13 @@ export default function AdminInventory() {
                         
                         {/* Botones Flotantes Arriba Derecha */}
                         <div className="flex gap-1.5 absolute top-3 right-3">
+                          <button
+                            onClick={() => setSelectedQRProduct(product)}
+                            className="w-8 h-8 flex items-center justify-center rounded-xl bg-surface border border-app text-muted hover:text-primary transition-colors shadow-sm"
+                            title="Código QR de Compra"
+                          >
+                            <QrCode size={14} />
+                          </button>
                           <button
                             onClick={() => openEditProductModal(product)}
                             className="w-8 h-8 flex items-center justify-center rounded-xl bg-surface border border-app text-muted hover:text-primary transition-colors shadow-sm"
@@ -426,6 +444,179 @@ export default function AdminInventory() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de gestión de QR de producto */}
+      <AnimatePresence>
+        {selectedQRProduct && (
+          <ProductQRModal 
+            product={selectedQRProduct} 
+            onClose={() => setSelectedQRProduct(null)} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
+  )
+}
+
+function ProductQRModal({ product, onClose }) {
+  const canvasRef = useRef(null)
+  const [copied, setCopied] = useState(false)
+  const [zoomed, setZoomed] = useState(false)
+  
+  const publicUrl = `${window.location.origin}/compra-qr/${product.id}`
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    QRCode.toCanvas(canvasRef.current, publicUrl, {
+      width: zoomed ? 300 : 180,
+      margin: 2,
+      color: { dark: '#0f0f1a', light: '#ffffff' },
+      errorCorrectionLevel: 'H',
+    }).catch(console.error)
+  }, [publicUrl, zoomed])
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(publicUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleDownload = () => {
+    if (!canvasRef.current) return
+    const link = document.createElement('a')
+    link.download = `QR-${product.nombre.toLowerCase().replace(/\s+/g, '-')}.png`
+    link.href = canvasRef.current.toDataURL()
+    link.click()
+  }
+
+  const handlePrint = () => {
+    if (!canvasRef.current) return
+    const win = window.open('')
+    win.document.write(`<h2 style="font-family:sans-serif; text-align:center;">${product.nombre}</h2>`)
+    win.document.write(`<div style="display:flex; justify-content:center;"><img src="${canvasRef.current.toDataURL()}" width="350"/></div>`)
+    win.document.write(`<p style="font-family:sans-serif; text-align:center; font-size:14px;">Escanea para comprar este producto</p>`)
+    win.document.close()
+    win.focus()
+    win.print()
+    win.close()
+  }
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Comprar ${product.nombre}`,
+          text: `Escanea o abre el enlace para comprar ${product.nombre} en línea.`,
+          url: publicUrl
+        })
+      } catch (err) {
+        console.error(err)
+      }
+    } else {
+      handleCopyLink()
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="bg-surface border border-app p-6 rounded-3xl w-full max-w-md relative z-10 shadow-2xl overflow-y-auto max-h-[90vh] no-scrollbar"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-colors"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="flex flex-col items-center text-center">
+          <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2.5 py-1 rounded-md mb-2">
+            Punto de Venta QR
+          </span>
+          <h3 className="text-xl font-bold text-app mb-1">{product.nombre}</h3>
+          <p className="text-xs text-muted mb-4">{product.categoria || 'Sin Categoría'} · ${Number(product.precioBase).toLocaleString()} COP</p>
+
+          {/* Canvas Código QR */}
+          <div 
+            onClick={() => setZoomed(!zoomed)}
+            className="p-3 bg-white rounded-3xl border border-app shadow-inner cursor-pointer hover:scale-102 transition-transform duration-300 mb-4 flex items-center justify-center"
+          >
+            <canvas ref={canvasRef} />
+          </div>
+          <p className="text-[10px] text-muted mb-6 uppercase tracking-wider font-bold">Haz clic en el código para {zoomed ? 'reducir' : 'ampliar'}</p>
+
+          {/* URL Pública */}
+          <div className="w-full mb-6">
+            <label className="block text-[10px] font-bold text-muted text-left mb-1.5 uppercase tracking-wider">URL Pública del Portal</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={publicUrl}
+                className="flex-1 h-11 px-3 bg-surface-2 border border-app rounded-xl text-xs text-app focus:outline-none truncate select-all"
+              />
+              <button
+                onClick={handleCopyLink}
+                className="w-11 h-11 rounded-xl bg-primary text-white flex items-center justify-center active:scale-95 transition-all shadow-md shadow-primary/20 cursor-pointer border-none shrink-0"
+                title="Copiar Enlace"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Estadísticas Rápidas */}
+          <div className="w-full grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-surface-2 border border-app mb-6">
+            <div className="text-center">
+              <span className="block text-lg font-black text-app">0</span>
+              <span className="block text-[9px] font-bold text-muted uppercase">Escaneos</span>
+            </div>
+            <div className="text-center border-x border-app">
+              <span className="block text-lg font-black text-app">0</span>
+              <span className="block text-[9px] font-bold text-muted uppercase">Ventas QR</span>
+            </div>
+            <div className="text-center">
+              <span className="block text-lg font-black text-app">0%</span>
+              <span className="block text-[9px] font-bold text-muted uppercase">Conv. QR</span>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="grid grid-cols-3 gap-3 w-full">
+            <button
+              onClick={handleDownload}
+              className="py-3 px-2.5 bg-surface-2 hover:bg-surface border border-app rounded-xl text-xs text-app font-bold transition-all active:scale-95 flex flex-col items-center gap-1.5 cursor-pointer"
+            >
+              <Download size={16} className="text-primary" />
+              <span>Descargar</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="py-3 px-2.5 bg-surface-2 hover:bg-surface border border-app rounded-xl text-xs text-app font-bold transition-all active:scale-95 flex flex-col items-center gap-1.5 cursor-pointer"
+            >
+              <Printer size={16} className="text-primary" />
+              <span>Imprimir</span>
+            </button>
+            <button
+              onClick={handleShare}
+              className="py-3 px-2.5 bg-surface-2 hover:bg-surface border border-app rounded-xl text-xs text-app font-bold transition-all active:scale-95 flex flex-col items-center gap-1.5 cursor-pointer"
+            >
+              <Copy size={16} className="text-primary" />
+              <span>Compartir</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   )
 }

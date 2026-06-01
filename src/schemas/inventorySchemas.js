@@ -55,6 +55,32 @@ export const productSchema = z.object({
     invalid_type_error: 'La URL de la imagen debe ser texto',
   }).url('Debe ser una URL válida de imagen que comience con http:// o https://').optional().or(z.literal('')),
   
+  // Galería de imágenes secundarias
+  galeria: z.array(z.string()).optional().default([]),
+  
+  // Mapeo de color a URL de imagen de variante
+  varianteImages: z.record(z.string()).optional().default({}),
+  
+  // Multimedia
+  videoUrl: z.string().optional().default(''),
+  
+  // Información Comercial Enriquecida
+  descripcionLarga: z.string().optional().default(''),
+  beneficios: z.array(z.string()).optional().default([]),
+  caracteristicas: z.record(z.string()).optional().default({}),
+  garantiaInfo: z.string().optional().default(''),
+  
+  // Productos Relacionados y Complementarios
+  productosRelacionados: z.array(z.string()).optional().default([]),
+  productosComplementarios: z.array(z.string()).optional().default([]),
+  
+  // SEO y Compartición
+  seoTitle: z.string().optional().default(''),
+  seoDescription: z.string().optional().default(''),
+  
+  // Estado público del producto
+  estado: z.enum(['activo', 'agotado', 'oculto', 'archivado', 'descontinuado', 'eliminado']).optional().default('activo'),
+
   // Inventario
   umbralAlerta: z.number({
     invalid_type_error: 'La alerta de stock debe ser un número',

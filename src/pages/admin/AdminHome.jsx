@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, TrendingUp, DollarSign, AlertTriangle,
   Package, ShoppingBag, CreditCard, Settings, ChevronRight,
-  BarChart3, Banknote, ArrowRight, X, Wallet, Percent
+  BarChart3, Banknote, ArrowRight, X, Wallet, Percent, QrCode
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useOrders } from '../../hooks/useOrders'
@@ -302,6 +302,14 @@ export default function AdminHome() {
               </Link>
             </motion.div>
           )}
+          <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
+            <Link to="/admin/rendimiento-qr" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
+              <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <QrCode size={16} />
+              </div>
+              <span className="font-bold text-app text-xs tracking-tight">Rendimiento QR</span>
+            </Link>
+          </motion.div>
           <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
             <Link to="/admin/configuracion" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
               <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">

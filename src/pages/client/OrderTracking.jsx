@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { collection, query, where, getDocs, limit } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/firestore'
 import { db } from '../../config/firebaseConfig'
 import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import AppLoader from '../../components/ui/AppLoader'
-import {
-  ORDER_STATE_META,
-  ORDER_TRACKING_STEPS_DOMICILIO,
-  ORDER_TRACKING_STEPS_RETIRO,
-} from '../../constants'
+import { ORDER_STATE_META } from '../../constants'
+import { ROLES } from '../../constants'
+import { getEmployeesByRole } from '../../services/employeeService'
 import {
   Package,
   CheckCircle2,
@@ -58,36 +56,58 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState(null)
   const [error, setError] = useState(null)
+  const [hasCocinero, setHasCocinero] = useState(false)
+  const [hasMensajero, setHasMensajero] = useState(false)
 
   useEffect(() => {
-    const fetchOrder = async () => {
-      if (!token) {
-        setError('Token de seguimiento no proporcionado o inválido.')
-        setLoading(false)
-        return
-      }
-      try {
-        const q = query(collection(db, 'orders'), where('trackingToken', '==', token), limit(1))
-        const snap = await getDocs(q)
+    if (orderTrackingEnabled === false) {
+      setError('El módulo de seguimiento de pedidos está actualmente desactivado.')
+      setLoading(false)
+      return
+    }
+
+    if (!token) {
+      setError('Token de seguimiento no proporcionado o inválido.')
+      setLoading(false)
+      return
+    }
+
+    // ── Suscripción en tiempo real al pedido ────────────────────────────────────
+    const q = query(
+      collection(db, 'orders'),
+      where('trackingToken', '==', token),
+      limit(1)
+    )
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
         if (snap.empty) {
           setError('No se encontró ningún pedido con este código de seguimiento.')
         } else {
           setOrder({ id: snap.docs[0].id, ...snap.docs[0].data() })
+          setError(null)
         }
-      } catch (err) {
-        console.error('Error fetching order by token:', err)
+        setLoading(false)
+      },
+      (err) => {
+        console.error('[OrderTracking] Error en suscripción:', err)
         setError('Ocurrió un error al consultar el pedido. Intenta nuevamente.')
-      } finally {
         setLoading(false)
       }
-    }
+    )
 
-    if (orderTrackingEnabled === false) {
-      setError('El módulo de seguimiento de pedidos está actualmente desactivado.')
-      setLoading(false)
-    } else {
-      fetchOrder()
-    }
+    // Consultar roles activos una sola vez (no cambian en medio de un pedido)
+    Promise.all([
+      getEmployeesByRole(ROLES.COCINERO),
+      getEmployeesByRole(ROLES.MENSAJERO),
+    ]).then(([cocineros, mensajeros]) => {
+      setHasCocinero(cocineros.length > 0)
+      setHasMensajero(mensajeros.length > 0)
+    }).catch(console.error)
+
+    // Limpiar la suscripción al desmontar el componente
+    return () => unsubscribe()
   }, [token, orderTrackingEnabled])
 
   // ── Loading ──────────────────────────────────────────────────────────────────
@@ -130,11 +150,42 @@ export default function OrderTracking() {
     )
   }
 
-  // ── Lógica dinámica de estado ────────────────────────────────────────────────
+  // ── Lógica dinámica de estado ──────────────────────────────────────────────
   const isDomicilio = order.tipoEntrega === 'domicilio'
+  const esCreditoPago = order.metodoPago === 'credito'
 
-  // Seleccionar el flujo de pasos según tipo de entrega
-  const stepKeys = isDomicilio ? ORDER_TRACKING_STEPS_DOMICILIO : ORDER_TRACKING_STEPS_RETIRO
+  /**
+   * Construye la secuencia exacta de pasos del stepper en función de:
+   * - Tipo de entrega (domicilio vs retiro)
+   * - Método de pago (solo agregar credito_aprobado si pagó con crédito)
+   * - Roles activos en el negocio (cocinero, mensajero)
+   */
+  const buildStepKeys = () => {
+    const steps = ['pendiente']
+
+    // Paso de crédito: SOLO si el pedido fue pagado con crédito/fiado
+    if (esCreditoPago) steps.push('credito_aprobado')
+
+    // Paso de preparación: SOLO si el negocio tiene cocinero activo
+    if (hasCocinero) steps.push('alistamiento')
+
+    if (isDomicilio) {
+      // Listo para despacho + En camino: SOLO si hay mensajero activo
+      if (hasMensajero) {
+        steps.push('listo')
+        steps.push('en_camino')
+      }
+    } else {
+      // Retiro en tienda: "listo" significa "listo para recoger", sin mensajero
+      // Solo se incluye si tiene cocinero (ya está en preparación) o como estado final previo
+      if (hasCocinero) steps.push('listo')
+    }
+
+    steps.push('completado')
+    return steps
+  }
+
+  const stepKeys = buildStepKeys()
 
   // Obtener metadatos del estado actual desde constants (fallback genérico si no está definido)
   const currentMeta = ORDER_STATE_META[order.estado] ?? {
