@@ -970,7 +970,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                     `}</style>
                     <button
                       onClick={handleWhatsApp}
-                      className="wa-btn flex-1 h-14 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white rounded-2xl font-bold text-sm transition-all duration-200 active:scale-95 flex items-center justify-center gap-2.5 shadow-lg shadow-green-500/30 border-0"
+                      className="wa-btn flex-1 h-11 px-4 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white rounded-xl font-bold text-sm transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap shadow-lg shadow-green-500/30 border-0"
                     >
                       <svg
                         className="wa-icon w-5 h-5"
@@ -984,7 +984,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                     </button>
                     <button
                       onClick={onClose}
-                      className="flex-1 h-14 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-2xl font-bold text-sm transition-all duration-200 active:scale-95"
+                      className="flex-1 h-11 px-4 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-xl font-bold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap"
                     >
                       Cerrar
                     </button>
