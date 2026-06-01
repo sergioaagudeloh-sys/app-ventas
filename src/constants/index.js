@@ -7,6 +7,11 @@
 export const ROLES = {
   ADMIN: 'admin',
   CLIENT: 'client',
+  VENDEDOR: 'vendedor',
+  COCINERO: 'cocinero',
+  BODEGUERO: 'bodeguero',
+  MESERO: 'mesero',
+  MENSAJERO: 'mensajero',
 }
 
 // ─── Estados de pedidos ───────────────────────────────────────────────────────
@@ -92,6 +97,75 @@ export const COLLECTIONS = {
   ADS: 'ads',
   CLAIMS: 'claims',
   COUPONS: 'coupons',
+  EMPLOYEES: 'employees',
+  TABLES: 'tables',
+  PRODUCTION: 'production',
+  DELIVERIES: 'deliveries',
+  STOCK_MOVEMENTS: 'stockMovements',
+  ACCESS_LOGS: 'accessLogs',
+}
+
+/**
+ * PORTAL_CONFIG — fuente de verdad dinámica de todos los portales operativos.
+ * Añadir un nuevo rol aquí lo propaga automáticamente al sistema QR,
+ * al selector de auth, al panel admin y al historial.
+ */
+export const PORTAL_CONFIG = {
+  [ROLES.VENDEDOR]: {
+    label: 'Portal POS',
+    labelCorto: 'Ventas',
+    icon: 'ShoppingCart',
+    color: '#a78bfa',
+    colorBg: 'rgba(167,139,250,0.15)',
+    colorBorder: 'rgba(167,139,250,0.3)',
+    route: '/portal/vendedor',
+    authRoute: '/portal/auth?rol=vendedor',
+    emoji: '🛒',
+  },
+  [ROLES.COCINERO]: {
+    label: 'Portal Cocina',
+    labelCorto: 'Cocina',
+    icon: 'ChefHat',
+    color: '#fb923c',
+    colorBg: 'rgba(251,146,60,0.15)',
+    colorBorder: 'rgba(251,146,60,0.3)',
+    route: '/portal/cocina',
+    authRoute: '/portal/auth?rol=cocinero',
+    emoji: '🍳',
+  },
+  [ROLES.BODEGUERO]: {
+    label: 'Portal Bodega',
+    labelCorto: 'Bodega',
+    icon: 'Package',
+    color: '#38bdf8',
+    colorBg: 'rgba(56,189,248,0.15)',
+    colorBorder: 'rgba(56,189,248,0.3)',
+    route: '/portal/bodega',
+    authRoute: '/portal/auth?rol=bodeguero',
+    emoji: '📦',
+  },
+  [ROLES.MESERO]: {
+    label: 'Portal Mesero',
+    labelCorto: 'Salón',
+    icon: 'Utensils',
+    color: '#34d399',
+    colorBg: 'rgba(52,211,153,0.15)',
+    colorBorder: 'rgba(52,211,153,0.3)',
+    route: '/portal/mesero',
+    authRoute: '/portal/auth?rol=mesero',
+    emoji: '🍽️',
+  },
+  [ROLES.MENSAJERO]: {
+    label: 'Portal Mensajero',
+    labelCorto: 'Domicilios',
+    icon: 'Truck',
+    color: '#fb7185',
+    colorBg: 'rgba(248,113,130,0.15)',
+    colorBorder: 'rgba(248,113,130,0.3)',
+    route: '/portal/mensajero',
+    authRoute: '/portal/auth?rol=mensajero',
+    emoji: '🛵',
+  },
 }
 
 // ─── Soporte técnico (hardcoded según informe §12) ───────────────────────────
@@ -162,31 +236,30 @@ export const ORDER_STATE_META = {
     terminal: true,
     isError: true,
   },
-  // ── Ejemplo de estados futuros ─────────────────────────────────────────────
-  // en_cocina: {
-  //   label: 'En Preparación',
-  //   desc: 'Tu pedido está siendo preparado',
-  //   icon: 'ChefHat',
-  //   color: 'orange',
-  //   terminal: false,
-  //   isError: false,
-  // },
-  // en_camino: {
-  //   label: 'En Camino',
-  //   desc: 'Tu domicilio ya fue despachado',
-  //   icon: 'Truck',
-  //   color: 'blue',
-  //   terminal: false,
-  //   isError: false,
-  // },
-  // listo_para_recoger: {
-  //   label: 'Listo para Recoger',
-  //   desc: 'Tu pedido está listo en tienda',
-  //   icon: 'ShoppingBag',
-  //   color: 'emerald',
-  //   terminal: false,
-  //   isError: false,
-  // },
+  alistamiento: {
+    label: 'En Preparación',
+    desc: 'Tu pedido está siendo preparado en cocina',
+    icon: 'ChefHat',
+    color: 'orange',
+    terminal: false,
+    isError: false,
+  },
+  listo: {
+    label: 'Listo para Despacho',
+    desc: 'Tu pedido ya está listo para ser despachado',
+    icon: 'ShoppingBag',
+    color: 'blue',
+    terminal: false,
+    isError: false,
+  },
+  en_camino: {
+    label: 'En Camino',
+    desc: 'El repartidor lleva tu pedido en camino',
+    icon: 'Truck',
+    color: 'indigo',
+    terminal: false,
+    isError: false,
+  },
 }
 
 // ─── Secuencia del stepper para pedidos de DOMICILIO ─────────────────────────
@@ -194,9 +267,10 @@ export const ORDER_STATE_META = {
 export const ORDER_TRACKING_STEPS_DOMICILIO = [
   'pendiente',
   'credito_aprobado',
+  'alistamiento',
+  'listo',
+  'en_camino',
   'completado',
-  // 'en_cocina',
-  // 'en_camino',
 ]
 
 // ─── Secuencia del stepper para pedidos de RETIRO EN TIENDA ──────────────────
@@ -204,7 +278,7 @@ export const ORDER_TRACKING_STEPS_DOMICILIO = [
 export const ORDER_TRACKING_STEPS_RETIRO = [
   'pendiente',
   'credito_aprobado',
+  'alistamiento',
+  'listo',
   'completado',
-  // 'en_cocina',
-  // 'listo_para_recoger',
 ]

@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft, QrCode, Printer, Users, Copy, CheckCircle2, Loader2, LayoutGrid } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
-import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS, DEV_PASSWORD } from '../../constants'
+import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS, DEV_PASSWORD, PORTAL_CONFIG } from '../../constants'
 import { updateAppConfig, updateCatalogFilters } from '../../services/appConfigService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
@@ -24,6 +24,7 @@ import { exportDeveloperReceiptPDF } from '../../services/pdfService'
 import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '../../hooks/useCoupons'
 import { formatCurrency } from '../../utils/formatters'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
+import QRCode from 'qrcode'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -323,6 +324,106 @@ function CustomDatePicker({ value, onChange, placeholder = 'Seleccionar fecha' }
   )
 }
 
+// ─── Componente: Card de QR por portal ───
+function PortalQRCard({ rol, cfg, employeeCount, baseUrl }) {
+  const canvasRef = useRef(null)
+  const [copied, setCopied] = useState(false)
+  const [rendered, setRendered] = useState(false)
+  const qrUrl = `${baseUrl}${cfg.authRoute}`
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    QRCode.toCanvas(canvasRef.current, qrUrl, {
+      width: 140,
+      margin: 2,
+      color: { dark: '#0f0f1a', light: '#ffffff' },
+      errorCorrectionLevel: 'H',
+    }).then(() => setRendered(true)).catch(console.error)
+  }, [qrUrl])
+
+  const handleDownload = useCallback(() => {
+    if (!canvasRef.current) return
+    const link = document.createElement('a')
+    link.download = `QR-${cfg.labelCorto.toLowerCase()}.png`
+    link.href = canvasRef.current.toDataURL('image/png')
+    link.click()
+  }, [cfg.labelCorto])
+
+  const handlePrint = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>QR ${cfg.label}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; min-height: 100vh; margin: 0;
+                   background: #fff; }
+            .qr-print-container { text-align: center; padding: 2rem; }
+            .qr-print-emoji { font-size: 3rem; margin-bottom: 0.5rem; }
+            h1 { font-size: 1.5rem; font-weight: 900; margin: 0.5rem 0; color: #0f172a; }
+            p { color: #64748b; font-size: 0.875rem; margin: 0.25rem 0 1.5rem; }
+            img { display: block; margin: 0 auto; border: 3px solid #e2e8f0; border-radius: 1rem; padding: 0.5rem; }
+            small { display: block; margin-top: 1.5rem; color: #94a3b8; font-size: 0.75rem; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body onload="window.print(); window.close()">
+          <div class="qr-print-container">
+            <div class="qr-print-emoji">${cfg.emoji}</div>
+            <h1>${cfg.label}</h1>
+            <p>Escanea este código para ingresar al portal</p>
+            <img src="${canvas.toDataURL()}" width="260" height="260" />
+            <small>${qrUrl}</small>
+          </div>
+        </body>
+      </html>
+    `)
+    win.document.close()
+  }, [cfg, qrUrl])
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(qrUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch { /* fallback no disponible */ }
+  }, [qrUrl])
+
+  return (
+    <motion.div layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+      className="qr-card" style={{ borderColor: cfg.colorBorder, background: cfg.colorBg + '33', padding: '1rem', borderRadius: '1rem' }}>
+      <div className="flex items-center gap-2 mb-2 w-full justify-start text-left">
+        <span className="text-xl">{cfg.emoji}</span>
+        <div>
+          <h4 className="text-xs font-bold text-app" style={{ color: cfg.color }}>{cfg.label}</h4>
+          <span className="text-[10px] text-muted flex items-center gap-1">
+            <Users size={10} /> {employeeCount} {employeeCount === 1 ? 'activo' : 'activos'}
+          </span>
+        </div>
+      </div>
+      <div className="qr-canvas-wrapper p-1.5 bg-white border border-app rounded-lg mb-2">
+        <canvas ref={canvasRef} style={{ width: '100px', height: '100px' }} />
+      </div>
+      <div className="qr-card-actions grid grid-cols-3 gap-1 w-full">
+        <button onClick={handleDownload} className="qr-action-btn flex items-center justify-center p-1 rounded-lg border text-[10px] gap-1 hover:bg-surface-2 transition-colors border-app" title="Descargar PNG">
+          <Download size={11} /> PNG
+        </button>
+        <button onClick={handlePrint} className="qr-action-btn flex items-center justify-center p-1 rounded-lg border text-[10px] gap-1 hover:bg-surface-2 transition-colors border-app" title="Imprimir">
+          <Printer size={11} /> Imprimir
+        </button>
+        <button onClick={handleCopy} className="qr-action-btn flex items-center justify-center p-1 rounded-lg border text-[10px] gap-1 hover:bg-surface-2 transition-colors border-app" title="Copiar URL">
+          {copied ? <CheckCircle2 size={11} className="text-success" /> : <Copy size={11} />}
+          {copied ? 'Listo' : 'Link'}
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── CUSTOM SELECT COMPONENT ──────────────────────────────────────────────
 
 function CustomSelect({ value, onChange, options, placeholder }) {
@@ -379,6 +480,471 @@ function CustomSelect({ value, onChange, options, placeholder }) {
     </div>
   )
 }
+
+// ─── COMPONENTE CONFIGURACIÓN DE MESAS (CRUD) ──────────────────────────────
+function AdminTablesCRUD({ onSuccess, onError }) {
+  const [tables, setTables] = useState([])
+  const [loadingList, setLoadingList] = useState(true)
+  const [editTable, setEditTable] = useState(null)
+  
+  // Campos del Formulario
+  const [nombre, setNombre] = useState('')
+  const [capacidad, setCapacidad] = useState(4)
+  const [ubicacion, setUbicacion] = useState('')
+  const [observaciones, setObservaciones] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let unsub
+    import('../../services/tableService').then(({ subscribeToTables }) => {
+      unsub = subscribeToTables((data) => {
+        setTables(data)
+        setLoadingList(false)
+      })
+    }).catch(err => {
+      console.error(err)
+      setLoadingList(false)
+    })
+    return () => { if (unsub) unsub() }
+  }, [])
+
+  useEffect(() => {
+    if (editTable) {
+      setNombre(editTable.nombre || '')
+      setCapacidad(editTable.capacidad || 4)
+      setUbicacion(editTable.ubicacion || '')
+      setObservaciones(editTable.observaciones || '')
+    } else {
+      setNombre('')
+      setCapacidad(4)
+      setUbicacion('')
+      setObservaciones('')
+    }
+  }, [editTable])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!nombre.trim()) return onError('El nombre de la mesa es obligatorio.')
+    setSaving(true)
+    try {
+      const { createTable, updateTable } = await import('../../services/tableService')
+      const payload = {
+        nombre: nombre.trim(),
+        capacidad: Number(capacidad),
+        ubicacion: ubicacion.trim(),
+        observaciones: observaciones.trim(),
+      }
+
+      if (editTable) {
+        await updateTable(editTable.id, payload)
+        onSuccess('Mesa actualizada correctamente.')
+        setEditTable(null)
+      } else {
+        await createTable(payload)
+        onSuccess('Mesa creada correctamente.')
+        setNombre('')
+        setCapacidad(4)
+        setUbicacion('')
+        setObservaciones('')
+      }
+    } catch (err) {
+      console.error(err)
+      onError('Error al guardar la mesa.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (table) => {
+    if (window.confirm(`¿Estás seguro de eliminar la ${table.nombre}?`)) {
+      try {
+        const { deleteTable } = await import('../../services/tableService')
+        await deleteTable(table.id)
+        onSuccess('Mesa eliminada correctamente.')
+        if (editTable?.id === table.id) setEditTable(null)
+      } catch (err) {
+        onError('Error al eliminar la mesa.')
+      }
+    }
+  }
+
+  return (
+    <div className="p-5 sm:p-6 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* COLUMNA IZQUIERDA: Listado de Mesas */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted uppercase tracking-widest flex items-center gap-1.5">
+              <LayoutGrid size={14} className="text-primary" />
+              Mesas del Salón ({tables.length})
+            </p>
+            {editTable && (
+              <button
+                onClick={() => setEditTable(null)}
+                className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+              >
+                <Plus size={12} /> Nueva Mesa
+              </button>
+            )}
+          </div>
+
+          {loadingList ? (
+            <div className="flex items-center justify-center p-8 bg-surface-2/40 rounded-2xl border border-app">
+              <Loader2 size={24} className="animate-spin text-primary" />
+            </div>
+          ) : tables.length === 0 ? (
+            <div className="p-6 bg-surface-2/40 rounded-2xl border border-dashed border-app text-center">
+              <LayoutGrid size={32} className="mx-auto text-muted/50 mb-2" />
+              <p className="text-sm font-semibold text-app">No hay mesas configuradas</p>
+              <p className="text-xs text-muted mt-1">Usa el formulario lateral para agregar tu primera mesa.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {tables.map((table) => (
+                <div
+                  key={table.id}
+                  className={`p-4 bg-surface-2/70 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                    editTable?.id === table.id ? 'border-primary ring-1 ring-primary' : 'border-app hover:border-app-hover'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-app text-sm truncate">{table.nombre}</p>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase" style={{
+                        background: table.estado === 'disponible' ? '#34d39922' : table.estado === 'ocupada' ? '#fb923c22' : '#f8717122',
+                        color: table.estado === 'disponible' ? '#34d399' : table.estado === 'ocupada' ? '#fb923c' : '#f87171'
+                      }}>
+                        {table.estado === 'solicitando_cuenta' ? 'Cuenta' : table.estado}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted mt-0.5">Capacidad: {table.capacidad} personas · Zona: {table.ubicacion || 'General'}</p>
+                    {table.observaciones && <p className="text-[11px] text-muted italic mt-1 truncate">📍 {table.observaciones}</p>}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setEditTable(table)}
+                      className="w-8 h-8 rounded-lg bg-surface border border-app hover:border-app-hover flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm"
+                      title="Editar mesa"
+                    >
+                      <Paintbrush size={14} />
+                    </button>
+
+                    <button
+                      onClick={() => handleDelete(table)}
+                      className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 flex items-center justify-center text-red-500 transition-colors shadow-sm"
+                      title="Eliminar mesa"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* COLUMNA DERECHA: Formulario Crear / Editar */}
+        <div className="lg:col-span-5">
+          <div className="bg-surface rounded-2xl border border-app p-5 space-y-4 shadow-sm">
+            <p className="text-sm font-bold text-app">{editTable ? 'Editar Mesa' : 'Agregar Nueva Mesa'}</p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted mb-1">Nombre / Identificador</label>
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Ej. Mesa 1, Barra 2"
+                  className="w-full h-10 px-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-sm text-app transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted mb-1">Capacidad (Personas)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={capacidad}
+                  onChange={(e) => setCapacidad(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-sm text-app transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted mb-1">Ubicación / Zona</label>
+                <input
+                  type="text"
+                  value={ubicacion}
+                  onChange={(e) => setUbicacion(e.target.value)}
+                  placeholder="Ej. Terraza, Salón Principal"
+                  className="w-full h-10 px-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-sm text-app transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted mb-1">Observaciones</label>
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  placeholder="Notas adicionales..."
+                  rows="2"
+                  className="w-full p-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-sm text-app transition-colors resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                {editTable && (
+                  <button
+                    type="button"
+                    onClick={() => setEditTable(null)}
+                    className="flex-1 h-10 bg-surface-2 hover:bg-surface border border-app text-app rounded-xl font-bold text-xs transition-all active:scale-95"
+                  >
+                    Cancelar
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 h-10 bg-primary text-white rounded-xl font-bold text-xs hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  {saving ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <><Save size={14} /> {editTable ? 'Actualizar' : 'Guardar'}</>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── COMPONENTE FORMULARIO DE EMPLEADO (CRUD) ──────────────────────────────
+
+function EmployeeFormCard({ onSuccess, onError }) {
+  const editEmp = window.editEmployeeState
+
+  const [nombre, setNombre] = useState('')
+  const [rol, setRol] = useState('vendedor')
+  const [pin, setPin] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [salario, setSalario] = useState(0)
+  const [frecuenciaPago, setFrecuenciaPago] = useState('quincenal')
+  const [fechaPago, setFechaPago] = useState('')
+  const [observaciones, setObservaciones] = useState('')
+  const [activo, setActivo] = useState(true)
+  const [loading, setLoading] = useState(false)
+
+  // Cargar datos si estamos editando
+  useEffect(() => {
+    if (editEmp) {
+      setNombre(editEmp.nombre || '')
+      setRol(editEmp.rol || 'vendedor')
+      setPin(editEmp.pin || '')
+      setTelefono(editEmp.telefono || '')
+      setSalario(editEmp.salario || 0)
+      setFrecuenciaPago(editEmp.frecuenciaPago || 'quincenal')
+      setFechaPago(editEmp.fechaPago || '')
+      setObservaciones(editEmp.observaciones || '')
+      setActivo(editEmp.activo !== false)
+    } else {
+      setNombre('')
+      setRol('vendedor')
+      setPin('')
+      setTelefono('')
+      setSalario(0)
+      setFrecuenciaPago('quincenal')
+      setFechaPago('')
+      setObservaciones('')
+      setActivo(true)
+    }
+  }, [editEmp])
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (!nombre.trim()) return onError('El nombre es obligatorio.')
+    if (!pin.trim()) return onError('El código PIN es obligatorio.')
+    if (pin.length < 4 || pin.length > 6 || isNaN(Number(pin))) {
+      return onError('El PIN debe ser un número de 4 a 6 dígitos.')
+    }
+
+    setLoading(true)
+    try {
+      const { saveEmployee } = await import('../../services/employeeService')
+      const payload = {
+        id: editEmp?.id,
+        nombre: nombre.trim(),
+        rol,
+        pin: pin.trim(),
+        telefono: telefono.trim(),
+        salario: Number(salario) || 0,
+        frecuenciaPago,
+        fechaPago,
+        observaciones: observaciones.trim(),
+        activo,
+        createdAt: editEmp?.createdAt || null
+      }
+      await saveEmployee(payload)
+      onSuccess(editEmp ? 'Empleado actualizado correctamente.' : 'Empleado creado correctamente.')
+      window.setEditEmployee(null)
+    } catch (err) {
+      console.error(err)
+      onError('Error al guardar el empleado.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const rolOptions = Object.entries(PORTAL_CONFIG).map(([key, cfg]) => ({
+    value: key,
+    label: `${cfg.emoji} ${cfg.labelCorto} (${cfg.label})`
+  }))
+
+  const frecuenciaOptions = [
+    { value: 'mensual', label: 'Mensual' },
+    { value: 'quincenal', label: 'Quincenal' },
+    { value: 'semanal', label: 'Semanal' }
+  ]
+
+  return (
+    <form onSubmit={handleSave} className="p-5 rounded-2xl border border-app bg-surface-2 space-y-4 shadow-sm">
+      <div className="flex items-center justify-between border-b border-app pb-3">
+        <p className="text-sm font-bold text-app flex items-center gap-1.5">
+          <User size={16} className="text-primary" />
+          {editEmp ? 'Editar Perfil de Empleado' : 'Registrar Nuevo Empleado'}
+        </p>
+        {editEmp && (
+          <button
+            type="button"
+            onClick={() => window.setEditEmployee(null)}
+            className="text-xs text-muted hover:text-app hover:underline font-medium"
+          >
+            Cancelar
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {/* Nombre completo */}
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Nombre Completo *</label>
+          <input
+            type="text"
+            required
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Juan Pérez"
+            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+          />
+        </div>
+
+        {/* Teléfono */}
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Teléfono Móvil (WhatsApp)</label>
+          <input
+            type="tel"
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            placeholder="Ej. +573001234567"
+            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
+          />
+        </div>
+
+        {/* Rol Operativo (CustomSelect) */}
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Rol Operativo (Portal) *</label>
+          <CustomSelect
+            value={rol}
+            onChange={setRol}
+            options={rolOptions}
+            placeholder="Seleccionar rol"
+          />
+        </div>
+
+        {/* PIN de seguridad */}
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Código PIN Táctil (4-6 dígitos) *</label>
+          <input
+            type="password"
+            maxLength={6}
+            required
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="Ej. 1234"
+            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors tracking-widest font-mono"
+          />
+        </div>
+
+        {/* Nómina y Salarios */}
+        <div className="p-3 bg-surface rounded-xl border border-app space-y-3">
+          <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Configuración de Nómina y Salario</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-semibold text-muted mb-1">Salario Fijo</label>
+              <input
+                type="number"
+                min="0"
+                value={salario || ''}
+                onChange={(e) => setSalario(Math.max(0, parseFloat(e.target.value) || 0))}
+                placeholder="Monto"
+                className="w-full h-10 px-3 rounded-lg bg-surface-2 border border-app text-xs text-app focus:outline-none focus:border-primary transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-muted mb-1">Frecuencia</label>
+              <CustomSelect
+                value={frecuenciaPago}
+                onChange={setFrecuenciaPago}
+                options={frecuenciaOptions}
+                placeholder="Frecuencia"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-muted mb-1">Próxima Fecha de Pago</label>
+            <CustomDatePicker
+              value={fechaPago}
+              onChange={(e) => setFechaPago(e.target.value)}
+              placeholder="Próximo día de pago"
+            />
+          </div>
+        </div>
+
+        {/* Observaciones */}
+        <div>
+          <label className="block text-xs font-semibold text-muted mb-1">Observaciones / Datos adicionales</label>
+          <textarea
+            value={observaciones}
+            onChange={(e) => setObservaciones(e.target.value)}
+            placeholder="Detalles sobre el turno, horario, etc..."
+            className="w-full min-h-[60px] p-3 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors resize-none"
+          />
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full h-11 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm disabled:opacity-50"
+      >
+        {loading ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : (
+          <Save size={16} />
+        )}
+        {editEmp ? 'Actualizar Datos de Empleado' : 'Registrar y Guardar Empleado'}
+      </button>
+    </form>
+  )
+}
+
+
+
 
 
 
@@ -774,6 +1340,23 @@ export default function AdminSettings() {
   })
 
   // Sincronizar store local con formulario al cargar
+  const [dbEmployees, setDbEmployees] = useState([])
+  const [editEmployeeState, setEditEmployeeState] = useState(null)
+
+  // Exponer al scope global para que EmployeeFormCard pueda sincronizarse limpiamente
+  window.editEmployeeState = editEmployeeState
+  window.setEditEmployee = setEditEmployeeState
+
+  useEffect(() => {
+    if (config.isLoaded) {
+      let unsub
+      import('../../services/employeeService').then(({ subscribeToEmployees }) => {
+        unsub = subscribeToEmployees(setDbEmployees)
+      }).catch(console.error)
+      return () => { if (unsub) unsub() }
+    }
+  }, [config.isLoaded])
+
   useEffect(() => {
     if (config.isLoaded) {
       setFormData({
@@ -1472,6 +2055,8 @@ export default function AdminSettings() {
             {activeSection 
               ? (activeSubSection === 'empleados' 
                   ? 'Gestión de Personal' 
+                  : activeSubSection === 'mesas'
+                    ? 'Configuración de Mesas'
                   : activeSubSection === 'entregas' 
                     ? 'Métodos de Entrega' 
                     : activeSubSection === 'temporada'
@@ -1484,6 +2069,8 @@ export default function AdminSettings() {
             {activeSection 
               ? (activeSubSection === 'empleados' 
                   ? 'Configura el personal de ventas' 
+                  : activeSubSection === 'mesas'
+                    ? 'Agrega y administra las mesas del salón'
                   : activeSubSection === 'entregas' 
                     ? 'Opciones de entrega y retiro físico o digital' 
                     : activeSubSection === 'temporada'
@@ -1932,118 +2519,244 @@ export default function AdminSettings() {
                     </div>
                     <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
                   </motion.button>
+
+                  {/* Tarjeta Configuración de Mesas */}
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveSubSection('mesas')}
+                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
+                      <LayoutGrid size={22} className="text-muted group-hover:text-primary transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Configuración de Mesas</p>
+                      <p className="text-xs text-muted leading-relaxed">Configura las mesas del restaurante/salón para el Portal de Mesero.</p>
+                    </div>
+                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
+                  </motion.button>
                 </div>
               </div>
+            )}
+
+            {/* SUBSECCIÓN FORM: Configuración de Mesas */}
+            {activeSubSection === 'mesas' && (
+              <AdminTablesCRUD
+                onSuccess={(msg) => {
+                  setSaveMessage({ type: 'success', text: msg })
+                  setTimeout(() => setSaveMessage(null), 3000)
+                }}
+                onError={(msg) => {
+                  setSaveMessage({ type: 'error', text: msg })
+                  setTimeout(() => setSaveMessage(null), 3000)
+                }}
+              />
             )}
 
             {/* SUBSECCIÓN FORM: Gestión de Personal */}
             {activeSubSection === 'empleados' && (
               <>
-                <div className="p-5 sm:p-6 space-y-5">
-                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                <div className="p-5 sm:p-6 space-y-6">
+                  {/* Interruptor Principal */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app shadow-sm">
                     <div>
                       <p className="text-sm font-bold text-app">Múltiples Empleados</p>
-                      <p className="text-xs text-muted mt-0.5">Activa esta opción si tu negocio cuenta con personal de ventas además de ti</p>
+                      <p className="text-xs text-muted mt-0.5">Activa esta opción si tu negocio cuenta con personal operativo o de ventas</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
                       <input type="checkbox" className="sr-only peer"
                         checked={formData.hasMultipleEmployees}
-                        onChange={(e) => setFormData({ ...formData, hasMultipleEmployees: e.target.checked })} />
+                        onChange={async (e) => {
+                          const checked = e.target.checked
+                          setFormData({ ...formData, hasMultipleEmployees: checked })
+                          try {
+                            await updateAppConfig({ hasMultipleEmployees: checked })
+                            setSaveMessage({ type: 'success', text: checked ? 'Módulo de empleados activado.' : 'Módulo de empleados desactivado.' })
+                            setTimeout(() => setSaveMessage(null), 3000)
+                          } catch (err) {
+                            console.error(err)
+                          }
+                        }} />
                       <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                     </label>
                   </div>
 
                   {formData.hasMultipleEmployees && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4"
-                    >
-                      <div>
-                        <label className="block text-sm font-bold text-app mb-2">Número de Empleados</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={formData.employeeCount || ''}
-                          onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value) || 0);
-                            const newEmployees = [...formData.employees];
-                            if (newEmployees.length < val) {
-                              while (newEmployees.length < val) {
-                                newEmployees.push('');
-                              }
-                            } else if (newEmployees.length > val) {
-                              newEmployees.splice(val);
-                            }
-                            setFormData({
-                              ...formData,
-                              employeeCount: val,
-                              employees: newEmployees
-                            });
-                          }}
-                          placeholder="Ej. 3"
-                          className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-                        />
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                      {/* COLUMNA IZQUIERDA: Listado de Empleados (7 cols) */}
+                      <div className="lg:col-span-7 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-muted uppercase tracking-widest flex items-center gap-1.5">
+                            <Users size={14} className="text-primary" />
+                            Personal Registrado ({dbEmployees.length})
+                          </p>
+                          {/* Botón rápido para limpiar selección y añadir nuevo */}
+                          <button
+                            onClick={() => {
+                              // Resetear formulario de edición/creación
+                              document.getElementById('emp-form-card')?.scrollIntoView({ behavior: 'smooth' })
+                              window.setEditEmployee(null)
+                            }}
+                            className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
+                          >
+                            <Plus size={12} /> Nuevo Empleado
+                          </button>
+                        </div>
+
+                        {dbEmployees.length === 0 ? (
+                          <div className="p-6 bg-surface-2/40 rounded-2xl border border-dashed border-app text-center">
+                            <Users size={32} className="mx-auto text-muted/50 mb-2" />
+                            <p className="text-sm font-semibold text-app">No hay empleados registrados</p>
+                            <p className="text-xs text-muted mt-1">Usa el formulario lateral para agregar tu primer empleado.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                            {dbEmployees.map((emp) => {
+                              const portal = PORTAL_CONFIG[emp.rol] || { emoji: '👤', labelCorto: emp.rol, color: 'var(--color-primary)' }
+                              return (
+                                <div
+                                  key={emp.id}
+                                  className={`p-4 bg-surface-2/70 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                    window.editEmployeeState?.id === emp.id ? 'border-primary ring-1 ring-primary' : 'border-app hover:border-app-hover'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center text-lg border border-app shrink-0 shadow-sm">
+                                      {portal.emoji}
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="text-sm font-bold text-app">{emp.nombre}</p>
+                                        {!emp.activo && (
+                                          <span className="text-[10px] bg-red-500/10 text-red-500 font-bold px-1.5 py-0.5 rounded-full">Inactivo</span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1 text-xs text-muted">
+                                        <span className="font-medium" style={{ color: portal.color }}>
+                                          {portal.labelCorto}
+                                        </span>
+                                        <span>•</span>
+                                        <span>PIN: <strong className="text-app tracking-widest">{emp.pin}</strong></span>
+                                        <span>•</span>
+                                        <span>{formatCurrency(emp.salario)} ({emp.frecuenciaPago})</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-end gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-app">
+                                    {/* Toggle de Activo */}
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const nextActive = !emp.activo
+                                          const { toggleEmployeeStatus } = await import('../../services/employeeService')
+                                          await toggleEmployeeStatus(emp.id, nextActive)
+                                          setSaveMessage({ type: 'success', text: `Empleado ${nextActive ? 'activado' : 'desactivado'} correctamente.` })
+                                          setTimeout(() => setSaveMessage(null), 2500)
+                                        } catch (err) {
+                                          setSaveMessage({ type: 'error', text: 'Error al cambiar estado.' })
+                                        }
+                                      }}
+                                      className={`h-7 px-2.5 rounded-lg font-bold text-[10px] border flex items-center justify-center gap-1 transition-all ${
+                                        emp.activo 
+                                          ? 'bg-primary/10 border-primary/20 text-primary hover:bg-primary/20' 
+                                          : 'bg-surface border-app text-muted hover:bg-surface-2'
+                                      }`}
+                                    >
+                                      {emp.activo ? 'Activo' : 'Inactivo'}
+                                    </button>
+
+                                    {/* Botón Editar */}
+                                    <button
+                                      onClick={() => {
+                                        window.setEditEmployee(emp)
+                                        document.getElementById('emp-form-card')?.scrollIntoView({ behavior: 'smooth' })
+                                      }}
+                                      className="w-8 h-8 rounded-lg bg-surface border border-app hover:border-app-hover flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm"
+                                      title="Editar empleado"
+                                    >
+                                      <Paintbrush size={14} />
+                                    </button>
+
+                                    {/* Botón Eliminar */}
+                                    <button
+                                      onClick={async () => {
+                                        if (window.confirm(`¿Estás seguro de eliminar a ${emp.nombre}? Esta acción no se puede deshacer.`)) {
+                                          try {
+                                            const { deleteEmployee } = await import('../../services/employeeService')
+                                            await deleteEmployee(emp.id)
+                                            setSaveMessage({ type: 'success', text: 'Empleado eliminado correctamente.' })
+                                            setTimeout(() => setSaveMessage(null), 2500)
+                                            if (window.editEmployeeState?.id === emp.id) {
+                                              window.setEditEmployee(null)
+                                            }
+                                          } catch (err) {
+                                            setSaveMessage({ type: 'error', text: 'Error al eliminar.' })
+                                          }
+                                        }
+                                      }}
+                                      className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 flex items-center justify-center text-red-500 transition-colors shadow-sm"
+                                      title="Eliminar empleado"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
 
-                      {formData.employeeCount > 0 && (
-                        <div className="space-y-3 pt-2">
-                          <p className="text-xs font-bold text-muted uppercase tracking-widest">Nombres del Personal de Ventas</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {Array.from({ length: formData.employeeCount }).map((_, idx) => (
-                              <div key={idx}>
-                                <label className="block text-xs font-semibold text-muted mb-1">Empleado #{idx + 1}</label>
-                                <input
-                                  type="text"
-                                  value={formData.employees[idx] || ''}
-                                  onChange={(e) => {
-                                    const newEmployees = [...formData.employees];
-                                    newEmployees[idx] = e.target.value;
-                                    setFormData({ ...formData, employees: newEmployees });
-                                  }}
-                                  placeholder={`Nombre de Empleado ${idx + 1}`}
-                                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
+                      {/* COLUMNA DERECHA: Formulario Crear / Editar (5 cols) */}
+                      <div id="emp-form-card" className="lg:col-span-5">
+                        <EmployeeFormCard
+                          onSuccess={(msg) => {
+                            setSaveMessage({ type: 'success', text: msg })
+                            setTimeout(() => setSaveMessage(null), 3000)
+                          }}
+                          onError={(msg) => {
+                            setSaveMessage({ type: 'error', text: msg })
+                          }}
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
 
                 <div className="p-5 border-t border-app bg-surface-2/30">
-                  <button
-                    onClick={async () => {
-                      try {
-                        if (formData.hasMultipleEmployees) {
-                          if (!formData.employeeCount || formData.employeeCount <= 0) {
-                            setSaveMessage({ type: 'error', text: 'Debes definir al menos 1 empleado.' })
-                            return;
-                          }
-                          const hasEmpty = formData.employees.some(name => !name.trim());
-                          if (hasEmpty) {
-                            setSaveMessage({ type: 'error', text: 'Por favor ingresa los nombres de todos los empleados.' })
-                            return;
-                          }
-                        }
-
-                        await updateAppConfig({ 
-                          hasMultipleEmployees: formData.hasMultipleEmployees, 
-                          employeeCount: formData.hasMultipleEmployees ? formData.employeeCount : 0, 
-                          employees: formData.hasMultipleEmployees ? formData.employees : []
-                        })
-                        setSaveMessage({ type: 'success', text: 'Configuración de personal guardada correctamente.' })
-                        setTimeout(() => setSaveMessage(null), 3000)
-                      } catch (e) {
-                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
-                      }
-                    }}
-                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
-                  >
-                    <Save size={18} /> Guardar Configuración de Personal
-                  </button>
+                  {/* Panel QR dinámico si Múltiples Empleados está activado */}
+                  {formData.hasMultipleEmployees && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="space-y-4"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <QrCode size={18} className="text-primary" />
+                        <h3 className="text-sm font-bold text-app">Códigos QR de Acceso Operativo</h3>
+                      </div>
+                      <p className="text-xs text-muted leading-relaxed">
+                        Los empleados pueden escanear estos códigos QR para ser redirigidos directamente al lobby táctil de su respectivo rol sin navegar por la web pública.
+                      </p>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+                        {Object.entries(PORTAL_CONFIG).map(([rol, cfg]) => {
+                          const count = dbEmployees.filter(e => e.rol === rol && e.activo !== false).length
+                          return (
+                            <PortalQRCard
+                              key={rol}
+                              rol={rol}
+                              cfg={cfg}
+                              employeeCount={count}
+                              baseUrl={window.location.origin}
+                            />
+                          )
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </>
             )}

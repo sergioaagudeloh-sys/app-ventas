@@ -76,7 +76,7 @@ service cloud.firestore {
 
     // Cupones
     match /coupons/{document} {
-      allow read: if true;
+      allow read, list: if true;
       allow write, delete: if isAdmin();
     }
 
@@ -100,6 +100,47 @@ service cloud.firestore {
       allow create: if true;
       allow update: if isAdmin() || (resource.data.clienteCelular != null);
       allow delete: if isAdmin();
+    }
+
+    // ─── NUEVAS COLECCIONES SISTEMA DE ROLES OPERATIVOS ─────────────────────
+    
+    // Configuración y PINs de empleados (Altamente sensible)
+    match /employees/{employeeId} {
+      // Lectura permitida si se consulta un empleado individual (para validación de PIN en portal_auth/lobby)
+      // Escritura restringida exclusivamente a Administradores Autenticados
+      allow get: if true;
+      allow list, write: if isAdmin();
+    }
+
+    // Mesas de servicio en salón (restaurantes)
+    match /tables/{tableId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Órdenes en cola de producción (cocina y bodega)
+    match /production/{prodId} {
+      allow read: if true;
+      allow write: if isAdmin() || true; // Permitido para transicionar estados desde portales con PIN
+    }
+
+    // Entregas y despachos (mensajería/domiciliarios)
+    match /deliveries/{deliveryId} {
+      allow read: if true;
+      allow write: if isAdmin() || true; // Permitido para actualizar coordenadas o estados en tránsito
+    }
+
+    // Kardex y Movimientos de Stock
+    match /stockMovements/{movementId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() || true; // Permitido crear movimientos al vender/descartar
+      allow update, delete: if isAdmin();
+    }
+
+    // Historial de Accesos y Sesiones QR
+    match /accessLogs/{logId} {
+      allow read: if isAdmin();
+      allow create, update: if true;
     }
   }
 }

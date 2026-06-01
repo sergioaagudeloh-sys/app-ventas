@@ -105,7 +105,7 @@ export default function AdminSales() {
   // ─── MODO DE VENTA ────────────────────────────────────────────────────────
   // null = aún no elegido (muestra selector), 'inventory' = catálogo, 'custom' = producto libre
   const [saleMode, setSaleMode] = useState(null)
-  const [customItem, setCustomItem] = useState({ nombre: '', precio: '', cantidad: '1' })
+  const [customItem, setCustomItem] = useState({ nombre: '', precio: '', cantidad: '1', descripcion: '' })
 
   const addCustomItemToCart = () => {
     const precio = parseFloat(customItem.precio)
@@ -118,6 +118,7 @@ export default function AdminSales() {
       productId: `custom-${Date.now()}`,
       variantId: `custom-${Date.now()}`,
       nombre: customItem.nombre.trim(),
+      descripcion: customItem.descripcion?.trim() || '',
       precio,
       talla: null,
       color: null,
@@ -125,7 +126,7 @@ export default function AdminSales() {
       maxStock: 99999,
       imageUrl: null
     }])
-    setCustomItem({ nombre: '', precio: '', cantidad: '1' })
+    setCustomItem({ nombre: '', precio: '', cantidad: '1', descripcion: '' })
   }
 
   // Búsqueda en tiempo real de cliente
@@ -295,6 +296,7 @@ export default function AdminSales() {
           productId: item.productId,
           variantId: item.variantId,
           nombre: item.nombre,
+          descripcion: item.descripcion || '',
           precio: item.precio,
           talla: item.talla,
           color: item.color,
@@ -558,6 +560,16 @@ export default function AdminSales() {
                     value={customItem.nombre}
                     onChange={e => setCustomItem(p => ({ ...p, nombre: e.target.value }))}
                     placeholder="Ej: Camiseta personalizada azul"
+                    className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Detalles / Descripción (opcional)</label>
+                  <input
+                    type="text"
+                    value={customItem.descripcion}
+                    onChange={e => setCustomItem(p => ({ ...p, descripcion: e.target.value }))}
+                    placeholder="Ej: Talla L, estampado de gato"
                     className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
@@ -847,6 +859,9 @@ export default function AdminSales() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-app truncate">{item.nombre}</p>
+                      {item.descripcion && (
+                        <p className="text-[10px] text-muted italic">Detalle: {item.descripcion}</p>
+                      )}
                       <p className="text-[10px] text-muted">
                         {[item.talla, item.color].filter(Boolean).join(' • ') || 'Estándar'}
                       </p>

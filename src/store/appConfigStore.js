@@ -63,6 +63,7 @@ const useAppConfigStore = create(
       slogan: '',             // Eslogan de la tienda (aparece debajo del logo en login)
       creditsEnabled: true,
       couponsEnabled: true,
+      rolesOperativosEnabled: false, // Sistema de Roles Operativos y Portales (módulo avanzado)
       deliverySettings: {
         pickup: {
           enabled: true,
@@ -144,6 +145,7 @@ const useAppConfigStore = create(
         developerPhone: state.developerPhone,
         creditsEnabled: state.creditsEnabled,
         couponsEnabled: state.couponsEnabled,
+        rolesOperativosEnabled: state.rolesOperativosEnabled,
       }),
     }
   )

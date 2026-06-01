@@ -11,7 +11,8 @@ import {
   Store,
   Bell,
   X,
-  ShieldAlert
+  ShieldAlert,
+  QrCode
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { auth } from '../config/firebaseConfig'

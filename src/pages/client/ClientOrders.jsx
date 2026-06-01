@@ -591,13 +591,18 @@ export default function ClientOrders() {
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-bold text-app leading-tight mb-1">{item.nombre}</p>
-                        <p className="text-xs text-muted">
+                        <p className="text-xs text-muted leading-tight">
                           {item.atributos && Object.values(item.atributos).length > 0
                             ? Object.values(item.atributos).join(' • ')
                             : item.talla || item.color 
                               ? [item.talla, item.color].filter(Boolean).join(' • ')
                               : 'Única'}
                         </p>
+                        {item.descripcion && (
+                          <p className="text-[11px] text-muted italic mt-1 bg-surface-2 px-1.5 py-0.5 rounded border border-app/20 w-fit">
+                            Detalle: {item.descripcion}
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-muted mb-0.5">x{item.cantidad}</p>

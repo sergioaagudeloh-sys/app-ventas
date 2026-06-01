@@ -801,6 +801,11 @@ export default function AdminOrders() {
                                 ? [item.talla, item.color].filter(Boolean).join(' • ')
                                 : 'Única'}
                           </p>
+                          {item.descripcion && (
+                            <p className="text-[11px] text-muted italic mt-1 bg-surface-2/50 px-1.5 py-0.5 rounded border border-app/20 w-fit">
+                              Detalle: {item.descripcion}
+                            </p>
+                          )}
                         </div>
                         <div className="text-right pr-2">
                           <p className="text-xs text-muted mb-0.5">x{item.cantidad}</p>

@@ -24,6 +24,7 @@
 | **ClientCouponsModal.jsx** | Filtrar cupones activos y no expirados | `useCopyToClipboard`, `useCoupons`, `formatters`, `ModalTemplate` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/coupons/ClientCouponsModal.jsx) |
 | **SmartHint.jsx** | 'top', 'bottom', 'floating', 'banner', 'none' | `appConfigStore`, `guidedStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/client/guided/SmartHint.jsx) |
 | **ModalTemplate.jsx** | Componente o módulo funcional de la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/common/ModalTemplate.jsx) |
+| **RequirePortalAuth.jsx** | Guard para rutas del portal operativo. Si no hay empleado autenticado, o si está deshabilitado, redirige a /portal/auth. | `portalStore`, `appConfigStore`, `firestore`, `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/portal/RequirePortalAuth.jsx) |
 | **AppLoader.jsx** | Loader global de la aplicación. Se muestra durante lazy loading de rutas y carga inicial. Usa el nombre de la app configurado para personalizarlo. | `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/AppLoader.jsx) |
 | **BackButton.jsx** | Componente atómico de navegación para ir atrás. Garantiza consistencia visual y de comportamiento en toda la aplicación. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/BackButton.jsx) |
 | **CategoryManager.jsx** | Compact SVG Icons dictionary to replace lucide-react and keep the component 100% portable | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/components/ui/CategoryManager.jsx) |
@@ -37,7 +38,7 @@
 
 | Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
 | :--- | :--- | :--- | :--- |
-| **AppRoutes.jsx** | ─── Lazy loading de páginas (Guía Maestra §11.3) ──────────────────────────── | `authStore`, `constants`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/routes/AppRoutes.jsx) |
+| **AppRoutes.jsx** | ─── Lazy loading de páginas (Guía Maestra §11.3) ──────────────────────────── | `authStore`, `constants`, `AppLoader`, `RequirePortalAuth` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/routes/AppRoutes.jsx) |
 
 ### ⚙️ Estado Global (Zustand Store de sincronización)
 
@@ -48,6 +49,7 @@
 | **cartStore.js** | Store del carrito de compras. Persiste en localStorage para que el carrito no se pierda al navegar. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/cartStore.js) |
 | **favoritesStore.js** | Store global para gestionar los favoritos del usuario en tiempo real con Firestore. Esto evita crear múltiples 'listeners' al renderizar muchos ProductCards. | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/favoritesStore.js) |
 | **guidedStore.js** | Store del Sistema de Compra Guiada Inteligente. Registra qué pasos ya aprendió el usuario para no repetir ayudas innecesariamente. Controla el Modo Asistencia (activado/desactivado). | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/guidedStore.js) |
+| **portalStore.js** | Store de la sesión operativa de un empleado. Completamente independiente del authStore de Firebase. Se llena cuando un empleado se autentica por PIN en /portal/auth. | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/store/portalStore.js) |
 
 ### ⚙️ Hook Custom (Lógica reactiva modular)
 
@@ -75,6 +77,7 @@
 | **AdminHome.jsx** | Componente o módulo funcional de la aplicación. | `useOrders`, `useCredits`, `useInventory`, `useBilling`, `constants`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminHome.jsx) |
 | **AdminInventory.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `CategoryManager`, `ProductFormModal`, `formatters`, `search` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminInventory.jsx) |
 | **AdminOrders.jsx** | Componente o módulo funcional de la aplicación. | `useOrders`, `useCredits`, `useWholesale`, `constants`, `formatters`, `appConfigStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminOrders.jsx) |
+| **AdminPortalQR.jsx** | AdminPortalQR.jsx Panel de administración del sistema de acceso por QR para portales de empleados. 3 tabs: → Códigos QR: Grid de portales con QR generado, descargar PNG, imprimir, copiar URL → Historial:  Tabla paginada de accessLogs con filtros → Monitoreo:  Sesiones activas en RT + estadísticas del día | `constants`, `accessLogService`, `employeeService`, `BackButton` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminPortalQR.jsx) |
 | **AdminSales.jsx** | Componente o módulo funcional de la aplicación. | `useInventory`, `useOrders`, `userService`, `authStore`, `appConfigStore`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSales.jsx) |
 | **AdminSalesDetail.jsx** | ─── Helpers de fecha ──────────────────────────────────────────────────────── | `BackButton`, `useOrders`, `constants`, `formatters`, `useInventory`, `pdfService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSalesDetail.jsx) |
 | **AdminSettings.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `constants`, `appConfigService`, `appConfigStore`, `authStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/admin/AdminSettings.jsx) |
@@ -86,12 +89,19 @@
 | **ClientProfile.jsx** | Componente o módulo funcional de la aplicación. | `authStore`, `guidedStore`, `appConfigStore`, `usePWAInstall`, `constants`, `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientProfile.jsx) |
 | **OrderTracking.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `appConfigStore`, `formatters`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/OrderTracking.jsx) |
 | **LoginPage.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `authStore`, `appConfigStore`, `appConfigService`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/LoginPage.jsx) |
+| **PortalAuth.jsx** | PortalAuth.jsx Autenticación de empleados por PIN para el sistema de portales operativos. Flujo de 2 pasos: Paso 1 → Selector de empleados (filtrado por ?rol= si viene de un QR) Paso 2 → Teclado PIN del empleado seleccionado Soporta acceso genérico (sin QR) mostrando selector de roles primero. | `employeeService`, `accessLogService`, `portalStore`, `appConfigStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalAuth.jsx) |
+| **PortalBodega.jsx** | PortalBodega.jsx Portal operativo del Bodeguero. Permite registrar movimientos de inventario (entrada, salida, ajuste, merma) y consultar el stock actual de productos. | `useInventory`, `stockMovementService`, `firestore`, `firebaseConfig`, `constants`, `portalStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalBodega.jsx) |
+| **PortalCocina.jsx** | PortalCocina.jsx Portal en tiempo real para el Cocinero. Muestra las órdenes en cola de producción con acciones de avance de estado. | `productionService`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalCocina.jsx) |
+| **PortalMensajero.jsx** | PortalMensajero.jsx Portal del Mensajero / Domiciliario. Muestra los domicilios asignados en tiempo real y permite actualizar su estado. | `deliveryService`, `portalStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalMensajero.jsx) |
+| **PortalMesero.jsx** | PortalMesero.jsx Portal del Mesero. Muestra el mapa de mesas en tiempo real, permite abrir/cerrar mesas y solicitar la cuenta. | `tableService`, `portalStore` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalMesero.jsx) |
+| **PortalVendedor.jsx** | PortalVendedor.jsx Portal operativo del Vendedor POS. Reutiliza toda la lógica de AdminSales pero dentro del contexto del portal operativo, con el vendedor identificado por PIN como autor de la venta. | `useInventory`, `useOrders`, `userService`, `portalStore`, `appConfigStore`, `formatters` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/portal/PortalVendedor.jsx) |
 | **WelcomePage.jsx** | Leer color primario real desde las variables CSS del DOM | `appConfigStore`, `authStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/WelcomePage.jsx) |
 
 ### ⚙️ Servicio de Backend / API (Integración de persistencia)
 
 | Nombre del Archivo | Propósito del Módulo | Dependencias Críticas | Ruta de Acceso Directo |
 | :--- | :--- | :--- | :--- |
+| **accessLogService.js** | accessLogService.js Servicio de registro de accesos y sesiones del sistema de portales operativos. Gestiona: login/logout de empleados, historial de accesos, sesiones activas. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/accessLogService.js) |
 | **adService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/adService.js) |
 | **appConfigService.js** | Ruta del documento de configuración global en Firestore | `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/appConfigService.js) |
 | **billingService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `appConfigService`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/billingService.js) |
@@ -99,9 +109,14 @@
 | **clientNotificationService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/clientNotificationService.js) |
 | **couponService.js** | Definir constante de colección local si no está en constants | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/couponService.js) |
 | **creditService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants`, `clientNotificationService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/creditService.js) |
+| **deliveryService.js** | Registra un nuevo pedido en la cola de domicilios. | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/deliveryService.js) |
+| **employeeService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/employeeService.js) |
 | **inventoryService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/inventoryService.js) |
 | **orderService.js** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `constants`, `clientNotificationService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/orderService.js) |
 | **pdfService.js** | Helper to convert Firestore timestamp or other date representation to a local Date object | `formatters`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/pdfService.js) |
+| **productionService.js** | Registra una nueva cola de producción para cocina/bodega. @param {object} orderData - Datos de la orden original | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/productionService.js) |
+| **stockMovementService.js** | Registra un movimiento de inventario (entrada, salida, ajuste). | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/stockMovementService.js) |
+| **tableService.js** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/tableService.js) |
 | **telemetryService.js** | Reporta los acumulados mensuales de la tienda al panel central del desarrollador. @param {number} totalVentas - Monto total acumulado facturado en el mes. @param {number} comisionPorcentaje - Porcentaje comisionado pactado con el desarrollador. @param {string} periodo - Periodo formateado en año-mes (ej: "2026-05"). | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/telemetryService.js) |
 | **userService.js** | Busca un cliente en Firestore por su número de celular. @param {string} celular - Número de teléfono del cliente @returns {Promise<object|null>} Los datos del cliente si existe, o null | `firestore`, `firebaseConfig`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/userService.js) |
 | **whatsappService.js** | Servicio / Utilidad para estructurar y abrir enlaces de chat hacia WhatsApp. Centraliza la sanitización de teléfonos y la codificación de mensajes. | `appConfigStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/services/whatsappService.js) |
@@ -121,6 +136,7 @@
 | **index.css** | ═══════════════════════════════════════════════════════════════════════════ SISTEMA DE PALETAS DE COLORES — App Ventas 8 temas: Femeninos | Masculinos | Neutros | Oscuros Aplicados via atributo data-theme en el elemento raíz <html> Modo oscuro: clase 'dark' en <html> ═══════════════════════════════════════════════════════════════════════════ | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/index.css) |
 | **AdminLayout.jsx** | Componente o módulo funcional de la aplicación. | `firebaseConfig`, `appConfigStore`, `authStore`, `orderService`, `creditService`, `claimsService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/layouts/AdminLayout.jsx) |
 | **ClientLayout.jsx** | Componente o módulo funcional de la aplicación. | `appConfigStore`, `cartStore`, `authStore`, `favoritesStore`, `useInactivityTimer`, `SmartHint` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/layouts/ClientLayout.jsx) |
+| **PortalLayout.jsx** | Componente o módulo funcional de la aplicación. | `portalStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/layouts/PortalLayout.jsx) |
 | **main.jsx** | Registrar Service Worker para PWA (auto-update) | `App.jsx` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/main.jsx) |
 | **creditSchemas.js** | Esquema para validar un abono (pago parcial) a una deuda | Ninguna | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/schemas/creditSchemas.js) |
 | **inventorySchemas.js** | Esquema de validación para una Categoría. | `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/schemas/inventorySchemas.js) |
