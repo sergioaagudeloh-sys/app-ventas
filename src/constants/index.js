@@ -122,3 +122,89 @@ export const CLIENT_LOGIN_TRUST_MESSAGE =
 
 // ─── Contraseña del desarrollador para Facturación y Pruebas ──────────────────
 export const DEV_PASSWORD = '1q2w3e4r5t6y7u8i9o0p..'
+
+// ─── Metadatos ricos de estados para el tracking público ─────────────────────
+// Añadir aquí cualquier estado nuevo. OrderTracking.jsx lo mostrará automáticamente.
+// icon: nombre exacto del ícono de Lucide React.
+// color: clave del mapa de colores en OrderTracking (amber|indigo|emerald|rose|orange|blue).
+// terminal: true si es estado de fin de flujo (el stepper no avanza más).
+// isError: true si es un estado terminal negativo (cancelado, etc.).
+export const ORDER_STATE_META = {
+  pendiente: {
+    label: 'Recibido',
+    desc: 'Tu pedido está en espera de revisión',
+    icon: 'Clock',
+    color: 'amber',
+    terminal: false,
+    isError: false,
+  },
+  credito_aprobado: {
+    label: 'Crédito Aprobado',
+    desc: 'Tu pago o crédito ha sido validado',
+    icon: 'ShieldCheck',
+    color: 'indigo',
+    terminal: false,
+    isError: false,
+  },
+  completado: {
+    label: 'Entregado',
+    desc: 'Tu pedido fue entregado exitosamente',
+    icon: 'CheckCircle2',
+    color: 'emerald',
+    terminal: true,
+    isError: false,
+  },
+  cancelado: {
+    label: 'Cancelado',
+    desc: 'Este pedido fue cancelado',
+    icon: 'AlertTriangle',
+    color: 'rose',
+    terminal: true,
+    isError: true,
+  },
+  // ── Ejemplo de estados futuros ─────────────────────────────────────────────
+  // en_cocina: {
+  //   label: 'En Preparación',
+  //   desc: 'Tu pedido está siendo preparado',
+  //   icon: 'ChefHat',
+  //   color: 'orange',
+  //   terminal: false,
+  //   isError: false,
+  // },
+  // en_camino: {
+  //   label: 'En Camino',
+  //   desc: 'Tu domicilio ya fue despachado',
+  //   icon: 'Truck',
+  //   color: 'blue',
+  //   terminal: false,
+  //   isError: false,
+  // },
+  // listo_para_recoger: {
+  //   label: 'Listo para Recoger',
+  //   desc: 'Tu pedido está listo en tienda',
+  //   icon: 'ShoppingBag',
+  //   color: 'emerald',
+  //   terminal: false,
+  //   isError: false,
+  // },
+}
+
+// ─── Secuencia del stepper para pedidos de DOMICILIO ─────────────────────────
+// Añade estados intermedios aquí cuando implementes cocina, en_camino, etc.
+export const ORDER_TRACKING_STEPS_DOMICILIO = [
+  'pendiente',
+  'credito_aprobado',
+  'completado',
+  // 'en_cocina',
+  // 'en_camino',
+]
+
+// ─── Secuencia del stepper para pedidos de RETIRO EN TIENDA ──────────────────
+// Flujo independiente. Puede tener pasos como listo_para_recoger.
+export const ORDER_TRACKING_STEPS_RETIRO = [
+  'pendiente',
+  'credito_aprobado',
+  'completado',
+  // 'en_cocina',
+  // 'listo_para_recoger',
+]

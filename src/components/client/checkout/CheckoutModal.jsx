@@ -104,7 +104,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       icon: Truck,
       title: 'Domicilio',
       description: currentSettings.shipping?.instructions || 'Recibe tu pedido en la comodidad de tu casa. Te contactaremos para coordinar.',
-      badge: currentSettings.shipping?.cost > 0 ? `+ ${formatCurrency(currentSettings.shipping.cost)}` : 'Gratis',
+      badge: currentSettings.shipping?.cost > 0 ? `+ ${formatCurrency(currentSettings.shipping.cost)}` : 'Por acordar',
       badgeColor: 'bg-primary/10 text-primary',
     })
   }
@@ -166,8 +166,19 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      const hasOnlyOneOption = activeDeliveryOptions.length === 1
-      const initialDeliveryType = hasOnlyOneOption ? activeDeliveryOptions[0].id : ''
+      // Recalcular dinámicamente activeDeliveryOptions al abrir para evitar closure estático
+      const options = []
+      const currentSettings = deliverySettings || {
+        pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+        shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+        digital: { enabled: false, instructions: '' }
+      }
+      if (currentSettings.pickup?.enabled !== false) options.push('retiro')
+      if (currentSettings.shipping?.enabled !== false) options.push('domicilio')
+      if (currentSettings.digital?.enabled === true) options.push('digital')
+
+      const hasOnlyOneOption = options.length === 1
+      const initialDeliveryType = hasOnlyOneOption ? options[0] : ''
 
       setStep(hasOnlyOneOption ? 2 : 1)
       setErrors({})
@@ -190,7 +201,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       setSelectedBank(1)
       setShowPickupMap(false)
     }
-  }, [isOpen, user])
+  }, [isOpen, user, deliverySettings])
 
   // ── Paso 1 → 2: selección de entrega ─────────────────────────────────────
   const handleSelectDelivery = (tipo) => {

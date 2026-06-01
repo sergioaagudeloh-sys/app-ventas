@@ -68,7 +68,7 @@ export default function ClientOrders() {
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus()
   const { data: activeProducts = [] } = useProducts(true)
   const { addItem, openCart } = useCartStore()
-  const { whatsappAdmin, appName, appIcon, claimsEnabled, wholesaleSettings } = useAppConfigStore()
+  const { whatsappAdmin, appName, appIcon, claimsEnabled, wholesaleSettings, orderTrackingEnabled } = useAppConfigStore()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -503,11 +503,22 @@ export default function ClientOrders() {
           </div>
 
           <div className="flex justify-between items-end">
-            <div>
-              <p className="text-sm text-app font-medium mb-1">{order.items?.length || 0} productos</p>
-              <p className="text-xs text-muted px-2 py-0.5 bg-surface-2 rounded-md border border-app inline-block">
-                {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
-              </p>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-app font-medium">{order.items?.length || 0} productos</p>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="text-xs text-muted px-2 py-0.5 bg-surface-2 rounded-md border border-app">
+                  {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
+                </span>
+                {order.tipoEntrega === 'domicilio' ? (
+                  <span className="text-xs font-bold px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md">
+                    🛵 Domicilio{order.costoEnvio > 0 ? ` · +${formatCurrency(order.costoEnvio)}` : ''}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted px-2 py-0.5 bg-surface-2 rounded-md border border-app">
+                    🏪 Retiro en tienda
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-right flex items-center gap-3">
               <p className="text-lg font-black text-primary">{formatCurrency(order.total)}</p>
@@ -542,6 +553,31 @@ export default function ClientOrders() {
                   </div>
                 )}
 
+                {/* Detalle de Entrega */}
+                <div className="mb-5 p-4 bg-surface rounded-2xl border border-app">
+                  <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    {order.tipoEntrega === 'domicilio' ? '🛵' : '🏪'}
+                    {order.tipoEntrega === 'domicilio' ? 'Entrega a Domicilio' : 'Retiro en Tienda'}
+                  </h4>
+                  {order.tipoEntrega === 'domicilio' ? (
+                    <div className="space-y-0.5">
+                      {order.cliente?.direccion && (
+                        <p className="text-sm font-medium text-app">{order.cliente.direccion}</p>
+                      )}
+                      {order.cliente?.barrio && (
+                        <p className="text-xs text-muted">{order.cliente.barrio}{order.cliente?.ciudad ? `, ${order.cliente.ciudad}` : ''}</p>
+                      )}
+                      {order.costoEnvio > 0 ? (
+                        <p className="text-xs font-bold text-primary mt-1">Costo de envío: {formatCurrency(order.costoEnvio)}</p>
+                      ) : (
+                        <p className="text-xs text-muted italic mt-1">El costo de envío será acordado con el negocio.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted">Recoge tu pedido directamente en nuestra tienda.</p>
+                  )}
+                </div>
+
                 <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Productos</h4>
                 <div className="space-y-3">
                   {order.items?.map((item, idx) => (
@@ -570,6 +606,45 @@ export default function ClientOrders() {
                     </div>
                   ))}
                 </div>
+
+                {/* Desglose Financiero con Domicilio para Cliente */}
+                <div className="mt-4 pt-4 border-t border-app space-y-1.5 text-sm">
+                  <div className="flex justify-between text-muted">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">{formatCurrency(order.subtotal || (order.total - (order.costoEnvio || 0)))}</span>
+                  </div>
+                  {order.tipoEntrega === 'domicilio' && (
+                    <div className="flex justify-between text-muted">
+                      <span>🛵 Domicilio:</span>
+                      <span className="font-semibold text-primary">+{formatCurrency(order.costoEnvio || 0)}</span>
+                    </div>
+                  )}
+                  {order.descuento > 0 && (
+                    <div className="flex justify-between text-muted">
+                      <span>🏷️ Descuento:</span>
+                      <span className="font-semibold text-green-500">-{formatCurrency(order.descuento)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-app font-black text-base pt-1 border-t border-app/50">
+                    <span>Total a Pagar:</span>
+                    <span className="text-primary">{formatCurrency(order.total)}</span>
+                  </div>
+                </div>
+
+                {/* Botón de Seguimiento en Tiempo Real / En Vivo */}
+                {orderTrackingEnabled && order.trackingToken && (
+                  <div className="mt-4 pt-3 border-t border-app/50">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/pedido/status?t=${order.trackingToken}`)
+                      }}
+                      className="w-full flex items-center justify-center gap-2 h-11 bg-primary text-white rounded-xl font-bold text-xs shadow-md hover:opacity-90 transition-all active:scale-[0.98] cursor-pointer"
+                    >
+                      🚀 Ver Seguimiento en Tiempo Real
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

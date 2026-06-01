@@ -14,6 +14,8 @@ import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
 import { subscribeToClaims } from '../../services/claimsService'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
+import { db } from '../../config/firebaseConfig'
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -213,7 +215,7 @@ const NEXT_STATES = {
 export default function AdminOrders() {
   const { data: orders = [], isLoading } = useOrders()
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
-  const { appName, appIcon, whatsappAdmin } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, deliverySettings } = useAppConfigStore()
   const { data: credits = [] } = useCredits('activo')
   const { data: wholesaleRequests = [] } = useWholesaleRequests()
   const { mutate: updateWholesaleStatus } = useUpdateWholesaleStatus()
@@ -238,6 +240,8 @@ export default function AdminOrders() {
   const [isArchiving, setIsArchiving] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [showWholesaleModal, setShowWholesaleModal] = useState(false)
+  const [tempDeliveryCosts, setTempDeliveryCosts] = useState({})
+  const [savedPriceModal, setSavedPriceModal] = useState({ isOpen: false, orderNumber: '', value: 0 })
   const triggerRef = useRef(null)
 
   const pendingWholesaleCount = useMemo(() => {
@@ -629,7 +633,57 @@ export default function AdminOrders() {
                       </div>
                     )}
 
-                    <p className="text-sm text-app mt-2">
+                    {/* Precio del Domicilio Editable si el método de entrega a domicilio está habilitado */}
+                    {order.tipoEntrega === 'domicilio' && (deliverySettings?.shipping?.enabled ?? true) && (
+                      <div className="mt-4 p-4 bg-surface rounded-2xl border border-app shadow-sm">
+                        <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          🛵 Valor del Domicilio
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm font-bold">$</span>
+                            <input
+                              type="number"
+                              value={tempDeliveryCosts[order.id] !== undefined ? tempDeliveryCosts[order.id] : (order.costoEnvio || 0)}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0
+                                setTempDeliveryCosts(prev => ({ ...prev, [order.id]: val }))
+                              }}
+                              className="w-full pl-7 pr-3 h-10 bg-surface-2 border border-app rounded-xl text-sm font-bold text-app focus:outline-none focus:border-primary transition-colors"
+                              placeholder="Ej: 5000"
+                            />
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const newCost = parseFloat(tempDeliveryCosts[order.id]) || 0
+                              try {
+                                const orderRef = doc(db, 'orders', order.id)
+                                const diff = newCost - (order.costoEnvio || 0)
+                                await updateDoc(orderRef, {
+                                  costoEnvio: newCost,
+                                  total: Math.max(0, (order.total || 0) + diff),
+                                  updatedAt: serverTimestamp()
+                                })
+                                // Mostrar el modal deslizable de confirmación
+                                setSavedPriceModal({
+                                  isOpen: true,
+                                  orderNumber: order.orderNumber,
+                                  value: newCost
+                                })
+                              } catch (error) {
+                                console.error('Error al actualizar costo de envío:', error)
+                                alert('No se pudo actualizar el costo de envío.')
+                              }
+                            }}
+                            className="px-4 h-10 bg-primary text-white rounded-xl text-xs font-bold transition-all active:scale-95 hover:opacity-90 shrink-0 cursor-pointer"
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-sm text-app mt-3">
                       {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Reciente'}
                     </p>
                   </div>
@@ -730,8 +784,8 @@ export default function AdminOrders() {
                   <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-1.5"><Package size={14}/> Productos</h4>
                   <div className="space-y-2">
                     {order.items?.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-app/50">
-                        <div className="w-12 h-12 bg-surface-2 rounded-lg flex-shrink-0 overflow-hidden border border-app/50 relative">
+                      <div key={idx} className="flex items-center gap-3 bg-surface p-3 rounded-2xl border border-app hover:bg-surface-2/30 transition-colors shadow-sm">
+                        <div className="w-12 h-12 bg-surface-2 rounded-xl flex-shrink-0 overflow-hidden border border-app/80 relative">
                           {item.imagen || item.imageUrl ? (
                             <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
                           ) : (
@@ -754,6 +808,30 @@ export default function AdminOrders() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* Desglose de Totales Financieros */}
+                  <div className="mt-4 pt-4 border-t border-app space-y-1.5 text-sm">
+                    <div className="flex justify-between text-muted">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold">{formatCurrency(order.subtotal || (order.total - (order.costoEnvio || 0)))}</span>
+                    </div>
+                    {order.tipoEntrega === 'domicilio' && (
+                      <div className="flex justify-between text-muted">
+                        <span>🛵 Domicilio:</span>
+                        <span className="font-semibold text-primary">+{formatCurrency(order.costoEnvio || 0)}</span>
+                      </div>
+                    )}
+                    {order.descuento > 0 && (
+                      <div className="flex justify-between text-muted">
+                        <span>🏷️ Descuento:</span>
+                        <span className="font-semibold text-green-500">-{formatCurrency(order.descuento)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-app font-black text-base pt-1 border-t border-app/50">
+                      <span>Total General:</span>
+                      <span className="text-primary">{formatCurrency(order.total)}</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -1191,6 +1269,42 @@ export default function AdminOrders() {
         onClose={() => setShowWholesaleModal(false)}
         onUpdateStatus={(id, status) => updateWholesaleStatus({ id, newStatus: status })}
       />
+
+      {/* Banner deslizable: confirmación de precio de domicilio guardado */}
+      <AnimatePresence>
+        {savedPriceModal.isOpen && (
+          <motion.div
+            initial={{ y: 120, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 120, opacity: 0 }}
+            transition={{ type: 'spring', damping: 22, stiffness: 260 }}
+            onAnimationComplete={() => {
+              if (savedPriceModal.isOpen) {
+                setTimeout(() => setSavedPriceModal(prev => ({ ...prev, isOpen: false })), 2800)
+              }
+            }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4"
+          >
+            <div className="flex items-center gap-3 bg-surface border border-app shadow-2xl rounded-2xl px-5 py-4">
+              <div className="w-10 h-10 rounded-xl bg-green-500/15 border border-green-500/25 flex items-center justify-center shrink-0">
+                <CheckCircle size={22} className="text-green-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-app leading-tight">¡Domicilio guardado!</p>
+                <p className="text-xs text-muted mt-0.5 truncate">
+                  Pedido {savedPriceModal.orderNumber} · Costo: {formatCurrency(savedPriceModal.value)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSavedPriceModal(prev => ({ ...prev, isOpen: false }))}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-2 transition-colors text-muted shrink-0 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   )
