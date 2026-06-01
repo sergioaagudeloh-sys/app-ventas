@@ -2152,61 +2152,6 @@ export default function AdminSettings() {
                         <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                       </label>
                     </div>
-
-                    {(formData.deliverySettings?.shipping?.enabled ?? true) && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 pt-2">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-muted mb-1">Costo de Envío ($)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={formData.deliverySettings?.shipping?.cost ?? 0}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                deliverySettings: {
-                                  ...formData.deliverySettings,
-                                  shipping: { ...(formData.deliverySettings?.shipping || {}), cost: Math.max(0, parseInt(e.target.value) || 0) }
-                                }
-                              })}
-                              className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-muted mb-1">Tiempo Estimado</label>
-                            <input
-                              type="text"
-                              value={formData.deliverySettings?.shipping?.estimatedTime || ''}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                deliverySettings: {
-                                  ...formData.deliverySettings,
-                                  shipping: { ...(formData.deliverySettings?.shipping || {}), estimatedTime: e.target.value }
-                                }
-                              })}
-                              placeholder="Ej. 30 a 60 min, o 24-48 horas"
-                              className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold text-muted mb-1">Instrucciones de Envío</label>
-                          <input
-                            type="text"
-                            value={formData.deliverySettings?.shipping?.instructions || ''}
-                            onChange={(e) => setFormData({
-                              ...formData,
-                              deliverySettings: {
-                                ...formData.deliverySettings,
-                                shipping: { ...(formData.deliverySettings?.shipping || {}), instructions: e.target.value }
-                              }
-                            })}
-                            placeholder="Ej. Recibe en la comodidad de tu casa"
-                            className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors"
-                          />
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
 
                   {/* Entrega Digital */}
