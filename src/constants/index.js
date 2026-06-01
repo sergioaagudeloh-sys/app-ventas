@@ -103,7 +103,55 @@ export const COLLECTIONS = {
   DELIVERIES: 'deliveries',
   STOCK_MOVEMENTS: 'stockMovements',
   ACCESS_LOGS: 'accessLogs',
+  DELIVERY_ANALYTICS: 'deliveryAnalytics',
 }
+
+// ─── Estados logísticos de entrega (mensajero propio) ─────────────────────────
+export const DELIVERY_STATES = {
+  PENDING:     'pendiente',
+  ASSIGNED:    'asignado',
+  READY:       'listo',
+  ON_ROUTE:    'en_camino',
+  DELIVERED:   'entregado',
+  FAILED:      'fallido',
+  RESCHEDULED: 'reprogramado',
+}
+
+// ─── Etiquetas UI de estados de entrega ──────────────────────────────────────
+export const DELIVERY_STATE_LABELS = {
+  pendiente:    'Pendiente',
+  asignado:     'Domiciliario Asignado',
+  listo:        'Listo para Despacho',
+  en_camino:    'En Ruta',
+  entregado:    'Entregado',
+  fallido:      'Entrega Fallida',
+  reprogramado: 'Reprogramado',
+}
+
+// ─── Estados del mensajero externo ───────────────────────────────────────────
+export const MESSENGER_STATUS = {
+  AVAILABLE:    'disponible',
+  BUSY:         'ocupado',
+  OUT_OF_SERVICE: 'fuera_servicio',
+}
+
+export const MESSENGER_STATUS_LABELS = {
+  disponible:      'Disponible',
+  ocupado:         'Ocupado',
+  fuera_servicio:  'Fuera de Servicio',
+}
+
+// ─── Plantilla de mensaje por defecto para el mensajero ──────────────────────
+export const DEFAULT_MESSENGER_TEMPLATE =
+  '🛵 *Nuevo Pedido para Entrega*\n\n' +
+  '📦 Pedido: *{pedido}*\n' +
+  '👤 Cliente: {cliente}\n' +
+  '📍 Dirección: {direccion}\n' +
+  '📞 Teléfono: {telefono}\n' +
+  '💰 Total: {total}\n' +
+  '💳 Pago: {metodo_pago}\n' +
+  '📝 Observaciones: {notas}\n\n' +
+  'Por favor confirma la recepción de esta orden.'
 
 /**
  * PORTAL_CONFIG — fuente de verdad dinámica de todos los portales operativos.
@@ -257,6 +305,22 @@ export const ORDER_STATE_META = {
     desc: 'El repartidor lleva tu pedido en camino',
     icon: 'Truck',
     color: 'indigo',
+    terminal: false,
+    isError: false,
+  },
+  fallido: {
+    label: 'Entrega Fallida',
+    desc: 'No fue posible realizar la entrega. Te contactaremos pronto.',
+    icon: 'AlertTriangle',
+    color: 'rose',
+    terminal: false,
+    isError: true,
+  },
+  reprogramado: {
+    label: 'Reprogramado',
+    desc: 'La entrega fue reprogramada. Tu pedido sigue en camino.',
+    icon: 'Clock',
+    color: 'amber',
     terminal: false,
     isError: false,
   },

@@ -545,49 +545,51 @@ export default function ClientLayout() {
               />
 
               {/* Botón Circular Principal con overflow-hidden para contener el barrido de brillo */}
-              <motion.div 
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.93 }}
-                className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white z-10 overflow-hidden relative"
-              >
-                {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
-                <motion.div
-                  animate={{
-                    x: ['-100%', '200%']
-                  }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    repeatDelay: 1,
-                    ease: "easeInOut"
-                  }}
-                  className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
-                />
-
-                {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
-                <motion.div
-                  animate={{
-                    rotate: [0, -15, 12, -10, 8, -4, 0]
-                  }}
-                  transition={{
-                    duration: 1.2,
-                    repeat: Infinity,
-                    repeatDelay: 3.5,
-                    ease: "easeInOut"
-                  }}
-                  whileHover={{ rotate: 360, scale: 1.1 }}
-                  className="z-20 flex items-center justify-center"
+              <div className="relative z-10">
+                <motion.div 
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.93 }}
+                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white overflow-hidden relative"
                 >
-                  <Tag size={26} aria-hidden="true" />
+                  {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
+                  <motion.div
+                    animate={{
+                      x: ['-100%', '200%']
+                    }}
+                    transition={{
+                      duration: 2.5,
+                      repeat: Infinity,
+                      repeatDelay: 1,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
+                  />
+
+                  {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
+                  <motion.div
+                    animate={{
+                      rotate: [0, -15, 12, -10, 8, -4, 0]
+                    }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      repeatDelay: 3.5,
+                      ease: "easeInOut"
+                    }}
+                    whileHover={{ rotate: 360, scale: 1.1 }}
+                    className="z-20 flex items-center justify-center"
+                  >
+                    <Tag size={26} aria-hidden="true" />
+                  </motion.div>
                 </motion.div>
 
-                {/* Badge de cupones activos */}
+                {/* Badge de cupones activos - COLOCADO AFUERA del contenedor con overflow-hidden */}
                 {activeCouponsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-white text-primary text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-primary shadow-md z-30">
+                  <span className="absolute top-[2px] right-[2px] bg-white text-primary text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-primary shadow-md z-30">
                     {activeCouponsCount}
                   </span>
                 )}
-              </motion.div>
+              </div>
               
               <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-muted hover:text-primary transition-colors duration-300 z-10">
                 Ofertas

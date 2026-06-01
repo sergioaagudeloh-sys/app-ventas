@@ -88,6 +88,17 @@ const useAppConfigStore = create(
         digital: {
           enabled: false,
           instructions: 'Entrega digital o prestación de servicio presencial.'
+        },
+        customDelivery: {
+          enabled: false,                   // Módulo de mensajero propio activo
+          serviceLabel: 'Domicilio Propio', // Nombre visible del servicio
+          costType: 'fijo',                 // 'fijo' | 'personalizado'
+          fixedCost: 0,                     // Costo fijo cuando costType === 'fijo'
+          allowCustomCost: false,           // Permite editar el costo desde cada pedido
+          estimatedTime: '20 a 40 min',
+          messengerTemplate: '',            // Plantilla de mensaje; si vacía usa DEFAULT_MESSENGER_TEMPLATE
+          // Los mensajeros externos se guardan en Firestore (deliveryService)
+          // Esta configuración no los duplica, solo tiene parámetros globales del servicio
         }
       },
       hasMultipleEmployees: false,

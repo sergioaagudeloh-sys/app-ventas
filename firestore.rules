@@ -12,6 +12,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    
+    // Subcolecciones de configuración (ej. mensajeros externos)
+    match /config/delivery/messengers/{messengerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
@@ -31,7 +37,10 @@ service cloud.firestore {
     // Catálogo e Inventario
     match /products/{document} {
       allow read: if true;
-      allow write, update, delete: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['variantes', 'updatedAt'])
+      );
     }
     match /categories/{document} {
       allow read: if true;
@@ -43,7 +52,7 @@ service cloud.firestore {
       allow create: if true;
       // Lectura permitida a administradores, consultas de cliente por celular, o consultas de tracking público con token seguro
       allow read: if isAdmin() || 
-                  (resource.data.cliente.celular != null && request.query.limit <= 20) ||
+                  (resource.data.cliente.celular != null) ||
                   (resource.data.trackingToken != null);
       allow update: if isAdmin() || (
         // El cliente sin auth puede cancelar su propio pedido o vaciar su historial.

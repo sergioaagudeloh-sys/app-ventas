@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import NumberInput from '../../components/ui/NumberInput'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -576,22 +577,20 @@ export default function AdminSales() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Precio unitario</label>
-                    <input
-                      type="number"
-                      min="0"
+                    <NumberInput
+                      min={0}
                       value={customItem.precio}
-                      onChange={e => setCustomItem(p => ({ ...p, precio: e.target.value }))}
-                      placeholder="0"
+                      onChange={(val) => setCustomItem(p => ({ ...p, precio: val }))}
+                      placeholder="Ej. 25000"
                       className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
                     />
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Cantidad</label>
-                    <input
-                      type="number"
-                      min="1"
+                    <NumberInput
+                      min={1}
                       value={customItem.cantidad}
-                      onChange={e => setCustomItem(p => ({ ...p, cantidad: e.target.value }))}
+                      onChange={(val) => setCustomItem(p => ({ ...p, cantidad: val }))}
                       className="w-full h-11 px-4 rounded-2xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
                     />
                   </div>

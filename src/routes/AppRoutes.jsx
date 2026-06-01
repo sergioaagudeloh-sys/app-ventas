@@ -24,6 +24,7 @@ const AdminSettings = lazy(() => import('../pages/admin/AdminSettings'))
 const AdminClaims = lazy(() => import('../pages/admin/AdminClaims'))
 const AdminPortalQR = lazy(() => import('../pages/admin/AdminPortalQR'))
 const AdminQRPerformance = lazy(() => import('../pages/admin/AdminQRPerformance'))
+const AdminDeliveryPerformance = lazy(() => import('../pages/admin/AdminDeliveryPerformance'))
 
 // Páginas Cliente
 const ClientCatalog = lazy(() => import('../pages/client/ClientCatalog'))
@@ -82,6 +83,7 @@ export default function AppRoutes() {
           <Route path="reclamos" element={<AdminClaims />} />
           <Route path="portales-qr" element={<AdminPortalQR />} />
           <Route path="rendimiento-qr" element={<AdminQRPerformance />} />
+          <Route path="rendimiento-entregas" element={<AdminDeliveryPerformance />} />
         </Route>
 
         {/* ─── Rutas del Cliente ───────────────────────────────────────── */}

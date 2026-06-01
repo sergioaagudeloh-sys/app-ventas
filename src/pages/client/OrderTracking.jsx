@@ -21,6 +21,7 @@ import {
   User,
   ShieldCheck,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
   MapPin,
   Truck,
@@ -57,7 +58,7 @@ const COLOR_MAP = {
 export default function OrderTracking() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('t')
-  const { orderTrackingEnabled, whatsappAdmin, appName, appPromo } = useAppConfigStore()
+  const { orderTrackingEnabled, whatsappAdmin, appName, appPromo, deliverySettings } = useAppConfigStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
 
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
@@ -119,24 +120,20 @@ export default function OrderTracking() {
       }
     )
 
-    // Consultar roles activos si es administrador (los clientes externos no tienen permisos de lectura por seguridad de PINs)
-    const currentRole = useAuthStore.getState().role
-    if (currentRole === ROLES.ADMIN) {
-      Promise.all([
-        getEmployeesByRole(ROLES.COCINERO),
-        getEmployeesByRole(ROLES.MENSAJERO),
-      ]).then(([cocineros, mensajeros]) => {
-        setHasCocinero(cocineros.length > 0)
-        setHasMensajero(mensajeros.length > 0)
-      }).catch(err => {
-        console.warn('[OrderTracking] No se pudieron consultar roles operativos:', err)
-        setHasCocinero(true)
-        setHasMensajero(true)
-      })
+    // Consultar de forma dinámica si hay cocineros o mensajeros configurados en la tienda a través de la configuración global
+    const storeEmployees = useAppConfigStore.getState().employees || []
+    const isMultipleEnabled = useAppConfigStore.getState().hasMultipleEmployees ?? false
+
+    // Solo se asumen cocineros/mensajeros si el módulo de múltiples empleados está activo
+    if (isMultipleEnabled) {
+      const activeCocineros = storeEmployees.filter(emp => emp.rol === ROLES.COCINERO || emp.role === ROLES.COCINERO)
+      const activeMensajeros = storeEmployees.filter(emp => emp.rol === ROLES.MENSAJERO || emp.role === ROLES.MENSAJERO)
+      setHasCocinero(activeCocineros.length > 0)
+      setHasMensajero(activeMensajeros.length > 0)
     } else {
-      // Clientes invitados/externos: asumimos habilitados por defecto para mostrar el stepper completo
-      setHasCocinero(true)
-      setHasMensajero(true)
+      // Si no hay múltiples empleados, no hay roles operativos
+      setHasCocinero(false)
+      setHasMensajero(false)
     }
 
     // Limpiar la suscripción al desmontar el componente
@@ -203,8 +200,8 @@ export default function OrderTracking() {
     if (hasCocinero) steps.push('alistamiento')
 
     if (isDomicilio) {
-      // Listo para despacho + En camino: SOLO si hay mensajero activo
-      if (hasMensajero) {
+      // Listo para despacho + En camino: SOLO si hay mensajero activo (empleado O externo propio activo)
+      if (hasMensajero || deliverySettings?.customDelivery?.enabled) {
         steps.push('listo')
         steps.push('en_camino')
       }
@@ -243,6 +240,13 @@ export default function OrderTracking() {
   return (
     <div className="min-h-screen bg-surface text-app px-4 py-8 md:py-14 transition-colors duration-300">
       <div className="max-w-2xl mx-auto space-y-5">
+
+        {/* Barra superior de navegación */}
+        <div className="flex items-center justify-between px-2 shrink-0">
+          <Link to="/" className="flex items-center gap-1 text-xs text-muted hover:text-primary font-bold transition-colors">
+            <ChevronLeft className="w-4 h-4" /> Volver a la tienda
+          </Link>
+        </div>
 
         {/* Header */}
         <div className="flex flex-col items-center text-center space-y-1 mb-2">
@@ -613,11 +617,8 @@ export default function OrderTracking() {
         )}
 
         {/* Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted px-2 pb-8">
+        <div className="flex flex-col sm:flex-row items-center justify-center text-center gap-4 text-xs text-muted px-2 pb-8">
           <span>© {new Date().getFullYear()} {appName || 'App Ventas'}. Todos los derechos reservados.</span>
-          <Link to="/" className="flex items-center gap-1 hover:text-primary font-bold transition-colors">
-            Volver a la tienda <ChevronRight className="w-3 h-3" />
-          </Link>
         </div>
 
       </div>

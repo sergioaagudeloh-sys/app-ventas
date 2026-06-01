@@ -25,6 +25,7 @@ import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '.
 import { formatCurrency } from '../../utils/formatters'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 import QRCode from 'qrcode'
+import DeliveryCustomMessengerPanel from '../../components/admin/settings/DeliveryCustomMessengerPanel'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -2929,6 +2930,10 @@ export default function AdminSettings() {
                       </motion.div>
                     )}
                   </div>
+
+                  {/* Mensajero Propio */}
+                  <DeliveryCustomMessengerPanel formData={formData} setFormData={setFormData} />
+
                 </div>
 
                 <div className="p-5 border-t border-app bg-surface-2/30">

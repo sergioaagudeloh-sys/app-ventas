@@ -18,6 +18,8 @@ import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 import { db } from '../../config/firebaseConfig'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import OrderShareModal from '../../components/admin/orders/OrderShareModal'
+import OrderDeliveryPanel from '../../components/admin/orders/OrderDeliveryPanel'
+import NumberInput from '../../components/ui/NumberInput'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -574,10 +576,19 @@ export default function AdminOrders() {
               {ORDER_STATE_LABELS[order.estado] || order.estado}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-bold text-app text-base">{order.orderNumber}</span>
                 <span className="text-muted text-xs px-2 py-0.5 bg-surface-2 rounded-full border border-app">
                   {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
+                </span>
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${
+                  order.tipoEntrega === 'domicilio'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                    : order.tipoEntrega === 'digital'
+                      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                }`}>
+                  {order.tipoEntrega === 'domicilio' ? '🛵 Domicilio' : order.tipoEntrega === 'digital' ? '📱 Digital' : '🏪 Retiro'}
                 </span>
                 {order.archivado && (
                   <span className="text-[10px] font-bold text-muted bg-surface-2 border border-app px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -661,13 +672,10 @@ export default function AdminOrders() {
                         <div className="flex items-center gap-2">
                           <div className="relative flex-1">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm font-bold">$</span>
-                            <input
-                              type="number"
-                              value={tempDeliveryCosts[order.id] !== undefined ? tempDeliveryCosts[order.id] : (order.costoEnvio || 0)}
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0
-                                setTempDeliveryCosts(prev => ({ ...prev, [order.id]: val }))
-                              }}
+                            <NumberInput
+                              min={0}
+                              value={tempDeliveryCosts[order.id] !== undefined ? tempDeliveryCosts[order.id] : (order.costoEnvio || undefined)}
+                              onChange={(val) => setTempDeliveryCosts(prev => ({ ...prev, [order.id]: val }))}
                               className="w-full pl-7 pr-3 h-10 bg-surface-2 border border-app rounded-xl text-sm font-bold text-app focus:outline-none focus:border-primary transition-colors"
                               placeholder="Ej: 5000"
                             />
@@ -705,12 +713,18 @@ export default function AdminOrders() {
                     <p className="text-sm text-app mt-3">
                       {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Reciente'}
                     </p>
+
+                    {/* Panel de Gestión de Entrega (Mensajero Propio) */}
+                    {order.tipoEntrega === 'domicilio' && deliverySettings?.customDelivery?.enabled && (
+                      <OrderDeliveryPanel order={order} />
+                    )}
+
                   </div>
                   
                   {order.notes && (
                     <div>
                       <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileText size={14}/> Notas</h4>
-                      <p className="text-sm text-app italic bg-surface-2/50 p-3 rounded-xl border border-app/30">{order.notas}</p>
+                      <p className="text-sm text-app italic bg-surface-2/50 p-3 rounded-xl border border-app">{order.notas}</p>
                     </div>
                   )}
 
@@ -804,7 +818,7 @@ export default function AdminOrders() {
                   <div className="space-y-2">
                     {order.items?.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-3 bg-surface p-3 rounded-2xl border border-app hover:bg-surface-2/30 transition-colors shadow-sm">
-                        <div className="w-12 h-12 bg-surface-2 rounded-xl flex-shrink-0 overflow-hidden border border-app/80 relative">
+                        <div className="w-12 h-12 bg-surface-2 rounded-xl flex-shrink-0 overflow-hidden border border-app relative">
                           {item.imagen || item.imageUrl ? (
                             <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
                           ) : (
@@ -821,7 +835,7 @@ export default function AdminOrders() {
                                 : 'Única'}
                           </p>
                           {item.descripcion && (
-                            <p className="text-[11px] text-muted italic mt-1 bg-surface-2/50 px-1.5 py-0.5 rounded border border-app/20 w-fit">
+                            <p className="text-[11px] text-muted italic mt-1 bg-surface-2/50 px-1.5 py-0.5 rounded border border-app w-fit">
                               Detalle: {item.descripcion}
                             </p>
                           )}
@@ -852,7 +866,7 @@ export default function AdminOrders() {
                         <span className="font-semibold text-green-500">-{formatCurrency(order.descuento)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between text-app font-black text-base pt-1 border-t border-app/50">
+                     <div className="flex justify-between text-app font-black text-base pt-1 border-t border-app">
                       <span>Total General:</span>
                       <span className="text-primary">{formatCurrency(order.total)}</span>
                     </div>
@@ -1096,7 +1110,7 @@ export default function AdminOrders() {
 
           {/* Contenedor de Botones de Archivados e Historial al final de la vista de listado - Exclusivo para COMPLETADOS */}
           {activeFilter === ORDER_STATES.COMPLETED && (
-            <div className="flex flex-col items-center gap-4 mt-8 pt-4 border-t border-app/40 w-full">
+            <div className="flex flex-col items-center gap-4 mt-8 pt-4 border-t border-app w-full">
               <div className="flex flex-row flex-wrap justify-center items-center gap-3 w-full">
                 {/* Botón de Archivar Completados activos */}
                 <button

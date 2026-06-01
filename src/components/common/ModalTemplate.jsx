@@ -82,7 +82,7 @@ export default function ModalTemplate({
                 )}
                 <div>
                   <h3 className="font-bold text-app text-base leading-none">{title}</h3>
-                  {subtitle && <p className="text-xs text-muted mt-1 leading-none">{subtitle}</p>}
+                  {subtitle && <div className="text-xs text-muted mt-1 leading-none">{subtitle}</div>}
                 </div>
               </div>
               

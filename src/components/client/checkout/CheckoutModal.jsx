@@ -100,12 +100,24 @@ export default function CheckoutModal({ isOpen, onClose }) {
   }
 
   if (currentSettings.shipping?.enabled !== false) {
+    let shippingBadge = 'Por acordar'
+    if (currentSettings.customDelivery?.enabled) {
+      if (currentSettings.customDelivery.costType === 'fijo') {
+        const fixed = Number(currentSettings.customDelivery.fixedCost) || 0
+        shippingBadge = fixed > 0 ? `+ ${formatCurrency(fixed)}` : 'Gratis'
+      } else {
+        shippingBadge = 'Por acordar'
+      }
+    } else if (currentSettings.shipping?.cost > 0) {
+      shippingBadge = `+ ${formatCurrency(currentSettings.shipping.cost)}`
+    }
+
     activeDeliveryOptions.push({
       id: 'domicilio',
       icon: Truck,
       title: 'Domicilio',
       description: currentSettings.shipping?.instructions || 'Recibe tu pedido en la comodidad de tu casa. Te contactaremos para coordinar.',
-      badge: currentSettings.shipping?.cost > 0 ? `+ ${formatCurrency(currentSettings.shipping.cost)}` : 'Por acordar',
+      badge: shippingBadge,
       badgeColor: 'bg-primary/10 text-primary',
     })
   }
@@ -347,7 +359,13 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   const getShippingCost = () => {
     if (formData.tipoEntrega === 'domicilio') {
-      return currentSettings.shipping?.cost || 0
+      if (currentSettings.customDelivery?.enabled) {
+        if (currentSettings.customDelivery.costType === 'fijo') {
+          return Number(currentSettings.customDelivery.fixedCost) || 0
+        }
+        return 0 // Personalizado, se asignará desde administración
+      }
+      return Number(currentSettings.shipping?.cost) || 0
     }
     return 0
   }

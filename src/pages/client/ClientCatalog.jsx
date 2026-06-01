@@ -301,7 +301,7 @@ export default function ClientCatalog() {
                 {activeCategories.length > 3 && (
                   <button
                     onClick={() => setIsCategoriesExpanded(v => !v)}
-                    className="text-[11px] font-semibold text-muted hover:text-primary transition-colors"
+                    className="text-[11px] font-semibold text-muted hover:text-primary transition-colors sm:hidden"
                   >
                     {isCategoriesExpanded ? 'Ver menos' : `Ver todas (${activeCategories.length})`}
                   </button>
@@ -309,31 +309,30 @@ export default function ClientCatalog() {
               </div>
             </div>
 
-            {/* Grid de tarjetas cuadradas de categorías */}
-            <div className="grid grid-cols-4 gap-2">
+            {/* Grid de tarjetas cuadradas de categorías en mobile / chips horizontales en desktop */}
+            <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-2 sm:gap-3">
               {/* Tarjeta "Todos" */}
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedCategoryId('all')}
-                className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
+                className={`aspect-square sm:aspect-auto w-full sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                   selectedCategoryId === 'all'
                     ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                     : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                 }`}
               >
                 <Tag 
-                  size={30} 
-                  className={`shrink-0 mb-1 transition-colors ${
+                  className={`w-7 h-7 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
                     selectedCategoryId === 'all' ? 'text-white' : 'text-primary'
                   }`} 
                 />
-                <span className="font-extrabold text-[9px] uppercase tracking-wider text-center leading-tight line-clamp-1 select-none">
+                <span className="font-extrabold sm:font-bold text-[9px] sm:text-xs uppercase sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-1 select-none">
                   Todos
                 </span>
               </motion.button>
 
               {/* Tarjetas por categoría */}
-              {visibleCategories.map(cat => {
+              {activeCategories.map((cat, idx) => {
                 const IconComponent = getCategoryIconComponent(cat.iconName)
                 const isSelected = selectedCategoryId === cat.id
                 return (
@@ -341,19 +340,20 @@ export default function ClientCatalog() {
                     key={cat.id}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setSelectedCategoryId(cat.id)}
-                    className={`aspect-square w-full flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
+                    className={`aspect-square sm:aspect-auto w-full sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
+                      idx >= 3 && !isCategoriesExpanded ? 'hidden sm:flex' : 'flex'
+                    } ${
                       isSelected
                         ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                         : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                     }`}
                   >
                     <IconComponent 
-                      size={30} 
-                      className={`shrink-0 mb-1 transition-colors ${
+                      className={`w-7 h-7 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
                         isSelected ? 'text-white' : 'text-primary'
                       }`} 
                     />
-                    <span className="font-extrabold text-[9px] uppercase tracking-wider text-center leading-tight line-clamp-2 break-words select-none px-0.5">
+                    <span className="font-extrabold sm:font-bold text-[9px] sm:text-xs uppercase sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-2 break-words select-none px-0.5 sm:px-0">
                       {cat.nombre}
                     </span>
                   </motion.button>

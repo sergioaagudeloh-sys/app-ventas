@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import NumberInput from '../../ui/NumberInput'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2, Image as ImageIcon, ChevronDown, Check, Sparkles, Camera, UploadCloud } from 'lucide-react'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
@@ -733,10 +734,9 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Precio Detal (COP) *</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={formData.precioBase}
-                  onChange={e => setFormData({...formData, precioBase: e.target.value})}
+                  onChange={(val) => setFormData({...formData, precioBase: val})}
                   placeholder="Ej. 85000"
                   className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none font-bold"
                 />
@@ -745,10 +745,9 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Precio Mayorista (Opcional)</label>
-                <input
-                  type="number"
+                <NumberInput
                   value={formData.precioMayorista}
-                  onChange={e => setFormData({...formData, precioMayorista: e.target.value})}
+                  onChange={(val) => setFormData({...formData, precioMayorista: val})}
                   placeholder="Ej. 70000"
                   className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none font-bold"
                 />
@@ -756,11 +755,11 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Stock Mínimo (Alerta de Agotado) *</label>
-                <input
-                  type="number"
-                  min="0"
+                <NumberInput
+                  min={0}
                   value={formData.umbralAlerta}
-                  onChange={e => setFormData({...formData, umbralAlerta: e.target.value})}
+                  onChange={(val) => setFormData({...formData, umbralAlerta: val})}
+                  placeholder="Ej. 3"
                   className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
                 />
                 {errors.umbralAlerta && <p className="text-error text-xs mt-1">{errors.umbralAlerta}</p>}
@@ -960,12 +959,11 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
                         <div>
                           <label className="text-[10px] font-bold text-app mb-1 block">Cantidad Disponible *</label>
-                          <input
-                            type="number"
-                            min="0"
+                          <NumberInput
+                            min={0}
                             placeholder="Ej. 10"
                             value={variant.stock}
-                            onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
+                            onChange={(val) => handleVariantChange(variant.id, 'stock', val)}
                             className="w-full sm:w-1/2 h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
                           />
                           {errors[`variantes.${index}.stock`] && (
