@@ -944,57 +944,47 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                 )}
 
                 {whatsappAdmin || SUPPORT_WHATSAPP ? (
-                  <div className="flex gap-3 mt-4 w-full relative">
+                  <div className="flex gap-3 mt-4 w-full">
                     <style>{`
                       @keyframes whatsapp-glow {
-                        0% {
-                          box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
-                          transform: scale(1);
-                        }
-                        50% {
-                          box-shadow: 0 0 0 12px rgba(37, 211, 102, 0);
-                          transform: scale(1.03);
-                        }
-                        100% {
-                          box-shadow: 0 0 0 0 rgba(37, 211, 102, 0);
-                          transform: scale(1);
-                        }
+                        0%   { box-shadow: 0 0 0 0 rgba(37,211,102,0.7); }
+                        50%  { box-shadow: 0 0 0 10px rgba(37,211,102,0); }
+                        100% { box-shadow: 0 0 0 0 rgba(37,211,102,0); }
                       }
-                      @keyframes whatsapp-icon-swing {
-                        0%, 100% { transform: rotate(0deg); }
-                        20% { transform: rotate(-8deg); }
-                        40% { transform: rotate(10deg); }
-                        60% { transform: rotate(-5deg); }
-                        80% { transform: rotate(5deg); }
+                      @keyframes whatsapp-bounce {
+                        0%, 100% { transform: translateY(0); }
+                        50%       { transform: translateY(-2px); }
                       }
-                      .animate-whatsapp-btn {
+                      .wa-btn {
                         animation: whatsapp-glow 2s infinite ease-in-out;
                       }
-                      .animate-whatsapp-btn:hover {
+                      .wa-btn:hover {
                         animation: none;
-                        transform: scale(1.05);
-                        box-shadow: 0 0 15px rgba(37, 211, 102, 0.6);
+                        box-shadow: 0 4px 20px rgba(37,211,102,0.5);
+                        transform: translateY(-1px);
                       }
-                      .animate-whatsapp-icon {
-                        animation: whatsapp-icon-swing 2.5s infinite ease-in-out;
+                      .wa-icon {
+                        animation: whatsapp-bounce 2s infinite ease-in-out;
+                        flex-shrink: 0;
                       }
                     `}</style>
                     <button
                       onClick={handleWhatsApp}
-                      className="w-1/2 h-11 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white rounded-xl font-bold text-xs transition-all active:scale-95 flex items-center justify-center gap-2 animate-whatsapp-btn border-0 shadow-lg shadow-green-500/20"
+                      className="wa-btn flex-1 h-14 bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white rounded-2xl font-bold text-sm transition-all duration-200 active:scale-95 flex items-center justify-center gap-2.5 shadow-lg shadow-green-500/30 border-0"
                     >
-                      <svg 
-                        className="w-5 h-5 fill-none stroke-current stroke-2 animate-whatsapp-icon" 
-                        viewBox="0 0 24 24" 
+                      <svg
+                        className="wa-icon w-5 h-5"
+                        viewBox="0 0 32 32"
                         xmlns="http://www.w3.org/2000/svg"
+                        fill="currentColor"
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.74.175-7.043.513C3.373 3.748 2.25 5.14 2.25 6.741v5.028z" />
+                        <path d="M16 0C7.163 0 0 7.163 0 16c0 2.822.736 5.47 2.025 7.773L0 32l8.437-2.004A15.94 15.94 0 0016 32c8.837 0 16-7.163 16-16S24.837 0 16 0zm0 29.333a13.27 13.27 0 01-6.773-1.856l-.486-.288-5.007 1.19 1.22-4.882-.317-.5A13.27 13.27 0 012.667 16C2.667 8.636 8.636 2.667 16 2.667S29.333 8.636 29.333 16 23.364 29.333 16 29.333zm7.27-9.846c-.398-.2-2.358-1.163-2.723-1.296-.365-.133-.631-.2-.897.2-.266.4-1.031 1.296-1.264 1.563-.233.266-.465.3-.863.1-.398-.2-1.68-.619-3.2-1.975-1.183-1.055-1.982-2.358-2.215-2.756-.233-.4-.025-.616.175-.815.18-.178.398-.465.597-.697.2-.233.266-.4.4-.665.133-.266.066-.5-.033-.697-.1-.2-.897-2.162-1.23-2.96-.324-.777-.653-.672-.897-.684l-.764-.013c-.266 0-.697.1-1.063.5-.365.4-1.396 1.364-1.396 3.326s1.43 3.858 1.63 4.124c.2.266 2.815 4.298 6.82 6.027.953.411 1.697.656 2.277.84.957.304 1.827.261 2.515.158.767-.114 2.358-.964 2.69-1.896.333-.932.333-1.73.233-1.896-.1-.166-.366-.266-.764-.466z"/>
                       </svg>
                       Avisar por WhatsApp
                     </button>
                     <button
                       onClick={onClose}
-                      className="w-1/2 h-11 bg-white hover:bg-neutral-100 text-neutral-800 border border-neutral-300 rounded-xl font-bold text-xs transition-all active:scale-95 shadow-sm"
+                      className="flex-1 h-14 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-2xl font-bold text-sm transition-all duration-200 active:scale-95"
                     >
                       Cerrar
                     </button>
