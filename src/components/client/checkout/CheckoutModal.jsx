@@ -15,6 +15,7 @@ import useInactivityTimer from '../../../hooks/useInactivityTimer'
 import SmartHint from '../guided/SmartHint'
 import { openWhatsAppChat } from '../../../services/whatsappService'
 import useCopyToClipboard from '../../../hooks/useCopyToClipboard'
+import LeafletMapPicker from '../../ui/LeafletMapPicker'
 
 
 // Métodos de pago base
@@ -323,6 +324,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
             direccion: formData.direccion,
             barrio: formData.barrio,
             ciudad: formData.ciudad,
+            coords: formData.coords || null,
           }),
         },
         tipoEntrega: formData.tipoEntrega,
@@ -601,6 +603,24 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                       <MapPin size={14} className="text-primary" />
                       <p className="text-xs font-bold text-muted uppercase tracking-wider">Dirección de entrega</p>
                     </div>
+
+                    {/* Leaflet Map Picker Integration */}
+                    <div className="mb-2">
+                      <LeafletMapPicker
+                        address={formData.direccion}
+                        coords={formData.coords}
+                        onChange={({ address, barrio, ciudad, coords }) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            direccion: address || prev.direccion,
+                            barrio: barrio || prev.barrio,
+                            ciudad: ciudad || prev.ciudad,
+                            coords
+                          }))
+                        }}
+                      />
+                    </div>
+
                     <input
                       type="text"
                       placeholder="Ciudad *"

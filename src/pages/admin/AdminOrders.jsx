@@ -13,6 +13,7 @@ import * as orderService from '../../services/orderService'
 import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
 import { subscribeToClaims } from '../../services/claimsService'
+import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -606,6 +607,28 @@ export default function AdminOrders() {
                     <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin size={14}/> Envío y Fecha</h4>
                     <p className="text-sm text-app font-medium">{order.cliente?.direccion || 'Recogida en tienda'}</p>
                     {order.cliente?.barrio && <p className="text-sm text-muted">{order.cliente?.barrio}, {order.cliente?.ciudad}</p>}
+                    
+                    {/* Leaflet Map Visualizer for Admin */}
+                    {order.tipoEntrega === 'domicilio' && order.cliente?.coords && (
+                      <div className="mt-3 mb-3">
+                        <LeafletMapPicker
+                          address={order.cliente.direccion}
+                          coords={order.cliente.coords}
+                          readOnly={true}
+                        />
+                        <div className="mt-2">
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.cliente.coords.lat},${order.cliente.coords.lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold transition-all active:scale-95 hover:opacity-90 cursor-pointer"
+                          >
+                            🗺️ Abrir Ruta en Google Maps
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
                     <p className="text-sm text-app mt-2">
                       {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleString() : 'Reciente'}
                     </p>
