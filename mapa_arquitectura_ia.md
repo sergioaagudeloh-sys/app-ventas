@@ -84,7 +84,7 @@
 | **ClientFavorites.jsx** | Componente o módulo funcional de la aplicación. | `favoritesStore`, `useInventory`, `authStore`, `cartStore`, `formatters`, `ProductDetailModal` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientFavorites.jsx) |
 | **ClientOrders.jsx** | Componente o módulo funcional de la aplicación. | `react-query`, `useOrders`, `useWholesale`, `useInventory`, `orderService`, `wholesaleService` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientOrders.jsx) |
 | **ClientProfile.jsx** | Componente o módulo funcional de la aplicación. | `authStore`, `guidedStore`, `appConfigStore`, `usePWAInstall`, `constants`, `firebaseConfig` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/ClientProfile.jsx) |
-| **OrderTracking.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `appConfigStore`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/OrderTracking.jsx) |
+| **OrderTracking.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `appConfigStore`, `formatters`, `AppLoader` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/client/OrderTracking.jsx) |
 | **LoginPage.jsx** | Componente o módulo funcional de la aplicación. | `firestore`, `firebaseConfig`, `authStore`, `appConfigStore`, `appConfigService`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/LoginPage.jsx) |
 | **WelcomePage.jsx** | Leer color primario real desde las variables CSS del DOM | `appConfigStore`, `authStore`, `constants` | [Abrir Archivo](file:///D:/Aplicaciones/App Ventas/src/pages/WelcomePage.jsx) |
 
