@@ -710,7 +710,7 @@ export default function ClientOrders() {
   }
 
   return (
-    <div className="p-4 pb-6 max-w-lg mx-auto md:max-w-3xl overflow-x-hidden">
+    <div className="p-4 pb-6 max-w-lg mx-auto md:max-w-3xl lg:max-w-7xl lg:px-8 overflow-x-hidden">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex justify-between items-start sm:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-app leading-tight">Mis Pedidos</h1>

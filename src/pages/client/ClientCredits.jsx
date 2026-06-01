@@ -111,15 +111,10 @@ export default function ClientCredits() {
   return (
     <div className="pb-6">
       <div className="bg-primary/5 pt-8 pb-12 px-4 md:px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-              <CreditCard size={24} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-app">Tus Créditos</h1>
-              <p className="text-muted text-sm font-medium">Estado de cuenta</p>
-            </div>
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col gap-1 mb-6">
+            <h1 className="text-2xl font-bold text-app leading-tight">Tus Créditos</h1>
+            <p className="text-muted text-sm font-medium">Estado de cuenta</p>
           </div>
 
           <div className="bg-surface rounded-3xl p-6 border border-app shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-6">
@@ -149,7 +144,7 @@ export default function ClientCredits() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 md:px-8 -mt-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-6">
         {isLoading ? (
           <div className="text-center py-12 text-muted bg-surface rounded-3xl border border-app">Cargando tu estado de cuenta...</div>
         ) : credits.length === 0 ? (

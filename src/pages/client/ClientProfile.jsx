@@ -63,7 +63,7 @@ export default function ClientProfile() {
     <div className="pb-6">
       {/* Header del Perfil */}
       <div className="bg-primary/5 pt-8 pb-12 px-4 md:px-8">
-        <div className="max-w-xl mx-auto flex items-center gap-5">
+        <div className="max-w-7xl mx-auto flex items-center gap-5">
           
           {/* Avatar con Emoji Selector */}
           <div className="relative">
@@ -124,7 +124,7 @@ export default function ClientProfile() {
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto px-4 md:px-8 -mt-6 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-6 space-y-4">
         
         {/* ─── BOTONERA PRINCIPAL ─────────────────────────────────────── */}
         <div className="bg-surface rounded-3xl p-2 border border-app shadow-sm">
