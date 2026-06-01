@@ -181,7 +181,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
           className={`flex-1 h-14 rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 ${
             currentVariant?.stock === 0
               ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:opacity-90 shadow-lg shadow-blue-500/20'
+              : 'bg-action text-white hover:opacity-90 shadow-lg shadow-action/20'
           }`}
         >
           {currentVariant?.stock === 0 ? (
@@ -208,7 +208,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
         footerActions={footerActions}
       >
         {/* Imagen del producto */}
-        <div className="relative w-full h-48 sm:h-64 bg-gray-50 dark:bg-gray-800/30 rounded-2xl overflow-hidden shrink-0 border border-gray-100 dark:border-gray-800">
+        <div className="relative w-full h-48 sm:h-64 bg-surface-2 rounded-2xl overflow-hidden shrink-0 border border-app">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -216,7 +216,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+            <div className="w-full h-full flex flex-col items-center justify-center text-muted">
               <ImageIcon size={48} className="opacity-50 mb-2" />
             </div>
           )}
@@ -226,20 +226,20 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
         <div className="mt-4">
           {product.tienePromocion && product.precioPromo < product.precioBase ? (
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
+              <span className="text-2xl font-black text-primary">
                 {formatCurrency(product.precioPromo)}
               </span>
-              <span className="text-xs text-gray-400 line-through font-semibold">
+              <span className="text-xs text-muted line-through font-semibold">
                 {formatCurrency(product.precioBase)}
               </span>
             </div>
           ) : (
-            <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+            <p className="text-2xl font-black text-primary">
               {formatCurrency(product.precioBase)}
             </p>
           )}
           {product.descripcion && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-relaxed">
+            <p className="text-sm text-muted mt-2 leading-relaxed">
               {product.descripcion}
             </p>
           )}
@@ -248,8 +248,8 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
         {/* Selección de Talla */}
         {tallas.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex justify-between items-center">
-              Talla <span className="text-xs font-normal text-gray-400">Selecciona una opción</span>
+            <h3 className="text-sm font-semibold text-app mb-3 flex justify-between items-center">
+              Talla <span className="text-xs font-normal text-muted">Selecciona una opción</span>
             </h3>
             <div className="flex flex-wrap gap-2">
               {tallas.map(t => (
@@ -265,8 +265,8 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                   }}
                   className={`h-10 px-4 rounded-xl text-sm font-semibold transition-all border-2 active:scale-95 ${
                     selectedTalla === t 
-                      ? 'border-blue-600 bg-blue-600 text-white' 
-                      : 'border-gray-200 dark:border-gray-800 bg-transparent text-gray-700 dark:text-gray-300 hover:border-blue-600/50'
+                      ? 'border-primary bg-primary text-white' 
+                      : 'border-app bg-transparent text-app hover:border-primary/50'
                   }`}
                 >
                   {t}
@@ -279,10 +279,10 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
         {/* Selección de Color */}
         {colores.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex justify-between items-center">
+            <h3 className="text-sm font-semibold text-app mb-3 flex justify-between items-center">
               Color 
-              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                {selectedColor ? selectedColor.toUpperCase() : <span className="text-gray-400 font-normal">Selecciona una opción</span>}
+              <span className="text-xs font-bold text-primary">
+                {selectedColor ? selectedColor.toUpperCase() : <span className="text-muted font-normal">Selecciona una opción</span>}
               </span>
             </h3>
             <div className="flex flex-wrap gap-3">
@@ -300,11 +300,11 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                     }}
                     title={c}
                     className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-                      isSelected ? 'ring-2 ring-blue-600 ring-offset-2 ring-offset-white dark:ring-offset-gray-900' : 'ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-blue-600/50'
+                      isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface' : 'ring-1 ring-app hover:ring-primary/50'
                     }`}
                   >
                     <span 
-                      className={`w-10 h-10 rounded-full shadow-inner ${isWhite ? 'border border-gray-200 dark:border-gray-800' : ''}`}
+                      className={`w-10 h-10 rounded-full shadow-inner ${isWhite ? 'border border-app' : ''}`}
                       style={{ backgroundColor: cssColor }}
                     />
                   </button>
@@ -319,8 +319,8 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
           <motion.p 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className={`text-sm font-medium mt-4 ${
-              currentVariant.stock === 0 ? 'text-red-500' : 'text-green-600'
+            className={`text-sm font-semibold mt-4 ${
+              currentVariant.stock === 0 ? 'text-error' : 'text-success'
             }`}
           >
             {currentVariant.stock === 0 ? 'Esta variante está agotada' : `${currentVariant.stock} unidades disponibles`}
@@ -345,7 +345,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-24 left-4 right-4 bg-green-500 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 z-[100] border border-green-600"
+            className="fixed bottom-24 left-4 right-4 bg-success text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 z-[100] border border-success/80"
           >
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center animate-bounce">
               <ShoppingBag size={18} className="text-white" />

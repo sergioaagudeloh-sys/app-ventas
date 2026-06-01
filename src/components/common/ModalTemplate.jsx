@@ -59,37 +59,37 @@ export default function ModalTemplate({
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: '100%', opacity: 0.5 }}
           transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] border border-gray-100 dark:border-gray-800 pointer-events-auto"
+          className="relative w-full max-w-lg bg-surface rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh] border border-app pointer-events-auto"
           style={{ willChange: 'transform' }}
         >
           {/* A. Cabecera (Header) - Renderizada condicionalmente si hay título */}
           {title && (
-            <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 shrink-0">
+            <div className="flex items-center justify-between p-4 border-b border-app bg-surface-2 shrink-0">
               <div className="flex items-center gap-3">
                 {onBack && (
                   <button
                     onClick={onBack}
-                    className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors active:scale-90"
+                    className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center hover:bg-surface-3 text-muted hover:text-app transition-colors active:scale-90"
                     aria-label="Volver"
                   >
                     <ChevronLeft size={18} />
                   </button>
                 )}
                 {Icon && (
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800 shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shrink-0">
                     <Icon size={20} className="animate-pulse" />
                   </div>
                 )}
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white text-base leading-none">{title}</h3>
-                  {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-none">{subtitle}</p>}
+                  <h3 className="font-bold text-app text-base leading-none">{title}</h3>
+                  {subtitle && <p className="text-xs text-muted mt-1 leading-none">{subtitle}</p>}
                 </div>
               </div>
               
               {/* Botón X de Cerrar */}
               <button
                 onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 transition-all active:scale-90 cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app hover:bg-surface-3 transition-all active:scale-90 cursor-pointer"
                 aria-label="Cerrar"
               >
                 <X size={16} />
@@ -98,13 +98,13 @@ export default function ModalTemplate({
           )}
 
           {/* B. Cuerpo Desplazable (Body) */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 text-gray-600 dark:text-gray-300">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 text-app">
             {children}
           </div>
 
           {/* C. Pie de Página (Sticky Footer) */}
           {footerActions && (
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 shrink-0 flex gap-3">
+            <div className="p-4 border-t border-app bg-surface shrink-0 flex gap-3">
               {footerActions}
             </div>
           )}
