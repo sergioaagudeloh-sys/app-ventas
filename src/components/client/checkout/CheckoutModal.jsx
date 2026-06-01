@@ -578,6 +578,27 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   />
                 </div>
 
+                {/* Información de Retiro en Tienda con Mapa Fijo de Solo Lectura */}
+                {formData.tipoEntrega === 'retiro' && currentSettings.pickup?.coords && (
+                  <div className="p-4 bg-surface-2 border border-app rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Store size={16} className="text-primary" />
+                      <p className="text-xs font-bold text-muted uppercase tracking-wider">Punto de Recogida</p>
+                    </div>
+                    <p className="text-sm font-semibold text-app">{currentSettings.pickup?.address || 'Nuestra Tienda Física'}</p>
+                    {currentSettings.pickup?.instructions && (
+                      <p className="text-xs text-muted leading-relaxed italic bg-surface/50 p-2.5 rounded-lg border border-app/40">{currentSettings.pickup.instructions}</p>
+                    )}
+                    <div className="mt-1">
+                      <LeafletMapPicker
+                        address={currentSettings.pickup?.address || ''}
+                        coords={currentSettings.pickup?.coords}
+                        readOnly={true}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Celular */}
                 <div>
                   <label className="text-xs font-bold text-muted uppercase tracking-wider block mb-1.5">

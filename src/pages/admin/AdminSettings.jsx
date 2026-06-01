@@ -23,6 +23,7 @@ import { useOrders } from '../../hooks/useOrders'
 import { exportDeveloperReceiptPDF } from '../../services/pdfService'
 import { useCoupons, useCreateCoupon, useUpdateCoupon, useDeleteCoupon } from '../../hooks/useCoupons'
 import { formatCurrency } from '../../utils/formatters'
+import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -2074,8 +2075,29 @@ export default function AdminSettings() {
 
                     {(formData.deliverySettings?.pickup?.enabled ?? true) && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 pt-2">
+                        {/* Selector de Mapa para el local del negocio */}
+                        <div className="mb-4">
+                          <label className="block text-xs font-semibold text-muted mb-2">Ubicación del Local en el Mapa</label>
+                          <LeafletMapPicker
+                            address={formData.deliverySettings?.pickup?.address || ''}
+                            coords={formData.deliverySettings?.pickup?.coords || null}
+                            onChange={({ address, coords }) => {
+                              setFormData(prev => ({
+                                ...prev,
+                                deliverySettings: {
+                                  ...prev.deliverySettings,
+                                  pickup: {
+                                    ...(prev.deliverySettings?.pickup || {}),
+                                    address: address || (prev.deliverySettings?.pickup?.address || ''),
+                                    coords
+                                  }
+                                }
+                              }))
+                            }}
+                          />
+                        </div>
                         <div>
-                          <label className="block text-xs font-semibold text-muted mb-1">Dirección de Retiro</label>
+                          <label className="block text-xs font-semibold text-muted mb-1">Dirección de Retiro (Manual)</label>
                           <input
                             type="text"
                             value={formData.deliverySettings?.pickup?.address || ''}
