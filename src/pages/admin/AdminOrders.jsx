@@ -2,13 +2,14 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert, QrCode } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
 import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
 import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_METHODS, WHOLESALE_STATES } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
+import usePortalStore from '../../store/portalStore'
 import * as orderService from '../../services/orderService'
 import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
@@ -16,6 +17,7 @@ import { subscribeToClaims } from '../../services/claimsService'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 import { db } from '../../config/firebaseConfig'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import OrderShareModal from '../../components/admin/orders/OrderShareModal'
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -223,6 +225,10 @@ export default function AdminOrders() {
   
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingClaimsCount, setPendingClaimsCount] = useState(0)
+  const [selectedOrderForShare, setSelectedOrderForShare] = useState(null)
+  
+  // Consumir el store del portal para validación de permisos por rol de empleado
+  const { portalEmployee } = usePortalStore()
 
   useEffect(() => {
     const unsubscribe = subscribeToClaims((claimsList) => {
@@ -586,6 +592,19 @@ export default function AdminOrders() {
           </div>
 
           <div className="flex items-center justify-between sm:justify-end gap-6 border-t border-app sm:border-0 pt-4 sm:pt-0 mt-4 sm:mt-0 w-full sm:w-auto">
+            {/* Botón Compartir Seguimiento por QR (Excluye Cocinero y Bodeguero por seguridad/permisos si están logueados) */}
+            {(!portalEmployee || (portalEmployee.rol !== 'cocinero' && portalEmployee.rol !== 'bodeguero')) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedOrderForShare(order)
+                }}
+                title="Compartir Seguimiento en Vivo"
+                className="w-10 h-10 rounded-xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-primary transition-all cursor-pointer shadow-xs shrink-0 active:scale-90"
+              >
+                <QrCode size={18} />
+              </button>
+            )}
             <div className="text-left sm:text-right flex-1 sm:flex-none">
               <p className="text-xs text-muted mb-0.5">{order.items?.length || 0} art(s).</p>
               <p className="font-black text-primary text-lg">{formatCurrency(order.total)}</p>
@@ -1310,6 +1329,13 @@ export default function AdminOrders() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal especializado de Compartición de Seguimiento (QR / Enlace / WhatsApp) */}
+      <OrderShareModal
+        isOpen={!!selectedOrderForShare}
+        onClose={() => setSelectedOrderForShare(null)}
+        order={selectedOrderForShare}
+      />
 
     </motion.div>
   )

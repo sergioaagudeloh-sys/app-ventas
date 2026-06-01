@@ -24,6 +24,15 @@ const useAppConfigStore = create(
       whatsappAdmin: '',
       claimsEnabled: false,
       orderTrackingEnabled: false,
+      trackingWaTemplate: '',
+      appPromo: {
+        enabled: false,
+        title: '',
+        message: '',
+        androidUrl: '',
+        iosUrl: '',
+        promoImageUrl: ''
+      },
       developerPhone: '',
       bankInfo: {
         numeroCuenta: '',
@@ -142,6 +151,8 @@ const useAppConfigStore = create(
         whatsappAdmin: state.whatsappAdmin,
         claimsEnabled: state.claimsEnabled,
         orderTrackingEnabled: state.orderTrackingEnabled,
+        trackingWaTemplate: state.trackingWaTemplate,
+        appPromo: state.appPromo,
         developerPhone: state.developerPhone,
         creditsEnabled: state.creditsEnabled,
         couponsEnabled: state.couponsEnabled,

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, TrendingUp, DollarSign, AlertTriangle,
   Package, ShoppingBag, CreditCard, Settings, ChevronRight,
-  BarChart3, Banknote, ArrowRight, X, Wallet, Percent, QrCode
+  BarChart3, Banknote, ArrowRight, X, Wallet, Percent, QrCode, Megaphone, Loader2
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useOrders } from '../../hooks/useOrders'
@@ -14,6 +14,8 @@ import { ORDER_STATES, PAYMENT_METHODS } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
 import useAuthStore from '../../store/authStore'
 import useAppConfigStore from '../../store/appConfigStore'
+import { useEffect } from 'react'
+import { getTrackingMetrics } from '../../services/trackingAnalyticsService'
 
 export default function AdminHome() {
   const { user } = useAuthStore()
@@ -24,6 +26,20 @@ export default function AdminHome() {
   const { data: products = [] } = useProducts()
   const { metrics: billingMetrics, isLoading: billingLoading } = useBilling()
   const [showBillingModal, setShowBillingModal] = useState(false)
+
+  // Estados para telemetría de conversión de seguimiento
+  const [trackingMetrics, setTrackingMetrics] = useState(null)
+  const [trackingLoading, setTrackingLoading] = useState(true)
+
+  useEffect(() => {
+    getTrackingMetrics().then(data => {
+      setTrackingMetrics(data)
+      setTrackingLoading(false)
+    }).catch(err => {
+      console.error(err)
+      setTrackingLoading(false)
+    })
+  }, [])
 
   // ─── CÁLCULO DE MÉTRICAS GENERALES ────────────────────────────────────────
   const metricas = useMemo(() => {
@@ -358,7 +374,7 @@ export default function AdminHome() {
                       title={`Transferencia: ${((metricas.transferTotal / metricas.cajaTotal) * 100).toFixed(0)}%`}
                     />
                   )}
-                  {config.creditsEnabled && metricas.creditTotal > 0 && (
+                  {creditsEnabled && metricas.creditTotal > 0 && (
                     <div 
                       className="h-full bg-violet-500 transition-all" 
                       style={{ width: `${(metricas.creditTotal / metricas.cajaTotal) * 100}%` }}
@@ -367,7 +383,7 @@ export default function AdminHome() {
                   )}
                 </div>
 
-                <div className={`grid grid-cols-1 ${config.creditsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+                <div className={`grid grid-cols-1 ${creditsEnabled ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
                   <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
@@ -382,7 +398,7 @@ export default function AdminHome() {
                     </div>
                     <span className="font-extrabold text-xs text-app">{formatCurrency(metricas.transferTotal)}</span>
                   </div>
-                  {config.creditsEnabled && (
+                  {creditsEnabled && (
                     <div className="flex items-center justify-between p-3 rounded-xl bg-violet-500/5 border border-violet-500/10">
                       <div className="flex items-center gap-2">
                         <div className="w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0" />
@@ -457,6 +473,51 @@ export default function AdminHome() {
               )
             })()}
           </div>
+        </div>
+      </motion.div>
+
+      {/* ─── TELEMETRÍA Y CONVERSIÓN DE SEGUIMIENTO (NUEVO PANEL) ───────────────── */}
+      <motion.div variants={itemVariants} className="mt-8">
+        <div className="bg-surface rounded-2xl border border-app shadow-sm p-5 relative overflow-hidden">
+          <div className="absolute -right-10 -top-10 w-32 h-32 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex items-center gap-2 mb-4 border-b border-app pb-3">
+            <Megaphone size={18} className="text-primary animate-pulse" />
+            <div>
+              <h2 className="text-sm font-bold text-app uppercase tracking-wider">
+                Conversión desde Seguimiento de Pedidos
+              </h2>
+              <p className="text-[10px] text-muted">Métricas de interacción, recompra y fidelización comercial en caliente</p>
+            </div>
+          </div>
+
+          {trackingLoading ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="animate-spin text-primary" size={24} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                { label: 'QRs Generados', value: trackingMetrics?.qrGenerados || 0, desc: 'Compartidos en local', emoji: '🎫' },
+                { label: 'Accesos por QR', value: trackingMetrics?.accesosQR || 0, desc: 'Escaneos en vivo', emoji: '📱' },
+                { label: 'Accesos por Enlace', value: trackingMetrics?.accesosEnlace || 0, desc: 'Clicks en chat/web', emoji: '🔗' },
+                { label: 'Compartidos WA', value: trackingMetrics?.sharesWa || 0, desc: 'Mensajes enviados', emoji: '💬' },
+                { label: 'Retornos a Tienda', value: trackingMetrics?.clicsTienda || 0, desc: 'Recompra generada', emoji: '🛍️' },
+                { label: 'Descargas de App', value: trackingMetrics?.clicsApp || 0, desc: 'Instalaciones móviles', emoji: '📲' },
+              ].map((item, idx) => (
+                <div key={idx} className="p-4 bg-surface-2 rounded-2xl border border-app shadow-xs flex flex-col justify-between min-h-[100px]">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-xs font-bold text-muted leading-tight">{item.label}</span>
+                    <span className="text-lg leading-none">{item.emoji}</span>
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-2xl font-black text-app leading-none">{item.value}</p>
+                    <p className="text-[9px] text-muted mt-1 leading-snug">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </motion.div>
 

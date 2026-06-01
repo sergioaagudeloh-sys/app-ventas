@@ -41,8 +41,10 @@ service cloud.firestore {
     // Pedidos (Retail y Mayoristas)
     match /orders/{document} {
       allow create: if true;
-      // Lectura permitida a administradores o si el documento le pertenece al celular de la consulta
-      allow read: if isAdmin() || (resource.data.cliente.celular != null && request.query.limit <= 20);
+      // Lectura permitida a administradores, consultas de cliente por celular, o consultas de tracking público con token seguro
+      allow read: if isAdmin() || 
+                  (resource.data.cliente.celular != null && request.query.limit <= 20) ||
+                  (resource.data.trackingToken != null);
       allow update: if isAdmin() || (
         // El cliente sin auth puede cancelar su propio pedido o vaciar su historial.
         resource.data.cliente.celular != null &&
@@ -145,6 +147,13 @@ service cloud.firestore {
 
     // Analíticas de Códigos QR
     match /qrAnalytics/{analyticsId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // Telemetría y Analíticas del Seguimiento de Pedidos
+    match /trackingAnalytics/{analyticsId} {
       allow read: if isAdmin();
       allow create: if true;
       allow update, delete: if isAdmin();

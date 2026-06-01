@@ -3,14 +3,17 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/firestore'
 import { db } from '../../config/firebaseConfig'
 import useAppConfigStore from '../../store/appConfigStore'
+import useAuthStore from '../../store/authStore'
 import { formatCurrency } from '../../utils/formatters'
 import AppLoader from '../../components/ui/AppLoader'
 import { ORDER_STATE_META } from '../../constants'
 import { ROLES } from '../../constants'
 import { getEmployeesByRole } from '../../services/employeeService'
+import { trackTrackingEvent } from '../../services/trackingAnalyticsService'
 import {
   Package,
   CheckCircle2,
+  CheckCircle,
   Check,
   Clock,
   AlertTriangle,
@@ -22,7 +25,10 @@ import {
   MapPin,
   Truck,
   ChefHat,
+  Sparkles,
+  Download,
 } from 'lucide-react'
+import usePWAInstall from '../../hooks/usePWAInstall'
 
 // ─── Mapa de íconos de Lucide por nombre (string → componente) ────────────────
 // Cuando agregues un estado con un ícono nuevo, añádelo aquí.
@@ -51,7 +57,11 @@ const COLOR_MAP = {
 export default function OrderTracking() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('t')
-  const { orderTrackingEnabled, whatsappAdmin, appName } = useAppConfigStore()
+  const { orderTrackingEnabled, whatsappAdmin, appName, appPromo } = useAppConfigStore()
+  const { rawInstallable, handleInstall } = usePWAInstall()
+
+  const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+  const isStandalone = typeof window !== 'undefined' && window.matchMedia('(display-mode: standalone)').matches
 
   const [loading, setLoading] = useState(true)
   const [order, setOrder] = useState(null)
@@ -79,14 +89,26 @@ export default function OrderTracking() {
       limit(1)
     )
 
+    // Prevenir telemetría duplicada en la misma carga
+    let tracked = false
+
     const unsubscribe = onSnapshot(
       q,
       (snap) => {
         if (snap.empty) {
           setError('No se encontró ningún pedido con este código de seguimiento.')
         } else {
-          setOrder({ id: snap.docs[0].id, ...snap.docs[0].data() })
+          const ordData = { id: snap.docs[0].id, ...snap.docs[0].data() }
+          setOrder(ordData)
           setError(null)
+
+          // Registrar telemetría al cargar exitosamente por primera vez
+          if (!tracked) {
+            tracked = true
+            const referrer = searchParams.get('ref')
+            const eventType = referrer === 'qr' ? 'scan' : 'link_open'
+            trackTrackingEvent(ordData.id, ordData.orderNumber, eventType)
+          }
         }
         setLoading(false)
       },
@@ -97,14 +119,25 @@ export default function OrderTracking() {
       }
     )
 
-    // Consultar roles activos una sola vez (no cambian en medio de un pedido)
-    Promise.all([
-      getEmployeesByRole(ROLES.COCINERO),
-      getEmployeesByRole(ROLES.MENSAJERO),
-    ]).then(([cocineros, mensajeros]) => {
-      setHasCocinero(cocineros.length > 0)
-      setHasMensajero(mensajeros.length > 0)
-    }).catch(console.error)
+    // Consultar roles activos si es administrador (los clientes externos no tienen permisos de lectura por seguridad de PINs)
+    const currentRole = useAuthStore.getState().role
+    if (currentRole === ROLES.ADMIN) {
+      Promise.all([
+        getEmployeesByRole(ROLES.COCINERO),
+        getEmployeesByRole(ROLES.MENSAJERO),
+      ]).then(([cocineros, mensajeros]) => {
+        setHasCocinero(cocineros.length > 0)
+        setHasMensajero(mensajeros.length > 0)
+      }).catch(err => {
+        console.warn('[OrderTracking] No se pudieron consultar roles operativos:', err)
+        setHasCocinero(true)
+        setHasMensajero(true)
+      })
+    } else {
+      // Clientes invitados/externos: asumimos habilitados por defecto para mostrar el stepper completo
+      setHasCocinero(true)
+      setHasMensajero(true)
+    }
 
     // Limpiar la suscripción al desmontar el componente
     return () => unsubscribe()
@@ -403,7 +436,7 @@ export default function OrderTracking() {
           )}
 
           {/* Productos */}
-          <div>
+          <div className="mb-6">
             <h3 className="text-[10px] font-black uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5">
               <ShoppingBag className="w-3.5 h-3.5 text-primary" /> Productos del Pedido
             </h3>
@@ -437,7 +470,147 @@ export default function OrderTracking() {
             </div>
           </div>
 
+          {/* Bloques de Conversión y Fidelización (Priorizados visualmente si el pedido ya finalizó / se canceló) */}
+          {(order.estado === 'completado' || order.estado === 'cancelado') && (
+            <div className="pt-2 border-t border-app space-y-4">
+              {/* Bloque: Recompra / Explorar Catálogo */}
+              <div className="bg-primary/5 border rounded-3xl p-5 text-center space-y-3" style={{ borderColor: 'color-mix(in srgb, var(--color-primary) 15%, transparent)' }}>
+                <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center mx-auto">
+                  <Sparkles size={20} className="animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-app uppercase tracking-wider">¿Te gusta comprar con nosotros?</h4>
+                  <p className="text-xs text-muted">Sigue explorando y descubre productos recomendados especialmente para ti.</p>
+                </div>
+                <Link
+                  to="/"
+                  onClick={() => trackTrackingEvent(order.id, order.orderNumber, 'catalog_click')}
+                  className="inline-flex w-full items-center justify-center h-12 bg-primary text-white font-black text-xs uppercase tracking-wider rounded-2xl hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/15"
+                >
+                  Volver a la Tienda (Comprar Más)
+                </Link>
+              </div>
+
+              {/* Bloque: Promover Instalación de App PWA */}
+              {appPromo?.enabled && (
+                isStandalone ? (
+                  <div className="bg-surface-2 border border-app rounded-3xl p-4 shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle size={16} />
+                    </div>
+                    <span className="text-xs font-bold text-app">Aplicación instalada y lista en tu dispositivo</span>
+                  </div>
+                ) : (
+                  <div className="bg-surface-2 border border-app rounded-3xl p-5 space-y-4 shadow-sm">
+                    <div className="flex gap-4">
+                      {appPromo.promoImageUrl ? (
+                        <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-app bg-surface-3">
+                          <img src={appPromo.promoImageUrl} alt="App Icon" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                          <Download size={20} />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h4 className="text-sm font-black text-app uppercase tracking-wider">
+                          {appPromo.title || 'Instalar Aplicación'}
+                        </h4>
+                        <p className="text-xs text-muted mt-1 leading-snug">
+                          {appPromo.message || 'Descarga la app en tu pantalla de inicio para un acceso rápido y realizar el seguimiento de tus pedidos en tiempo real.'}
+                        </p>
+                      </div>
+                    </div>
+                    {rawInstallable ? (
+                      <button
+                        onClick={handleInstall}
+                        className="w-full h-11 bg-primary text-white rounded-2xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                        style={{ borderRadius: 'var(--radius-base)' }}
+                      >
+                        <Download size={16} />
+                        Instalar Aplicación
+                      </button>
+                    ) : isIOS ? (
+                      <div className="text-xs text-muted bg-surface p-3.5 rounded-2xl border border-app leading-relaxed">
+                        📱 En tu iPhone/iPad: pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
         </div>
+
+        {/* Bloque Comercial Estándar para Pedidos en Curso (Aparece abajo si no está en estado terminal) */}
+        {order.estado !== 'completado' && order.estado !== 'cancelado' && (
+          <div className="space-y-4">
+            {/* Bloque: Catálogo General */}
+            <div className="bg-surface border border-app rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-app uppercase tracking-wider">Descubre más productos</h4>
+                <p className="text-xs text-muted leading-snug">Puedes seguir explorando nuestra tienda y añadir más favoritos.</p>
+              </div>
+              <Link
+                to="/"
+                onClick={() => trackTrackingEvent(order.id, order.orderNumber, 'catalog_click')}
+                className="h-11 px-6 bg-primary/10 text-primary border rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center transition-all hover:bg-primary hover:text-white cursor-pointer active:scale-95 shrink-0"
+                style={{ borderColor: 'color-mix(in srgb, var(--color-primary) 20%, transparent)' }}
+              >
+                Explorar Tienda
+              </Link>
+            </div>
+
+            {/* Bloque: Promover Instalación de App PWA */}
+            {appPromo?.enabled && (
+              isStandalone ? (
+                <div className="bg-surface border border-app rounded-3xl p-4 shadow-sm flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle size={16} />
+                  </div>
+                  <span className="text-xs font-bold text-app">Aplicación instalada y lista en tu dispositivo</span>
+                </div>
+              ) : (
+                <div className="bg-surface border border-app rounded-3xl p-5 space-y-4 shadow-sm">
+                  <div className="flex gap-4">
+                    {appPromo.promoImageUrl ? (
+                      <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-app bg-surface-2">
+                        <img src={appPromo.promoImageUrl} alt="App Icon" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                        <Download size={20} />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <h4 className="text-xs font-black text-app uppercase tracking-wider">
+                        {appPromo.title || 'Instalar Aplicación'}
+                      </h4>
+                      <p className="text-xs text-muted mt-1 leading-snug">
+                        {appPromo.message || 'Descarga la app en tu pantalla de inicio para un acceso rápido y realizar el seguimiento de tus pedidos en tiempo real.'}
+                      </p>
+                    </div>
+                  </div>
+                  {rawInstallable ? (
+                    <button
+                      onClick={handleInstall}
+                      className="w-full h-11 bg-primary text-white rounded-2xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
+                      style={{ borderRadius: 'var(--radius-base)' }}
+                    >
+                      <Download size={16} />
+                      Instalar Aplicación
+                    </button>
+                  ) : isIOS ? (
+                    <div className="text-xs text-muted bg-surface-2 p-3.5 rounded-2xl border border-app leading-relaxed">
+                      📱 En tu iPhone/iPad: pulsa el botón de <strong>Compartir</strong> <span className="text-primary font-bold">↑</span> en la barra inferior de Safari y luego selecciona <strong>"Agregar a la pantalla de inicio"</strong>.
+                    </div>
+                  ) : null}
+                </div>
+              )
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted px-2 pb-8">

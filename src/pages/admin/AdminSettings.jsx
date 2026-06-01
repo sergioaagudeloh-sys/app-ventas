@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft, QrCode, Printer, Users, Copy, CheckCircle2, Loader2, LayoutGrid } from 'lucide-react'
+import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft, QrCode, Printer, Users, Copy, CheckCircle2, Loader2, LayoutGrid, MessageSquare } from 'lucide-react'
 import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
 import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { db, auth } from '../../config/firebaseConfig'
@@ -1336,7 +1336,16 @@ export default function AdminSettings() {
     orderTrackingEnabled: false,
     developerPhone: '',
     creditsEnabled: true,
-    couponsEnabled: true
+    couponsEnabled: true,
+    trackingWaTemplate: '',
+    appPromo: {
+      enabled: false,
+      title: '',
+      message: '',
+      androidUrl: '',
+      iosUrl: '',
+      promoImageUrl: ''
+    }
   })
 
   // Sincronizar store local con formulario al cargar
@@ -1421,7 +1430,16 @@ export default function AdminSettings() {
         orderTrackingEnabled: config.orderTrackingEnabled ?? false,
         developerPhone: config.developerPhone || '',
         creditsEnabled: config.creditsEnabled ?? true,
-        couponsEnabled: config.couponsEnabled ?? true
+        couponsEnabled: config.couponsEnabled ?? true,
+        trackingWaTemplate: config.trackingWaTemplate || '',
+        appPromo: config.appPromo || {
+          enabled: false,
+          title: '',
+          message: '',
+          androidUrl: '',
+          iosUrl: '',
+          promoImageUrl: ''
+        }
       })
     }
   }, [
@@ -1456,7 +1474,9 @@ export default function AdminSettings() {
     config.orderTrackingEnabled,
     config.developerPhone,
     config.creditsEnabled,
-    config.couponsEnabled
+    config.couponsEnabled,
+    config.trackingWaTemplate,
+    config.appPromo
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -3136,8 +3156,10 @@ export default function AdminSettings() {
             {/* SUBSECCIÓN FORM: Seguimiento de Pedidos */}
             {activeSubSection === 'seguimiento' && (
               <>
-                <div className="p-5 sm:p-6 space-y-5">
-                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                <div className="p-5 sm:p-6 space-y-6">
+                  
+                  {/* Switch General */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app shadow-xs">
                     <div>
                       <p className="text-sm font-bold text-app">Activar Seguimiento de Pedidos</p>
                       <p className="text-xs text-muted mt-0.5">Habilita un portal público y genera enlaces de WhatsApp automáticos para que los clientes sigan sus pedidos en tiempo real</p>
@@ -3149,25 +3171,171 @@ export default function AdminSettings() {
                       <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                     </label>
                   </div>
+
+                  {/* Panel Configuración Plantilla WhatsApp */}
+                  {formData.orderTrackingEnabled && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-surface rounded-2xl border border-app shadow-xs space-y-4"
+                    >
+                      <div className="flex items-center gap-2 border-b border-app pb-2">
+                        <MessageSquare size={16} className="text-primary" />
+                        <h4 className="text-xs font-bold text-app uppercase tracking-wider">Mensaje de WhatsApp para Clientes</h4>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-xs font-semibold text-muted">Plantilla de Mensaje de Seguimiento</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                trackingWaTemplate: "¡Hola {cliente}! Muchas gracias por tu compra. 😊\n\nTu pedido *{pedido}* está en estado *{estado}* (Total: {total}).\n\nPuedes consultar su preparación y envío en tiempo real ingresando a nuestra aplicación, en la sección de *'Mis Pedidos'* y presionando el botón *'🚀 Ver Seguimiento en Tiempo Real'* en la tarjeta de tu compra.\n\n¡Gracias por confiar en *{tienda}*!"
+                              })
+                            }}
+                            className="text-[10px] font-black text-primary hover:underline cursor-pointer border-none bg-transparent"
+                          >
+                            🔄 Restablecer Predeterminada
+                          </button>
+                        </div>
+                        <textarea
+                          rows={6}
+                          value={formData.trackingWaTemplate}
+                          onChange={(e) => setFormData({ ...formData, trackingWaTemplate: e.target.value })}
+                          placeholder="Hola {cliente}, tu pedido {pedido} está..."
+                          className="w-full p-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-xs text-app leading-relaxed transition-colors resize-none"
+                        />
+                        
+                        {/* Chips de variables sugeridas para inserción rápida */}
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] text-muted font-bold uppercase tracking-wider">Etiquetas dinámicas disponibles (Toca para insertar):</p>
+                          <div className="flex flex-wrap gap-1">
+                            {[
+                              { label: '{cliente}', desc: 'Nombre cliente', val: '{cliente}' },
+                              { label: '{pedido}', desc: '# Pedido', val: '{pedido}' },
+                              { label: '{estado}', desc: 'Estado', val: '{estado}' },
+                              { label: '{tienda}', desc: 'Nombre Tienda', val: '{tienda}' },
+                              { label: '{total}', desc: 'Total Pedido', val: '{total}' },
+                              { label: '{enlace}', desc: 'URL Seguimiento', val: '{enlace}' }
+                            ].map(tag => (
+                              <button
+                                key={tag.label}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({
+                                    ...formData,
+                                    trackingWaTemplate: (formData.trackingWaTemplate || '') + tag.val
+                                  })
+                                }}
+                                className="px-2.5 py-1 bg-surface-2 hover:bg-surface-3 border border-app rounded-lg text-[10px] font-mono font-bold text-muted hover:text-app transition-colors cursor-pointer"
+                                title={tag.desc}
+                              >
+                                {tag.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Panel Promoción de Aplicación Oficial */}
+                  {formData.orderTrackingEnabled && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-surface rounded-2xl border border-app shadow-xs space-y-4"
+                    >
+                      <div className="flex items-center justify-between border-b border-app pb-2">
+                        <div className="flex items-center gap-2">
+                          <Megaphone size={16} className="text-primary" />
+                          <h4 className="text-xs font-bold text-app uppercase tracking-wider">Promoción de Aplicación PWA (Instalación Directa)</h4>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input type="checkbox" className="sr-only peer"
+                            checked={formData.appPromo?.enabled ?? false}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              appPromo: { ...(formData.appPromo || {}), enabled: e.target.checked }
+                            })} />
+                          <div className="w-9 h-5 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+
+                      {formData.appPromo?.enabled && (
+                        <div className="space-y-4 pt-1">
+                          {/* Banner título y mensaje */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-muted mb-1">Título del Banner</label>
+                              <input
+                                type="text"
+                                value={formData.appPromo?.title || ''}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  appPromo: { ...(formData.appPromo || {}), title: e.target.value }
+                                })}
+                                placeholder="Ej: ¡Instala nuestra App!"
+                                className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-app text-xs text-app focus:outline-none focus:border-primary transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-muted mb-1">Imagen del Banner (URL)</label>
+                              <input
+                                type="text"
+                                value={formData.appPromo?.promoImageUrl || ''}
+                                onChange={(e) => setFormData({
+                                  ...formData,
+                                  appPromo: { ...(formData.appPromo || {}), promoImageUrl: e.target.value }
+                                })}
+                                placeholder="https://ejemplo.com/icon.png"
+                                className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-app text-xs text-app focus:outline-none focus:border-primary transition-colors"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-muted mb-1">Mensaje Comercial</label>
+                            <textarea
+                              rows={2.5}
+                              value={formData.appPromo?.message || ''}
+                              onChange={(e) => setFormData({
+                                  ...formData,
+                                  appPromo: { ...(formData.appPromo || {}), message: e.target.value }
+                              })}
+                              placeholder="Describe los beneficios de instalar la aplicación en el dispositivo..."
+                              className="w-full p-3 rounded-xl border border-app bg-surface-2 focus:border-primary/40 outline-none text-xs text-app leading-snug transition-colors resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
                 </div>
 
                 <div className="p-5 border-t border-app bg-surface-2/30">
                   <button
                     onClick={async () => {
                       try {
-                        await updateAppConfig({ 
-                          orderTrackingEnabled: formData.orderTrackingEnabled ?? false
-                        })
-                        config.setConfig({
-                          orderTrackingEnabled: formData.orderTrackingEnabled ?? false
-                        })
-                        setSaveMessage({ type: 'success', text: 'Configuración de seguimiento guardada correctamente.' })
+                        const payload = { 
+                          orderTrackingEnabled: formData.orderTrackingEnabled ?? false,
+                          trackingWaTemplate: formData.trackingWaTemplate || '',
+                          appPromo: formData.appPromo || null
+                        }
+                        
+                        await updateAppConfig(payload)
+                        config.setConfig(payload)
+                        
+                        setSaveMessage({ type: 'success', text: 'Configuración de seguimiento y fidelización guardada correctamente.' })
                         setTimeout(() => setSaveMessage(null), 3000)
                       } catch (e) {
-                        setSaveMessage({ type: 'error', text: 'Error al guardar.' })
+                        setSaveMessage({ type: 'error', text: 'Error al guardar la configuración.' })
                       }
                     }}
-                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm cursor-pointer border-none"
                   >
                     <Save size={18} /> Guardar Configuración de Seguimiento
                   </button>
