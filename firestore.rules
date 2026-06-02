@@ -21,12 +21,11 @@ service cloud.firestore {
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
-      allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
-      allow list: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, create, update: if true;
+      allow list, delete: if isAdmin();
       
       match /favorites/{favoriteId} {
-        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+        allow read, write: if true;
       }
     }
 
