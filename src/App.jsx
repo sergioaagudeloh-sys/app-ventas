@@ -134,7 +134,54 @@ export default function App() {
   // Sincronización global Firestore <-> Zustand en tiempo real
   useAppConfigSync()
 
-  const { isLoaded, appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode, animationsEnabled } = useAppConfigStore()
+  const { 
+    isLoaded, 
+    appName, 
+    appIcon, 
+    pwaAppName, 
+    pwaAppIcon, 
+    pwaUseBrandIcon, 
+    theme, 
+    activeSeasonalEvent, 
+    isDarkMode, 
+    animationsEnabled,
+    tablesEnabled,
+    setActiveTable
+  } = useAppConfigStore()
+
+  // Capturar parámetro ?tableId= de la URL para Autoservicio QR
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const tableId = params.get('tableId')
+    if (tableId && tablesEnabled) {
+      const fetchTable = async () => {
+        try {
+          const { doc, getDoc } = await import('firebase/firestore')
+          const { db } = await import('./config/firebaseConfig')
+          const snap = await getDoc(doc(db, 'tables', tableId))
+          if (snap.exists()) {
+            const tableData = snap.data()
+            const tbl = { id: snap.id, nombre: tableData.nombre }
+            setActiveTable(tbl)
+            sessionStorage.setItem('activeTable', JSON.stringify(tbl))
+          }
+        } catch (e) {
+          console.error('Error al recuperar datos de la mesa:', e)
+        }
+      }
+      fetchTable()
+    }
+  }, [tablesEnabled, setActiveTable])
+
+  // Inicializar activeTable desde sessionStorage en el primer renderizado
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('activeTable')
+      if (stored) {
+        setActiveTable(JSON.parse(stored))
+      }
+    } catch (e) {}
+  }, [setActiveTable])
 
   // Activar transiciones de fondo únicamente después de la hidratación y pintado inicial (evita FOUC cromático)
   useEffect(() => {

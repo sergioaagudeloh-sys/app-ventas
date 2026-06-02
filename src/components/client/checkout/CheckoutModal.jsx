@@ -75,62 +75,74 @@ const STEP_TITLES = {
 export default function CheckoutModal({ isOpen, onClose }) {
   const { items, getTotal, clearCart } = useCartStore()
   const { user } = useAuthStore()
-  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings, orderTrackingEnabled, creditsEnabled } = useAppConfigStore()
+  const { bankInfo, bankInfo2, whatsappAdmin, appName, deliverySettings, orderTrackingEnabled, creditsEnabled, tablesEnabled, activeTable } = useAppConfigStore()
   const { mutateAsync: createOrder, isPending } = useCreateOrder()
   const { completedSteps, markStepCompleted } = useGuidedStore()
   const { data: coupons = [] } = useCoupons()
 
   // Construcción dinámica de métodos de entrega
   const activeDeliveryOptions = []
-  const currentSettings = deliverySettings || {
-    pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
-    shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
-    digital: { enabled: false, instructions: '' }
-  }
-
-  if (currentSettings.pickup?.enabled !== false) {
+  
+  if (activeTable && tablesEnabled) {
     activeDeliveryOptions.push({
-      id: 'retiro',
+      id: 'mesa',
       icon: Store,
-      title: 'Retiro en Tienda',
-      description: currentSettings.pickup?.instructions || 'Recoge tu pedido directamente en nuestro local.',
+      title: 'Entrega en la Mesa',
+      description: `Llevamos tu pedido directamente a la ${activeTable.nombre}. Sin costo de envío.`,
       badge: 'Gratis',
-      badgeColor: 'bg-success/10 text-success',
+      badgeColor: 'bg-emerald-500/10 text-emerald-500',
     })
-  }
-
-  if (currentSettings.shipping?.enabled !== false) {
-    let shippingBadge = 'Por acordar'
-    if (currentSettings.customDelivery?.enabled) {
-      if (currentSettings.customDelivery.costType === 'fijo') {
-        const fixed = Number(currentSettings.customDelivery.fixedCost) || 0
-        shippingBadge = fixed > 0 ? `+ ${formatCurrency(fixed)}` : 'Gratis'
-      } else {
-        shippingBadge = 'Por acordar'
-      }
-    } else if (currentSettings.shipping?.cost > 0) {
-      shippingBadge = `+ ${formatCurrency(currentSettings.shipping.cost)}`
+  } else {
+    const currentSettings = deliverySettings || {
+      pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+      shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+      digital: { enabled: false, instructions: '' }
     }
 
-    activeDeliveryOptions.push({
-      id: 'domicilio',
-      icon: Truck,
-      title: 'Domicilio',
-      description: currentSettings.shipping?.instructions || 'Recibe tu pedido en la comodidad de tu casa. Te contactaremos para coordinar.',
-      badge: shippingBadge,
-      badgeColor: 'bg-primary/10 text-primary',
-    })
-  }
+    if (currentSettings.pickup?.enabled !== false) {
+      activeDeliveryOptions.push({
+        id: 'retiro',
+        icon: Store,
+        title: 'Retiro en Tienda',
+        description: currentSettings.pickup?.instructions || 'Recoge tu pedido directamente en nuestro local.',
+        badge: 'Gratis',
+        badgeColor: 'bg-success/10 text-success',
+      })
+    }
 
-  if (currentSettings.digital?.enabled === true) {
-    activeDeliveryOptions.push({
-      id: 'digital',
-      icon: CheckCircle2,
-      title: 'Entrega Digital / Servicio',
-      description: currentSettings.digital?.instructions || 'Servicios presenciales o productos virtuales.',
-      badge: 'Sin envío',
-      badgeColor: 'bg-info/10 text-info',
-    })
+    if (currentSettings.shipping?.enabled !== false) {
+      let shippingBadge = 'Por acordar'
+      if (currentSettings.customDelivery?.enabled) {
+        if (currentSettings.customDelivery.costType === 'fijo') {
+          const fixed = Number(currentSettings.customDelivery.fixedCost) || 0
+          shippingBadge = fixed > 0 ? `+ ${formatCurrency(fixed)}` : 'Gratis'
+        } else {
+          shippingBadge = 'Por acordar'
+        }
+      } else if (currentSettings.shipping?.cost > 0) {
+        shippingBadge = `+ ${formatCurrency(currentSettings.shipping.cost)}`
+      }
+
+      activeDeliveryOptions.push({
+        id: 'domicilio',
+        icon: Truck,
+        title: 'Domicilio',
+        description: currentSettings.shipping?.instructions || 'Recibe tu pedido en la comodidad de tu casa. Te contactaremos para coordinar.',
+        badge: shippingBadge,
+        badgeColor: 'bg-primary/10 text-primary',
+      })
+    }
+
+    if (currentSettings.digital?.enabled === true) {
+      activeDeliveryOptions.push({
+        id: 'digital',
+        icon: CheckCircle2,
+        title: 'Entrega Digital / Servicio',
+        description: currentSettings.digital?.instructions || 'Servicios presenciales o productos virtuales.',
+        badge: 'Sin envío',
+        badgeColor: 'bg-info/10 text-info',
+      })
+    }
   }
 
   // step: 1=Entrega, 2=Datos, 3=Pago, 4=Éxito
@@ -193,14 +205,18 @@ export default function CheckoutModal({ isOpen, onClose }) {
     if (isOpen) {
       // Recalcular dinámicamente activeDeliveryOptions al abrir para evitar closure estático
       const options = []
-      const currentSettings = deliverySettings || {
-        pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
-        shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
-        digital: { enabled: false, instructions: '' }
+      if (activeTable && tablesEnabled) {
+        options.push('mesa')
+      } else {
+        const currentSettings = deliverySettings || {
+          pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+          shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+          digital: { enabled: false, instructions: '' }
+        }
+        if (currentSettings.pickup?.enabled !== false) options.push('retiro')
+        if (currentSettings.shipping?.enabled !== false) options.push('domicilio')
+        if (currentSettings.digital?.enabled === true) options.push('digital')
       }
-      if (currentSettings.pickup?.enabled !== false) options.push('retiro')
-      if (currentSettings.shipping?.enabled !== false) options.push('domicilio')
-      if (currentSettings.digital?.enabled === true) options.push('digital')
 
       const hasOnlyOneOption = options.length === 1
       const initialDeliveryType = hasOnlyOneOption ? options[0] : ''
@@ -412,6 +428,10 @@ export default function CheckoutModal({ isOpen, onClose }) {
           }),
         },
         tipoEntrega: formData.tipoEntrega,
+        ...(formData.tipoEntrega === 'mesa' && activeTable && {
+          tableId: activeTable.id,
+          tableName: activeTable.nombre,
+        }),
         costoEnvio: currentShippingCost,
         metodoPago: formData.metodoPago,
         ...(formData.metodoPago === 'transferencia' && {
@@ -503,6 +523,8 @@ export default function CheckoutModal({ isOpen, onClose }) {
       entregaLine = `${e.camion} *Entrega:* Domicilio\n${e.ubicacion} *Dirección:* ${snap?.cliente?.direccion || ''}, ${snap?.cliente?.barrio || ''}, ${snap?.cliente?.ciudad || ''}`
     } else if (isDigital) {
       entregaLine = `${e.digital} *Entrega:* Digital / Servicios`
+    } else if (snap?.tipoEntrega === 'mesa') {
+      entregaLine = `🛎️ *Entrega:* En Mesa (${snap?.tableName || 'Sin Mesa'})`
     } else {
       const addressText = currentSettings.pickup?.address ? ` (${currentSettings.pickup.address})` : ''
       entregaLine = `${e.tienda} *Entrega:* Retiro en Tienda${addressText}`
@@ -638,8 +660,9 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   {formData.tipoEntrega === 'domicilio' && <Truck size={16} className="text-primary shrink-0" />}
                   {formData.tipoEntrega === 'retiro' && <Store size={16} className="text-primary shrink-0" />}
                   {formData.tipoEntrega === 'digital' && <CheckCircle2 size={16} className="text-primary shrink-0" />}
+                  {formData.tipoEntrega === 'mesa' && <Store size={16} className="text-primary shrink-0" />}
                   <span className="text-xs font-bold text-primary capitalize">
-                    {formData.tipoEntrega === 'domicilio' ? 'Entrega a domicilio' : formData.tipoEntrega === 'retiro' ? 'Retiro en tienda' : 'Entrega digital / servicio'}
+                    {formData.tipoEntrega === 'domicilio' ? 'Entrega a domicilio' : formData.tipoEntrega === 'retiro' ? 'Retiro en tienda' : formData.tipoEntrega === 'mesa' ? `Entrega en Mesa: ${activeTable?.nombre}` : 'Entrega digital / servicio'}
                   </span>
                   {activeDeliveryOptions.length > 1 && (
                     <button onClick={() => setStep(1)} className="ml-auto text-xs text-muted hover:text-primary underline underline-offset-2">

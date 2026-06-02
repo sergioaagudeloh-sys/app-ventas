@@ -102,6 +102,11 @@ function OrderCard({ order, updating, onAdvance }) {
       className="portal-order-card">
       <div className="portal-order-card-header">
         <span className="portal-order-number">#{order.orderNumber || order.orderId?.slice(-4)}</span>
+        {order.tipoEntrega === 'mesa' && order.tableName && (
+          <span className="portal-order-badge bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/30 font-black px-2 py-0.5 rounded-full text-[10px]">
+            🛎️ {order.tableName}
+          </span>
+        )}
         <span className="portal-order-badge" style={{ background: config.color + '22', color: config.color, border: `1px solid ${config.color}44` }}>
           {config.label}
         </span>
