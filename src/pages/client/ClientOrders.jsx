@@ -578,8 +578,8 @@ export default function ClientOrders() {
                       </>
                     ) : order.tipoEntrega === 'mesa' ? (
                       <>
-                        <Store size={16} className="text-primary" />
-                        <span>CONSUMO EN SALÓN — {order.tableName || 'MESA'}</span>
+                        <span className="text-base leading-none">🛎️</span>
+                        <span>CONSUMO EN SALÓN — {order.tableName || 'Mesa'}</span>
                       </>
                     ) : (
                       <>
