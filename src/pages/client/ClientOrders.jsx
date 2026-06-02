@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert, PackagePlus } from 'lucide-react'
@@ -13,8 +13,10 @@ import useCartStore from '../../store/cartStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, GUIDED_MESSAGES, SUPPORT_WHATSAPP } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
-import ClaimRequestModal from '../../components/client/claims/ClaimRequestModal'
 import Pagination from '../../components/ui/Pagination'
+
+// Lazy-load complex modals only when they are needed by the user
+const ClaimRequestModal = lazy(() => import('../../components/client/claims/ClaimRequestModal'))
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -1150,11 +1152,13 @@ export default function ClientOrders() {
       </AnimatePresence>
 
       {claimOrder && (
-        <ClaimRequestModal
-          isOpen={!!claimOrder}
-          onClose={() => setClaimOrder(null)}
-          order={claimOrder}
-        />
+        <Suspense fallback={null}>
+          <ClaimRequestModal
+            isOpen={!!claimOrder}
+            onClose={() => setClaimOrder(null)}
+            order={claimOrder}
+          />
+        </Suspense>
       )}
     </div>
   )
