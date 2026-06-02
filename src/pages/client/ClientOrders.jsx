@@ -520,6 +520,10 @@ export default function ClientOrders() {
                   <span className="text-xs font-bold px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md">
                     🛵 Domicilio{order.costoEnvio > 0 ? ` · +${formatCurrency(order.costoEnvio)}` : ''}
                   </span>
+                ) : order.tipoEntrega === 'mesa' ? (
+                  <span className="text-xs font-bold px-2 py-0.5 bg-purple-500/10 text-purple-600 border border-purple-500/20 rounded-md">
+                    🛎️ En Mesa: {order.tableName || 'Salón'}
+                  </span>
                 ) : (
                   <span className="text-xs text-muted px-2 py-0.5 bg-surface-2 rounded-md border border-app">
                     🏪 Retiro en tienda
@@ -572,6 +576,11 @@ export default function ClientOrders() {
                         <Bike size={16} className="text-primary" />
                         <span>ENTREGA A DOMICILIO</span>
                       </>
+                    ) : order.tipoEntrega === 'mesa' ? (
+                      <>
+                        <span className="text-base leading-none">🛎️</span>
+                        <span>CONSUMO EN SALÓN — {order.tableName || 'Mesa'}</span>
+                      </>
                     ) : (
                       <>
                         <Store size={16} className="text-primary" />
@@ -593,6 +602,8 @@ export default function ClientOrders() {
                         <p className="text-xs text-muted italic mt-1 font-medium">El costo de envío será acordado con el negocio.</p>
                       )}
                     </div>
+                  ) : order.tipoEntrega === 'mesa' ? (
+                    <p className="text-sm text-muted">Tu pedido será entregado directamente en tu **{order.tableName || 'Mesa'}**.</p>
                   ) : (
                     <p className="text-xs text-muted font-medium leading-relaxed">Recoge tu pedido directamente en nuestra tienda.</p>
                   )}

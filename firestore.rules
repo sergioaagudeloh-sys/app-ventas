@@ -78,8 +78,8 @@ service cloud.firestore {
 
     // Cupones
     match /coupons/{document} {
-      allow read, list: if true;
-      allow write, delete: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // Garantías y Reclamos
@@ -119,6 +119,11 @@ service cloud.firestore {
     match /tables/{tableId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Solicitudes y llamados de mesas en salón
+    match /tableRequests/{requestId} {
+      allow read, write: if true;
     }
 
     // Órdenes en cola de producción

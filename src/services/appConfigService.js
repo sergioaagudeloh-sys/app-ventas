@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   sellerName: 'Vendedor',
   appIcon: '',
   theme: 'rosa-elegante',
+  tablesEnabled: false,
   whatsappAdmin: '',
   bankInfo: {
     numeroCuenta: '',

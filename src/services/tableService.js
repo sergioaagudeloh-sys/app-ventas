@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, query, orderBy } from 'firebase/firestore'
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, query, orderBy, where } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
 
@@ -50,11 +50,27 @@ export async function openTable(tableId, meseroId) {
   })
 }
 
-export async function requestTableBill(tableId) {
+export async function requestService(tableId, tableName, type) {
+  const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+  const { db } = await import('../config/firebaseConfig')
+  await addDoc(collection(db, 'tableRequests'), {
+    tableId,
+    tableName,
+    type, // 'llamado' | 'cuenta'
+    status: 'pendiente',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function requestTableBill(tableId, tableName) {
   await updateDoc(doc(db, COL, tableId), {
     estado: 'solicitando_cuenta',
     updatedAt: serverTimestamp(),
   })
+  if (tableName) {
+    await requestService(tableId, tableName, 'cuenta')
+  }
 }
 
 export async function closeTable(tableId) {
@@ -64,4 +80,43 @@ export async function closeTable(tableId) {
     meseroAsignadoId: null,
     updatedAt: serverTimestamp(),
   })
+}
+
+export function subscribeToTableRequests(callback) {
+  const q = query(
+    collection(db, 'tableRequests'),
+    where('status', '==', 'pendiente')
+  )
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    list.sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0
+      const tB = b.createdAt?.seconds || 0
+      return tB - tA
+    })
+    callback(list)
+  })
+}
+
+export async function resolveTableRequest(request, meseroId) {
+  const reqId = typeof request === 'string' ? request : request.id
+  const ref = doc(db, 'tableRequests', reqId)
+  await updateDoc(ref, {
+    status: 'atendido',
+    meseroId: meseroId || null,
+    updatedAt: serverTimestamp(),
+  })
+
+  if (typeof request === 'object' && request.tableId) {
+    if (request.type === 'cuenta') {
+      await closeTable(request.tableId)
+    } else {
+      // Restablecer/asegurar que el estado sea ocupada al atender el llamado
+      const tableRef = doc(db, COL, request.tableId)
+      await updateDoc(tableRef, {
+        estado: 'ocupada',
+        updatedAt: serverTimestamp()
+      })
+    }
+  }
 }

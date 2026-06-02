@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Utensils, Users, CheckCircle2, Clock, Receipt, Loader2, X, LayoutGrid } from 'lucide-react'
-import { subscribeToTables, openTable, closeTable, requestTableBill } from '../../services/tableService'
+import { subscribeToTables, openTable, closeTable, requestTableBill, subscribeToTableRequests, resolveTableRequest } from '../../services/tableService'
 import usePortalStore from '../../store/portalStore'
 
 const ESTADO_CONFIG = {
@@ -22,8 +22,31 @@ export default function PortalMesero() {
   const [selectedTable, setSelectedTable] = useState(null)
   const [actionLoading, setActionLoading] = useState(false)
 
+  const [requests, setRequests] = useState([])
+
   useEffect(() => {
     const unsub = subscribeToTables(data => { setTables(data); setLoading(false) })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    let prevCount = 0
+    const unsub = subscribeToTableRequests(data => {
+      setRequests(data)
+      if (data.length > prevCount) {
+        // Reproducir sonido discreto de timbre de mesa
+        try {
+          const audio = new Audio('/bell.mp3')
+          audio.volume = 0.5
+          audio.play().catch(() => {
+            const fallback = new Audio('/notification.mp3')
+            fallback.volume = 0.4
+            fallback.play().catch(() => {})
+          })
+        } catch (e) {}
+      }
+      prevCount = data.length
+    })
     return () => unsub()
   }, [])
 
@@ -65,6 +88,51 @@ export default function PortalMesero() {
           </span>
         ))}
       </div>
+
+      {/* ─── BANNER DE SOLICITUDES ACTIVAS (LLAMADOS / CUENTAS) ─── */}
+      <AnimatePresence>
+        {requests.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2.5 text-left w-full"
+            style={{ boxSizing: 'border-box' }}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+                <span>🛎️</span> Solicitudes Pendientes de Atención ({requests.length})
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1">
+              {requests.map(req => (
+                <div key={req.id} className="p-3 bg-surface border border-app rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                  <div className="min-w-0">
+                    <p className="font-bold text-app text-sm truncate">{req.tableName}</p>
+                    <span className="text-[10px] font-bold uppercase" style={{ color: req.type === 'cuenta' ? '#f87171' : '#fb923c' }}>
+                      {req.type === 'cuenta' ? '💳 Pide la Cuenta' : '🛎️ Llamado al Mesero'}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={async () => {
+                      try {
+                        await resolveTableRequest(req, portalEmployee?.id)
+                      } catch (e) {
+                        console.error(e)
+                      }
+                    }}
+                    className="h-8 px-3 rounded-lg bg-primary text-white font-bold text-xs hover:opacity-90 active:scale-95 transition-all cursor-pointer border-none"
+                  >
+                    Atender
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── MAPA DE MESAS ───────────────────────────────────────────── */}
       {tables.length === 0 && !loading ? (
