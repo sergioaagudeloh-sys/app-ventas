@@ -71,3 +71,14 @@ export async function updateClaimStatus(claimId, status, adminNotes = '') {
     updatedAt: serverTimestamp()
   })
 }
+
+/**
+ * Crea un reclamo con un payload completo y flexible (para ClaimRequestModal).
+ * A diferencia de createClientClaim, acepta el objeto completo con productos detallados.
+ * @param {object} payload - Datos completos del reclamo
+ * @returns {Promise<string>} ID del documento creado
+ */
+export async function createClaim(payload) {
+  const ref = await addDoc(claimsRef, payload)
+  return ref.id
+}

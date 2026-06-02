@@ -77,7 +77,7 @@ export default function ModalTemplate({
                   )}
                   {Icon && (
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shrink-0">
-                      <Icon size={20} className="animate-pulse" />
+                      <Icon size={20} className="animate-pulse" fill="currentColor" />
                     </div>
                   )}
                   <div>

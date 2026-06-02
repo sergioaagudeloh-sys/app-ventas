@@ -4,6 +4,9 @@ import {
   setDoc,
   onSnapshot,
   serverTimestamp,
+  collection,
+  getDocs,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 
@@ -132,4 +135,64 @@ export function subscribeToCatalogFilters(onUpdate) {
       onUpdate(DEFAULT_FILTERS)
     }
   })
+}
+
+/**
+ * Elimina en batch todos los documentos de las colecciones de negocio
+ * y los usuarios no administradores. Operación destructiva e irreversible.
+ * @param {string[]} collectionsToClean - Nombres de colecciones a limpiar
+ * @param {string} adminEmail - Email del administrador (se conserva su usuario)
+ * @returns {Promise<number>} Número total de documentos eliminados
+ */
+export async function resetAppData(collectionsToClean, adminEmail) {
+  let deletedCount = 0
+
+  // 1. Borrar colecciones estándar
+  for (const colName of collectionsToClean) {
+    const snapshot = await getDocs(collection(db, colName))
+    const batches = []
+    let currentBatch = writeBatch(db)
+    let operationCount = 0
+
+    snapshot.docs.forEach((document) => {
+      currentBatch.delete(document.ref)
+      deletedCount++
+      operationCount++
+
+      if (operationCount === 500) {
+        batches.push(currentBatch.commit())
+        currentBatch = writeBatch(db)
+        operationCount = 0
+      }
+    })
+
+    if (operationCount > 0) batches.push(currentBatch.commit())
+    await Promise.all(batches)
+  }
+
+  // 2. Borrar usuarios no administradores (preservar al admin actual)
+  const userSnapshot = await getDocs(collection(db, 'users'))
+  const userBatches = []
+  let userBatch = writeBatch(db)
+  let userOpCount = 0
+
+  userSnapshot.docs.forEach((userDoc) => {
+    const userData = userDoc.data()
+    if (userData.role !== 'admin' && userData.email !== adminEmail) {
+      userBatch.delete(userDoc.ref)
+      deletedCount++
+      userOpCount++
+
+      if (userOpCount === 500) {
+        userBatches.push(userBatch.commit())
+        userBatch = writeBatch(db)
+        userOpCount = 0
+      }
+    }
+  })
+
+  if (userOpCount > 0) userBatches.push(userBatch.commit())
+  await Promise.all(userBatches)
+
+  return deletedCount
 }

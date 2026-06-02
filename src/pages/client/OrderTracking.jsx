@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { collection, query, where, onSnapshot, getDocs, limit } from 'firebase/firestore'
-import { db } from '../../config/firebaseConfig'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
 import { formatCurrency } from '../../utils/formatters'
@@ -9,6 +7,7 @@ import AppLoader from '../../components/ui/AppLoader'
 import { ORDER_STATE_META, ROLES } from '../../constants'
 import { getEmployeesByRole } from '../../services/employeeService'
 import { trackTrackingEvent } from '../../services/trackingAnalyticsService'
+import { subscribeToOrderByToken } from '../../services/orderService'
 import {
   Package,
   CheckCircle2,
@@ -84,23 +83,16 @@ export default function OrderTracking() {
       return
     }
 
-    // ── Suscripción en tiempo real al pedido ────────────────────────────────────
-    const q = query(
-      collection(db, 'orders'),
-      where('trackingToken', '==', token),
-      limit(1)
-    )
-
+    // ── Suscripción en tiempo real al pedido ───────────────────────────────────────────────────────
     // Prevenir telemetría duplicada en la misma carga
     let tracked = false
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.empty) {
+    const unsubscribe = subscribeToOrderByToken(
+      token,
+      (ordData) => {
+        if (!ordData) {
           setError('No se encontró ningún pedido con este código de seguimiento.')
         } else {
-          const ordData = { id: snap.docs[0].id, ...snap.docs[0].data() }
           setOrder(ordData)
           setError(null)
 

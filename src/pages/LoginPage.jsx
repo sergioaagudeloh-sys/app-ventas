@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth'
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { ErrorBoundary } from 'react-error-boundary'
 import { Store, Smartphone, Shield, Mail, Lock, ArrowLeft, User } from 'lucide-react'
 import { auth, db } from '../config/firebaseConfig'
@@ -154,7 +154,15 @@ export default function LoginPage() {
         const userSnap = await getDoc(userRef)
 
         if (userSnap.exists()) {
-          // Cliente antiguo: entra de una vez
+          // 1. Crear sesión anónima en Firebase Auth para que las reglas de Firestore funcionen
+          const { user: anonUser } = await signInAnonymously(auth)
+
+          // 2. Si el doc no tiene uid guardado aún, persistirlo (migración retrocompatible)
+          if (!userSnap.data().uid) {
+            await updateDoc(userRef, { uid: anonUser.uid })
+          }
+
+          // 3. Loguear en el store local
           setClient({
             nombre: userSnap.data().nombre,
             celular: cleanPhone,
@@ -185,11 +193,16 @@ export default function LoginPage() {
       try {
         const cleanPhone = celular.replace(/\D/g, '')
         const userRef = doc(db, COLLECTIONS.USERS, cleanPhone)
-        
-        // Guardar nuevo cliente
+
+        // 1. Crear sesión anónima en Firebase Auth ANTES de escribir en Firestore
+        //    (necesaria para que la regla allow create: if request.auth != null funcione)
+        const { user: anonUser } = await signInAnonymously(auth)
+
+        // 2. Guardar nuevo cliente con su uid anónimo
         await setDoc(userRef, {
           nombre: nombre.trim(),
           celular: cleanPhone,
+          uid: anonUser.uid,
           fechaRegistro: serverTimestamp(),
         })
 

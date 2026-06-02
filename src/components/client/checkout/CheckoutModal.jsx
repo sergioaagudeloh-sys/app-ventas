@@ -1018,7 +1018,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   </div>
 
                   {appliedCoupon ? (
-                    <div className="flex items-center justify-between p-3 bg-success/10 border border-success/30 rounded-xl">
+                    <div className="flex items-center justify-between p-3 bg-success/10 rounded-xl shadow-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-lg">🎫</span>
                         <div>
@@ -1083,11 +1083,11 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                                 key={coupon.id}
                                 type="button"
                                 onClick={() => handleApplyCoupon(coupon.codigo)}
-                                className="w-full p-2.5 bg-surface-2 hover:bg-primary/5 border border-app rounded-xl text-left transition-all active:scale-[0.99] flex items-center justify-between group cursor-pointer"
+                                className="w-full p-3 bg-surface-2 hover:bg-primary/5 rounded-xl text-left transition-all active:scale-[0.98] flex items-center justify-between group cursor-pointer"
                               >
-                                <div className="min-w-0 flex-1">
+                                <div className="min-w-0 flex-1 pr-2">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-xs font-black text-app uppercase tracking-wide bg-surface px-2 py-0.5 rounded border border-app">
+                                    <span className="font-mono text-xs font-black text-app uppercase tracking-wide bg-surface px-2 py-0.5 rounded">
                                       {coupon.codigo}
                                     </span>
                                     <span className="text-[10px] font-bold text-primary">
@@ -1098,7 +1098,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                                     Compra Mín: {formatCurrency(coupon.minimoCompra || 0)}
                                   </p>
                                 </div>
-                                <span className="text-[10px] font-black text-primary group-hover:underline">
+                                <span className="shrink-0 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all">
                                   Aplicar
                                 </span>
                               </button>

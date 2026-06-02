@@ -15,8 +15,6 @@ import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
 import { subscribeToClaims } from '../../services/claimsService'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
-import { db } from '../../config/firebaseConfig'
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import OrderShareModal from '../../components/admin/orders/OrderShareModal'
 import OrderDeliveryPanel from '../../components/admin/orders/OrderDeliveryPanel'
 import NumberInput from '../../components/ui/NumberInput'
@@ -684,13 +682,12 @@ export default function AdminOrders() {
                             onClick={async () => {
                               const newCost = parseFloat(tempDeliveryCosts[order.id]) || 0
                               try {
-                                const orderRef = doc(db, 'orders', order.id)
-                                const diff = newCost - (order.costoEnvio || 0)
-                                await updateDoc(orderRef, {
-                                  costoEnvio: newCost,
-                                  total: Math.max(0, (order.total || 0) + diff),
-                                  updatedAt: serverTimestamp()
-                                })
+                                await orderService.updateOrderDeliveryCost(
+                                  order.id,
+                                  newCost,
+                                  order.total,
+                                  order.costoEnvio
+                                )
                                 // Mostrar el modal deslizable de confirmación
                                 setSavedPriceModal({
                                   isOpen: true,

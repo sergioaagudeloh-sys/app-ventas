@@ -3,11 +3,9 @@ import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Settings, Database, Trash2, CheckCircle, AlertTriangle, Save, Paintbrush, Smartphone, Building2, Sun, Moon, Link, X, LogOut, Filter, Plus, Lock, Mail, KeyRound, Eye, EyeOff, ChevronRight, ArrowLeft, ChevronDown, Download, Megaphone, CalendarDays, Type, Receipt, TrendingUp, ShoppingBag, Wallet, BarChart3, Tag, Heart, Package, CreditCard, Sparkles, User, Truck, Percent, Calendar, Shield, ToggleLeft, QrCode, Printer, Users, Copy, CheckCircle2, Loader2, LayoutGrid, MessageSquare } from 'lucide-react'
-import { collection, writeBatch, doc, getDocs, query, where, serverTimestamp } from 'firebase/firestore'
-import { signOut, updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
-import { db, auth } from '../../config/firebaseConfig'
 import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS, DEV_PIN, PORTAL_CONFIG } from '../../constants'
-import { updateAppConfig, updateCatalogFilters } from '../../services/appConfigService'
+import { updateAppConfig, updateCatalogFilters, resetAppData } from '../../services/appConfigService'
+import { signOutAdmin, updateAdminCredentials } from '../../services/authService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
 import BackButton from '../../components/ui/BackButton'
@@ -1558,7 +1556,7 @@ export default function AdminSettings() {
   // Cerrar Sesión
   const handleLogout = async () => {
     try {
-      await signOut(auth)
+      await signOutAdmin()
       logout()
       navigate('/login')
     } catch (error) {
@@ -1582,31 +1580,10 @@ export default function AdminSettings() {
     setAuthMessage(null)
 
     try {
-      const user = auth.currentUser
-      if (!user) throw new Error('No hay sesión activa.')
-
-      // 1. Re-autenticar (requerimiento estricto de Firebase para operaciones sensibles)
-      const credential = EmailAuthProvider.credential(user.email, currentPassword)
-      await reauthenticateWithCredential(user, credential)
-
-      // 2. Actualizar Email
-      if (newEmail && newEmail !== user.email) {
-        await updateEmail(user, newEmail)
-      }
-
-      // 3. Actualizar Contraseña
-      if (newPassword) {
-        if (newPassword.length < 6) {
-          throw new Error('La nueva contraseña debe tener al menos 6 caracteres.')
-        }
-        await updatePassword(user, newPassword)
-      }
-
+      await updateAdminCredentials({ currentPassword, newEmail, newPassword })
       setAuthMessage({ type: 'success', text: 'Credenciales actualizadas exitosamente.' })
       setCurrentPassword('')
       setNewPassword('')
-      // setNewEmail(''); // Opcional, mantenemos el email para que vea el cambio
-      
     } catch (err) {
       console.error(err)
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
@@ -1711,60 +1688,7 @@ export default function AdminSettings() {
         'ads'
       ]
 
-      let deletedCount = 0
-
-      // 1. Borrar colecciones estándar
-      for (const colName of collectionsToClean) {
-        const snapshot = await getDocs(collection(db, colName))
-        const batches = []
-        let currentBatch = writeBatch(db)
-        let operationCount = 0
-
-        snapshot.docs.forEach((document) => {
-          currentBatch.delete(document.ref)
-          deletedCount++
-          operationCount++
-
-          if (operationCount === 500) {
-            batches.push(currentBatch.commit())
-            currentBatch = writeBatch(db)
-            operationCount = 0
-          }
-        })
-
-        if (operationCount > 0) {
-          batches.push(currentBatch.commit())
-        }
-
-        await Promise.all(batches)
-      }
-
-      // 2. Borrar usuarios no administradores de Firestore (dejar solo el administrador actual)
-      const userSnapshot = await getDocs(collection(db, COLLECTIONS.USERS))
-      const userBatches = []
-      let userBatch = writeBatch(db)
-      let userOpCount = 0
-
-      userSnapshot.docs.forEach((userDoc) => {
-        const userData = userDoc.data()
-        // Mantener al usuario administrador actual (usualmente marcado con role: 'admin' o con su email específico)
-        if (userData.role !== 'admin' && userData.email !== 'sergioaagudeloh@gmail.com') {
-          userBatch.delete(userDoc.ref)
-          deletedCount++
-          userOpCount++
-
-          if (userOpCount === 500) {
-            userBatches.push(userBatch.commit())
-            userBatch = writeBatch(db)
-            userOpCount = 0
-          }
-        }
-      })
-
-      if (userOpCount > 0) {
-        userBatches.push(userBatch.commit())
-      }
-      await Promise.all(userBatches)
+      const deletedCount = await resetAppData(collectionsToClean, 'sergioaagudeloh@gmail.com')
 
       setConfirmRestoreText('')
       setMessage({ type: 'success', text: `¡Restauración exitosa! Se eliminaron un total de ${deletedCount} registros de negocio de forma permanente. La aplicación está lista en cero.` })
