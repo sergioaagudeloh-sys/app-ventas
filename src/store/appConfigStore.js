@@ -6,21 +6,35 @@ import { persist } from 'zustand/middleware'
  * Refleja en tiempo real los datos cargados desde Firestore /config/settings.
  * Controla: nombre de la app, tema, modo oscuro, paleta de colores.
  */
+// Obtener estado inicial persistido síncronamente para evitar FOUC de color (destello rosa inicial) en hidratación asíncrona de Zustand
+const getPersistedValue = (key, defaultValue) => {
+  try {
+    const raw = localStorage.getItem('app-config-storage')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && parsed.state && parsed.state[key] !== undefined) {
+        return parsed.state[key]
+      }
+    }
+  } catch (e) {}
+  return defaultValue
+}
+
 const useAppConfigStore = create(
   persist(
     (set) => ({
       // ─── Estado ───────────────────────────────────────────────────────────
-      appName: 'Mi Tienda',
-      sellerName: 'Vendedor',
+      appName: getPersistedValue('appName', 'Mi Tienda'),
+      sellerName: getPersistedValue('sellerName', 'Vendedor'),
       appIcon: null,
-      welcomeWavesEnabled: true,
-      theme: 'carbon-oscuro',    // Paleta activa por defecto (neutral oscura y elegante antes de sincronizar)
-      isDarkMode: false,         // Por defecto claro para evitar forzar el modo oscuro al limpiar caché
+      welcomeWavesEnabled: getPersistedValue('welcomeWavesEnabled', true),
+      theme: getPersistedValue('theme', 'rosa-elegante'),    // Paleta activa por defecto (neutral clara y elegante antes de sincronizar)
+      isDarkMode: getPersistedValue('isDarkMode', false),         // Por defecto claro para evitar forzar el modo oscuro al limpiar caché
       adminRegistered: false,    // Bandera para Auth Admin
       pwaAppName: '',            // Nombre al instalarse como app móvil
       pwaAppIcon: null,          // Icono personalizado de instalación PWA
       pwaUseBrandIcon: false,    // Usar logo de la tienda como ícono PWA (con fondo)
-      activeSeasonalEvent: 'none', // Evento estacional activo ('none', 'navidad', 'halloween', 'madre', 'padre')
+      activeSeasonalEvent: getPersistedValue('activeSeasonalEvent', 'none'), // Evento estacional activo ('none', 'navidad', 'halloween', 'madre', 'padre')
       whatsappAdmin: '',
       claimsEnabled: false,
       orderTrackingEnabled: false,
@@ -47,17 +61,18 @@ const useAppConfigStore = create(
         numeroCuenta: '',
         banco: '',
         tipoCuenta: 'ahorros',
+        focus: false,
         titular: '',
         cedulaNit: '',
         qrUrl: '',
       },
       // ─── Apariencia avanzada ───────────────────────────────────────────
-      appFont: 'inter',
-      appRadius: 'rounded',
+      appFont: getPersistedValue('appFont', 'inter'),
+      appRadius: getPersistedValue('appRadius', 'rounded'),
       catalogBanner: { type: 'none', value: '' },
       catalogLayout: 'grid2',
-      animationsEnabled: true,
-      actionColor: '',
+      animationsEnabled: getPersistedValue('animationsEnabled', true),
+      actionColor: getPersistedValue('actionColor', ''),
       catalogFilters: {
         categories: true,
         sizes: true,

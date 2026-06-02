@@ -10,117 +10,8 @@ import { PRODUCT_GENDERS } from '../../../constants'
 import { useCategories } from '../../../hooks/useInventory'
 import useAppConfigStore from '../../../store/appConfigStore'
 import ModalTemplate from '../../common/ModalTemplate'
-
-
-const COMMON_TALLAS = ['Única', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '35', '36', '37', '38', '39', '40', '41', '42']
-const COMMON_COLORES = ['Negro', 'Blanco', 'Gris', 'Azul', 'Rojo', 'Verde', 'Amarillo', 'Rosa', 'Beige', 'Café', 'Morado', 'Naranja']
-
-const COLOR_MAP = {
-  'rojo': '#EF4444',
-  'azul': '#3B82F6',
-  'verde': '#10B981',
-  'amarillo': '#EAB308',
-  'naranja': '#F97316',
-  'morado': '#8B5CF6',
-  'rosa': '#EC4899',
-  'negro': '#171717',
-  'blanco': '#FFFFFF',
-  'gris': '#6B7280',
-  'cafe': '#78350F',
-  'café': '#78350F',
-  'beige': '#F5F5DC',
-  'celeste': '#38BDF8',
-  'vino': '#7F1D1D',
-  'vinotinto': '#7F1D1D',
-  'vino tinto': '#7F1D1D',
-  'dorado': '#D4AF37',
-  'plateado': '#C0C0C0',
-  'marron': '#78350F',
-  'marrón': '#78350F',
-}
-
-function getCssColor(colorName) {
-  if (!colorName) return '#ccc'
-  const normalized = colorName.toLowerCase().trim()
-  if (COLOR_MAP[normalized]) return COLOR_MAP[normalized]
-  
-  let hash = 0
-  for (let i = 0; i < normalized.length; i++) {
-    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return '#' + (hash & 0x00FFFFFF).toString(16).toUpperCase().padStart(6, '0')
-}
-
-function isLightColor(colorHex) {
-  const hex = colorHex.replace('#', '')
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000
-  return brightness > 180
-}
-
-function CustomSelect({ value, onChange, options, placeholder, emptyOption = "Ninguno" }) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none flex items-center justify-between transition-colors text-sm"
-      >
-        <span className={value ? 'text-app truncate mr-2' : 'text-muted truncate mr-2'}>
-          {value ? options.find(o => o.value === value)?.label || value : placeholder}
-        </span>
-        <ChevronDown size={16} className={`text-muted transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.15 }}
-              className="absolute z-50 top-11 left-0 right-0 mt-2 bg-surface border border-app rounded-2xl shadow-xl overflow-hidden"
-            >
-              <div className="max-h-60 overflow-y-auto no-scrollbar py-2">
-                <button
-                  type="button"
-                  onClick={() => { onChange(''); setIsOpen(false) }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-muted hover:bg-surface-2 transition-colors"
-                >
-                  {emptyOption}
-                </button>
-                {options?.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => { onChange(opt.value); setIsOpen(false) }}
-                    className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center justify-between ${
-                      value === opt.value ? 'bg-primary/10 text-primary font-bold' : 'text-app hover:bg-surface-2'
-                    }`}
-                  >
-                    <span className="truncate pr-2">{opt.label}</span>
-                    {value === opt.value && <Check size={16} className="shrink-0" />}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Espaciador dinámico para expandir el scroll interno del modal solo cuando está desplegado */}
-      {isOpen && (
-        <div className="h-52 pointer-events-none" />
-      )}
-    </div>
-  )
-}
+import CustomSelect from '../../ui/CustomSelect'
+import { getCssColor } from '../../../utils/colors'
 
 const initialVariant = { id: '', talla: '', color: '', stock: 0, nombre: '', sku: '', imageUrl: '', precio: '' }
 const initialForm = {
@@ -244,7 +135,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
           })
 
           const docRef = doc(db, "draft_products", draftId)
-          onSnapshot(docRef, (docSnap) => {
+          const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists() && docSnap.data().suggestions) {
               const suggestions = docSnap.data().suggestions
               setFormData(prev => ({
@@ -257,6 +148,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                 seoDescription: suggestions.seoDescription || prev.seoDescription,
               }))
               setLoadingIA(false)
+              unsubscribe()
             }
           })
         }

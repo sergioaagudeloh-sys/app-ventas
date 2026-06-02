@@ -11,6 +11,85 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>app-ventas</title>
+    <script>
+      (function() {
+        try {
+          const raw = localStorage.getItem('app-config-storage');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.state) {
+              const theme = parsed.state.theme || 'rosa-elegante';
+              const isDarkMode = parsed.state.isDarkMode || false;
+              const activeSeasonalEvent = parsed.state.activeSeasonalEvent || 'none';
+              
+              // 1. Aplicar el data-theme y dark mode inmediatamente al elemento HTML
+              if (typeof theme === 'string') {
+                document.documentElement.setAttribute('data-theme', theme);
+              } else if (theme && theme.id) {
+                document.documentElement.setAttribute('data-theme', theme.id);
+              }
+              
+              if (isDarkMode) {
+                document.documentElement.classList.add('dark');
+              } else {
+                document.documentElement.classList.remove('dark');
+              }
+              
+              // 2. Definir mapa de colores de fondo de eventos de temporada
+              const seasonalMap = {
+                'navidad': { light: '#fff9f9', dark: '#0a0505' },
+                'halloween': { light: '#fffdfb', dark: '#0f0a05' },
+                'madre': { light: '#fff8f9', dark: '#0f0a0c' },
+                'padre': { light: '#f4faff', dark: '#050a0f' },
+                'nino': { light: '#fffdf4', dark: '#0a0a04' },
+                'amistad': { light: '#fff5f7', dark: '#0f0507' }
+              };
+              
+              // 3. Definir mapa de temas estáticos por defecto
+              const bgMap = {
+                'rosa-elegante': { light: '#fff5f9', dark: '#0f0f0f' },
+                'lila-suave': { light: '#fcfaff', dark: '#0f0d13' },
+                'azul-medianoche': { light: '#f0f4f8', dark: '#0b0f19' },
+                'verde-oliva': { light: '#f4f8f0', dark: '#0d1109' },
+                'naranja-vibrante': { light: '#fffaf7', dark: '#140f0d' },
+                'morado-premium': { light: '#faf8ff', dark: '#100d14' },
+                'carbon-oscuro': { light: '#f9fafb', dark: '#121212' },
+                'esmeralda-profundo': { light: '#f0f8f5', dark: '#0a120e' }
+              };
+              
+              let bg = '';
+              
+              // Priorizar el evento de temporada si está activo y configurado
+              if (activeSeasonalEvent && activeSeasonalEvent !== 'none' && seasonalMap[activeSeasonalEvent]) {
+                const sPalette = seasonalMap[activeSeasonalEvent];
+                bg = isDarkMode ? sPalette.dark : sPalette.light;
+              } else {
+                // Fallback a los temas
+                if (typeof theme === 'string') {
+                  const palette = bgMap[theme] || bgMap['rosa-elegante'];
+                  bg = isDarkMode ? palette.dark : palette.light;
+                } else if (theme && typeof theme === 'object') {
+                  const modePalette = isDarkMode 
+                    ? (theme.dark || theme.light || theme) 
+                    : (theme.light || theme);
+                  bg = modePalette.bg;
+                }
+              }
+              
+              if (!bg) {
+                bg = isDarkMode ? '#0f0f0f' : '#ffffff';
+              }
+              
+              // Establecer de forma síncrona el background para la máscara de carga perfecta
+              document.documentElement.style.setProperty('--color-bg', bg);
+              document.documentElement.style.backgroundColor = bg;
+            }
+          }
+        } catch (e) {
+          console.error('Error in synchronous theme applier:', e);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

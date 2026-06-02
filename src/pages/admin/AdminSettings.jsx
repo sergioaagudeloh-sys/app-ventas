@@ -1338,75 +1338,82 @@ export default function AdminSettings() {
     }
   }
 
-  const [formData, setFormData] = useState({
-    appName: '',
-    sellerName: '',
-    appIcon: '',
-    welcomeWavesEnabled: true,
-    theme: 'rosa-elegante',
-    whatsappAdmin: '',
-    bankInfo: {
-      banco: '',
-      tipoCuenta: 'ahorros',
-      numeroCuenta: '',
-      titular: '',
-      cedulaNit: ''
-    },
-    bankInfo2: {
-      activa: false,
-      banco: '',
-      tipoCuenta: 'ahorros',
-      numeroCuenta: '',
-      titular: '',
-      cedulaNit: ''
-    },
-    catalogFilters: {
-      categories: true,
-      sizes: true,
-      colors: true,
-      customAttributes: []
-    },
-    appFont: 'inter',
-    appRadius: 'rounded',
-    catalogBanner: { type: 'none', value: '' },
-    catalogLayout: 'grid2',
-    welcomeWavesEnabled: true,
-    loginTrustMessage: '',
-    slogan: '',
-    pwaAppName: '',
-    pwaAppIcon: '',
-    pwaUseBrandIcon: false,
-    hasMultipleEmployees: false,
-    employeeCount: 0,
-    employees: [],
-    deliverySettings: {
-      pickup: { enabled: true, address: '', instructions: '' },
-      shipping: { enabled: true, cost: 0, estimatedTime: '', instructions: '' },
-      digital: { enabled: false, instructions: '' }
-    },
-    wholesaleSettings: {
-      enabled: true,
-      minQuantity: 12,
-      discountType: 'percentage', // 'percentage' | 'fixed'
-      discountValue: 15
-    },
-    catalogMode: 'standard',
-    activeSeasonalEvent: 'none',
-    claimsEnabled: false,
-    orderTrackingEnabled: false,
-    developerPhone: '',
-    creditsEnabled: true,
-    couponsEnabled: true,
-    trackingWaTemplate: '',
-    appPromo: {
-      enabled: false,
-      title: '',
-      message: '',
-      androidUrl: '',
-      iosUrl: '',
-      promoImageUrl: ''
-    },
-    commercialOptimization: mergeCommercialOptimization(null)
+  const [formData, setFormData] = useState(() => {
+    const state = useAppConfigStore.getState()
+    return {
+      appName: state.appName || '',
+      sellerName: state.sellerName || '',
+      appIcon: state.appIcon || '',
+      pwaAppName: state.pwaAppName || '',
+      pwaAppIcon: state.pwaAppIcon || '',
+      pwaUseBrandIcon: state.pwaUseBrandIcon || false,
+      theme: state.theme || 'rosa-elegante',
+      activeSeasonalEvent: state.activeSeasonalEvent || 'none',
+      whatsappAdmin: state.whatsappAdmin || '',
+      bankInfo: {
+        banco: state.bankInfo?.banco || '',
+        tipoCuenta: state.bankInfo?.tipoCuenta || 'ahorros',
+        numeroCuenta: state.bankInfo?.numeroCuenta || '',
+        titular: state.bankInfo?.titular || '',
+        cedulaNit: state.bankInfo?.cedulaNit || '',
+        qrUrl: state.bankInfo?.qrUrl || ''
+      },
+      bankInfo2: {
+        activa: state.bankInfo2?.activa || false,
+        banco: state.bankInfo2?.banco || '',
+        tipoCuenta: state.bankInfo2?.tipoCuenta || 'ahorros',
+        numeroCuenta: state.bankInfo2?.numeroCuenta || '',
+        titular: state.bankInfo2?.titular || '',
+        cedulaNit: state.bankInfo2?.cedulaNit || '',
+        qrUrl: state.bankInfo2?.qrUrl || ''
+      },
+      catalogFilters: state.catalogFilters || {
+        categories: true,
+        sizes: true,
+        colors: true,
+        customAttributes: []
+      },
+      appFont: state.appFont || 'inter',
+      appRadius: state.appRadius || 'rounded',
+      catalogBanner: state.catalogBanner || { type: 'none', value: '' },
+      catalogLayout: state.catalogLayout || 'grid2',
+      animationsEnabled: state.animationsEnabled ?? true,
+      guidedModeEnabled: state.guidedModeEnabled ?? true,
+      actionColor: state.actionColor || '',
+      welcomeWavesEnabled: state.welcomeWavesEnabled ?? true,
+      loginTrustMessage: state.loginTrustMessage || '',
+      slogan: state.slogan || '',
+      hasMultipleEmployees: state.hasMultipleEmployees ?? false,
+      employeeCount: state.employeeCount ?? 0,
+      employees: state.employees ?? [],
+      deliverySettings: state.deliverySettings || {
+        pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+        shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+        digital: { enabled: false, instructions: 'Entrega digital o prestación de servicio presencial.' }
+      },
+      wholesaleSettings: state.wholesaleSettings || {
+        enabled: true,
+        minQuantity: 12,
+        discountType: 'percentage', // 'percentage' | 'fixed'
+        discountValue: 15
+      },
+      catalogMode: state.catalogMode || 'standard',
+      claimsEnabled: state.claimsEnabled ?? false,
+      orderTrackingEnabled: state.orderTrackingEnabled ?? false,
+      developerPhone: state.developerPhone || '',
+      creditsEnabled: state.creditsEnabled ?? true,
+      couponsEnabled: state.couponsEnabled ?? true,
+      trackingWaTemplate: state.trackingWaTemplate || '',
+      appPromo: state.appPromo || {
+        enabled: false,
+        title: '',
+        message: '',
+        androidUrl: '',
+        iosUrl: '',
+        promoImageUrl: ''
+      },
+      commercialOptimization: mergeCommercialOptimization(state.commercialOptimization)
+    }
   })
 
   // Sincronizar store local con formulario al cargar
@@ -2373,151 +2380,136 @@ export default function AdminSettings() {
       {/* ─── VISTA: PERSONALIZAR TIENDA ────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {activeSection === 'personalizar' && (
-          <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col relative">
+        activeSubSection === null ? (
+          <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col relative p-6">
+            <p className="text-sm text-muted mb-4">Selecciona una categoría para comenzar a personalizar tu tienda:</p>
             
-            {/* SUBSECCIÓN MENU: Cuadrícula de Tarjetas Selectoras */}
-            {activeSubSection === null && (
-              <div className="p-6 space-y-6">
-                <p className="text-sm text-muted">Selecciona una categoría para comenzar a personalizar tu tienda:</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Tarjeta Empleados */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('empleados')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <User size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Gestión de Personal</p>
-                      <p className="text-xs text-muted leading-relaxed">Configura empleados, vendedores y el registro de ventas en el POS.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Métodos de Entrega */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('entregas')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <Truck size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Métodos de Entrega</p>
-                      <p className="text-xs text-muted leading-relaxed">Establece retiros en local, envíos a domicilio, costos y entregas digitales.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Venta al por Mayor */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('mayorista')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <Percent size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Ventas al por Mayor</p>
-                      <p className="text-xs text-muted leading-relaxed">Configura la cantidad mínima, el tipo de descuento y el valor de mayoreo.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Eventos por Temporada */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('temporada')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <Calendar size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Eventos por Temporada</p>
-                      <p className="text-xs text-muted leading-relaxed">Activa temas visuales especiales (Navidad, Halloween, Día de la Madre/Padre).</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Garantías y Reclamos */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('garantias')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <Shield size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Garantías y Reclamos</p>
-                      <p className="text-xs text-muted leading-relaxed">Permite a tus clientes iniciar reclamos o solicitar cambios sobre pedidos completados.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Seguimiento de Pedidos */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('seguimiento')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <Package size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Seguimiento de Pedidos</p>
-                      <p className="text-xs text-muted leading-relaxed">Permite a tus clientes seguir sus pedidos en tiempo real por WhatsApp sin iniciar sesión.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Gestión de Módulos (Feature Flags) */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('modulos')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <ToggleLeft size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Módulos Activos</p>
-                      <p className="text-xs text-muted leading-relaxed">Configura y activa/desactiva los módulos del negocio (Crédito, Reclamos, Cupones, Mayoreo).</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
-
-                  {/* Tarjeta Configuración de Mesas */}
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setActiveSubSection('mesas')}
-                    className="p-5 rounded-2xl border-2 border-app bg-surface-2 hover:border-primary/40 hover:bg-surface transition-all text-left flex gap-4 items-start group h-full w-full"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center shrink-0 border border-app group-hover:bg-primary/10 group-hover:border-primary/30 transition-colors">
-                      <LayoutGrid size={22} className="text-muted group-hover:text-primary transition-colors" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-app text-sm mb-1 group-hover:text-primary transition-colors">Configuración de Mesas</p>
-                      <p className="text-xs text-muted leading-relaxed">Configura las mesas del restaurante/salón para el Portal de Mesero.</p>
-                    </div>
-                    <ChevronRight size={18} className="text-muted shrink-0 mt-1.5 group-hover:text-primary transition-colors animate-pulse" />
-                  </motion.button>
+            <div className="divide-y divide-app">
+              
+              {/* Gestión de Personal */}
+              <button
+                onClick={() => setActiveSubSection('empleados')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-500/10">
+                  <User size={20} className="text-blue-500" />
                 </div>
-              </div>
-            )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Gestión de Personal</p>
+                  <p className="text-xs text-muted mt-0.5">Configura empleados, vendedores and el registro de ventas en el POS.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Métodos de Entrega */}
+              <button
+                onClick={() => setActiveSubSection('entregas')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-green-500/10">
+                  <Truck size={20} className="text-green-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Métodos de Entrega</p>
+                  <p className="text-xs text-muted mt-0.5">Establece retiros en local, envíos a domicilio, costos and entregas digitales.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Ventas al por Mayor */}
+              <button
+                onClick={() => setActiveSubSection('mayorista')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/10">
+                  <Percent size={20} className="text-violet-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Ventas al por Mayor</p>
+                  <p className="text-xs text-muted mt-0.5">Configura la cantidad mínima, el tipo de descuento and el valor de mayoreo.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Eventos por Temporada */}
+              <button
+                onClick={() => setActiveSubSection('temporada')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-pink-500/10">
+                  <Calendar size={20} className="text-pink-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Eventos por Temporada</p>
+                  <p className="text-xs text-muted mt-0.5">Activa temas visuales especiales (Navidad, Halloween, Día de la Madre/Padre).</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Garantías y Reclamos */}
+              <button
+                onClick={() => setActiveSubSection('garantias')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-orange-500/10">
+                  <Shield size={20} className="text-orange-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Garantías y Reclamos</p>
+                  <p className="text-xs text-muted mt-0.5">Permite a tus clientes iniciar reclamos o solicitar cambios sobre pedidos completados.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Seguimiento de Pedidos */}
+              <button
+                onClick={() => setActiveSubSection('seguimiento')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-teal-500/10">
+                  <Package size={20} className="text-teal-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Seguimiento de Pedidos</p>
+                  <p className="text-xs text-muted mt-0.5">Permite a tus clientes seguir sus pedidos en tiempo real por WhatsApp sin iniciar sesión.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Módulos Activos */}
+              <button
+                onClick={() => setActiveSubSection('modulos')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-indigo-500/10">
+                  <ToggleLeft size={20} className="text-indigo-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Módulos Activos</p>
+                  <p className="text-xs text-muted mt-0.5">Configura and activa/desactiva los módulos del negocio (Crédito, Reclamos, Cupones, Mayoreo).</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Configuración de Mesas */}
+              <button
+                onClick={() => setActiveSubSection('mesas')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/10">
+                  <LayoutGrid size={20} className="text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Configuración de Mesas</p>
+                  <p className="text-xs text-muted mt-0.5">Configura las mesas del restaurante/salón para el Portal de Mesero.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+            </div>
+          </div>
+        ) : (
+          <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col relative">
 
             {/* SUBSECCIÓN FORM: Configuración de Mesas */}
             {activeSubSection === 'mesas' && (
@@ -3397,6 +3389,7 @@ export default function AdminSettings() {
             )}
 
           </div>
+        )
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}

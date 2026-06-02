@@ -122,9 +122,7 @@ export default function AppRoutes() {
         <Route
           path="/portal"
           element={
-            <RequirePortalAuth>
-              <PortalLayout />
-            </RequirePortalAuth>
+            <PortalLayout />
           }
         >
           <Route path="vendedor" element={
