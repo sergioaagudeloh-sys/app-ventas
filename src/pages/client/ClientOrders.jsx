@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert, PackagePlus } from 'lucide-react'
+import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert, PackagePlus, Store, Rocket, Bike } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useClientOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useClientWholesaleRequests } from '../../hooks/useWholesale'
@@ -535,9 +535,10 @@ export default function ClientOrders() {
               exit={{ height: 0, opacity: 0 }}
               className="border-t border-app bg-surface-2/20"
             >
-              <div className="p-5">
+              <div className="p-5 space-y-4">
+                {/* Banner de Alerta de Estado */}
                 {order.estado === ORDER_STATES.CANCELLED && order.metodoPago === 'credito' ? (
-                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 mb-5 flex flex-col gap-2">
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 flex flex-col gap-2">
                     <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400">
                       <CreditCard size={14} />
                       Información sobre tu Crédito
@@ -547,98 +548,112 @@ export default function ClientOrders() {
                     </p>
                   </div>
                 ) : (
-                  <div className={`p-3 rounded-xl border flex items-center gap-2 mb-5 ${stateColor}`}>
-                    <StateIcon size={16} />
-                    <p className="text-sm font-medium">{STATE_MESSAGES[order.estado] || 'Estado actualizado.'}</p>
+                  <div className={`p-4 rounded-xl border flex items-center gap-2.5 ${stateColor}`}>
+                    <Clock size={16} className="shrink-0" />
+                    <p className="text-xs font-semibold leading-relaxed">
+                      {STATE_MESSAGES[order.estado] || 'Estado actualizado.'}
+                    </p>
                   </div>
                 )}
 
-                {/* Detalle de Entrega */}
-                <div className="mb-5 p-4 bg-surface rounded-2xl border border-app">
-                  <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    {order.tipoEntrega === 'domicilio' ? '🛵' : '🏪'}
-                    {order.tipoEntrega === 'domicilio' ? 'Entrega a Domicilio' : 'Retiro en Tienda'}
+                {/* Detalle de Entrega (Tarjeta Superior) */}
+                <div className="p-4 bg-surface rounded-2xl border border-app space-y-2.5 shadow-sm">
+                  <h4 className="text-xs font-black text-muted uppercase tracking-wider flex items-center gap-2">
+                    {order.tipoEntrega === 'domicilio' ? (
+                      <>
+                        <Bike size={16} className="text-primary" />
+                        <span>ENTREGA A DOMICILIO</span>
+                      </>
+                    ) : (
+                      <>
+                        <Store size={16} className="text-primary" />
+                        <span>RETIRO EN TIENDA</span>
+                      </>
+                    )}
                   </h4>
                   {order.tipoEntrega === 'domicilio' ? (
                     <div className="space-y-0.5">
                       {order.cliente?.direccion && (
-                        <p className="text-sm font-medium text-app">{order.cliente.direccion}</p>
+                        <p className="text-sm font-semibold text-app">{order.cliente.direccion}</p>
                       )}
                       {order.cliente?.barrio && (
-                        <p className="text-xs text-muted">{order.cliente.barrio}{order.cliente?.ciudad ? `, ${order.cliente.ciudad}` : ''}</p>
+                        <p className="text-xs text-muted font-medium">{order.cliente.barrio}{order.cliente?.ciudad ? `, ${order.cliente.ciudad}` : ''}</p>
                       )}
                       {order.costoEnvio > 0 ? (
                         <p className="text-xs font-bold text-primary mt-1">Costo de envío: {formatCurrency(order.costoEnvio)}</p>
                       ) : (
-                        <p className="text-xs text-muted italic mt-1">El costo de envío será acordado con el negocio.</p>
+                        <p className="text-xs text-muted italic mt-1 font-medium">El costo de envío será acordado con el negocio.</p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted">Recoge tu pedido directamente en nuestra tienda.</p>
+                    <p className="text-xs text-muted font-medium leading-relaxed">Recoge tu pedido directamente en nuestra tienda.</p>
                   )}
                 </div>
 
-                <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">Productos</h4>
+                {/* Lista de Productos */}
                 <div className="space-y-3">
-                  {order.items?.map((item, idx) => (
-                    <div key={idx} className="flex gap-3 items-center">
-                      <div className="w-14 h-14 bg-surface rounded-xl border border-app overflow-hidden flex-shrink-0 relative">
-                        {item.imagen || item.imageUrl ? (
-                          <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-surface-2"><Package size={16} className="text-muted"/></div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-app leading-tight mb-1">{item.nombre}</p>
-                        <p className="text-xs text-muted leading-tight">
-                          {item.atributos && Object.values(item.atributos).length > 0
-                            ? Object.values(item.atributos).join(' • ')
-                            : item.talla || item.color 
-                              ? [item.talla, item.color].filter(Boolean).join(' • ')
-                              : 'Única'}
-                        </p>
-                        {item.descripcion && (
-                          <p className="text-[11px] text-muted italic mt-1 bg-surface-2 px-1.5 py-0.5 rounded border border-app/20 w-fit">
-                            Detalle: {item.descripcion}
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">PRODUCTOS</h4>
+                  <div className="space-y-3">
+                    {order.items?.map((item, idx) => (
+                      <div key={idx} className="flex gap-3 items-center">
+                        <div className="w-14 h-14 bg-surface rounded-xl border border-app overflow-hidden flex-shrink-0 relative">
+                          {item.imagen || item.imageUrl ? (
+                            <img src={item.imagen || item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-surface-2"><Package size={16} className="text-muted"/></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-app leading-tight mb-1">{item.nombre}</p>
+                          <p className="text-xs text-muted leading-tight">
+                            {item.atributos && Object.values(item.atributos).length > 0
+                              ? Object.values(item.atributos).join(' • ')
+                              : item.talla || item.color 
+                                ? [item.talla, item.color].filter(Boolean).join(' • ')
+                                : 'Única'}
                           </p>
-                        )}
+                          {item.descripcion && (
+                            <p className="text-[11px] text-muted italic mt-1 bg-surface-2 px-1.5 py-0.5 rounded border border-app/20 w-fit">
+                              Detalle: {item.descripcion}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted mb-0.5 font-semibold">x{item.cantidad}</p>
+                          <p className="text-sm font-bold text-app">{formatCurrency(item.precio)}</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted mb-0.5">x{item.cantidad}</p>
-                        <p className="text-sm font-bold text-app">{formatCurrency(item.precio)}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {/* Desglose Financiero con Domicilio para Cliente */}
-                <div className="mt-4 pt-4 border-t border-app space-y-1.5 text-sm">
-                  <div className="flex justify-between text-muted">
-                    <span>Subtotal:</span>
+                <div className="pt-4 border-t border-app space-y-2 text-xs">
+                  <div className="flex justify-between text-muted font-medium">
+                    <span>Subtotal</span>
                     <span className="font-semibold">{formatCurrency(order.subtotal || (order.total - (order.costoEnvio || 0)))}</span>
                   </div>
                   {order.tipoEntrega === 'domicilio' && (
-                    <div className="flex justify-between text-muted">
-                      <span>🛵 Domicilio:</span>
+                    <div className="flex justify-between text-muted font-medium">
+                      <span>Costo de Envío</span>
                       <span className="font-semibold text-primary">+{formatCurrency(order.costoEnvio || 0)}</span>
                     </div>
                   )}
                   {order.descuento > 0 && (
-                    <div className="flex justify-between text-muted">
-                      <span>🏷️ Descuento:</span>
+                    <div className="flex justify-between text-muted font-medium">
+                      <span>🏷️ Descuento</span>
                       <span className="font-semibold text-green-500">-{formatCurrency(order.descuento)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-app font-black text-base pt-1 border-t border-app/50">
-                    <span>Total a Pagar:</span>
-                    <span className="text-primary">{formatCurrency(order.total)}</span>
+                  <div className="flex justify-between text-app font-black text-sm pt-2 border-t border-app/50">
+                    <span>Total a Pagar</span>
+                    <span className="text-primary text-base font-black">{formatCurrency(order.total)}</span>
                   </div>
                 </div>
 
                 {/* Botón de Seguimiento en Tiempo Real / En Vivo */}
                 {orderTrackingEnabled && order.trackingToken && (
-                  <div className="mt-4 pt-3 border-t border-app/50">
+                  <div className="pt-3 border-t border-app/50">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -646,7 +661,7 @@ export default function ClientOrders() {
                       }}
                       className="w-full flex items-center justify-center gap-2 h-11 bg-primary text-white rounded-xl font-bold text-xs shadow-md hover:opacity-90 transition-all active:scale-[0.98] cursor-pointer"
                     >
-                      🚀 Ver Seguimiento en Tiempo Real
+                      <Rocket size={14} /> Ver Seguimiento en Tiempo Real
                     </button>
                   </div>
                 )}
