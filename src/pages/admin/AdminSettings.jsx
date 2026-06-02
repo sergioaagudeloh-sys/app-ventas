@@ -480,11 +480,157 @@ function CustomSelect({ value, onChange, options, placeholder }) {
   )
 }
 
+// ─── STYLISH PRINTABLE QR MODAL FOR TABLES ─────────────────────────────────
+function TableQRModal({ table, onClose }) {
+  const canvasRef = useRef(null)
+  const [copied, setCopied] = useState(false)
+  const [rendered, setRendered] = useState(false)
+  const qrUrl = `${window.location.origin}/?tableId=${table.id}`
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    QRCode.toCanvas(canvasRef.current, qrUrl, {
+      width: 200,
+      margin: 2,
+      color: { dark: '#0f0f1a', light: '#ffffff' },
+      errorCorrectionLevel: 'H',
+    }).then(() => setRendered(true)).catch(console.error)
+  }, [qrUrl])
+
+  const handleDownload = () => {
+    if (!canvasRef.current) return
+    const link = document.createElement('a')
+    link.download = `QR-${table.nombre.replace(/\s+/g, '_')}.png`
+    link.href = canvasRef.current.toDataURL('image/png')
+    link.click()
+  }
+
+  const handlePrint = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>QR ${table.nombre}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+                   align-items: center; justify-content: center; min-height: 100vh; margin: 0;
+                   background: #fff; color: #0f172a; }
+            .qr-print-container { text-align: center; padding: 2.5rem; border: 2px dashed #cbd5e1; border-radius: 2rem; max-width: 380px; }
+            .qr-emoji { font-size: 3.5rem; margin-bottom: 0.5rem; }
+            h1 { font-size: 2rem; font-weight: 900; margin: 0.5rem 0; text-transform: uppercase; letter-spacing: 0.05em; }
+            p { color: #475569; font-size: 1rem; font-weight: 600; margin: 0.25rem 0 1.75rem; }
+            img { display: block; margin: 0 auto; border: 4px solid #f1f5f9; border-radius: 1.5rem; padding: 0.75rem; background: #fff; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+            .scan-instructions { font-size: 0.875rem; color: #64748b; margin-top: 1.5rem; font-weight: 500; }
+            small { display: block; margin-top: 0.75rem; color: #94a3b8; font-size: 0.7rem; word-break: break-all; }
+            @media print { 
+              body { min-height: auto; }
+              .qr-print-container { border: none; padding: 0; }
+            }
+          </style>
+        </head>
+        <body onload="window.print(); window.close()">
+          <div class="qr-print-container">
+            <div class="qr-emoji">🛎️</div>
+            <h1>${table.nombre}</h1>
+            <p>ESCANEAME PARA PEDIR A LA MESA</p>
+            <img src="${canvas.toDataURL()}" width="260" height="260" />
+            <div class="scan-instructions">Abre la cámara de tu celular para ver nuestra carta digital</div>
+            <small>${qrUrl}</small>
+          </div>
+        </body>
+      </html>
+    `)
+    win.document.close()
+  }
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(qrUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justify: 'center' }}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className="w-full max-w-sm bg-surface border border-app rounded-3xl p-6 shadow-2xl relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-surface-2 hover:bg-surface-3 text-muted hover:text-app flex items-center justify-center transition-all"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="text-center space-y-4">
+          <div className="text-3xl">🛎️</div>
+          <div>
+            <h3 className="text-lg font-black text-app uppercase">{table.nombre}</h3>
+            <p className="text-xs text-muted">Generador de Código QR para Autoservicio</p>
+          </div>
+
+          <div className="flex justify-center p-3 bg-white border border-app rounded-2xl w-fit mx-auto shadow-sm">
+            <canvas ref={canvasRef} style={{ width: '180px', height: '180px' }} />
+          </div>
+
+          <p className="text-xs text-muted max-w-xs mx-auto">
+            Pega este sticker en la mesa física para que tus clientes escaneen con la cámara de su celular y realicen su pedido directamente.
+          </p>
+
+          <div className="grid grid-cols-3 gap-2 pt-2">
+            <button
+              onClick={handleDownload}
+              className="flex flex-col items-center gap-1 p-2 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer border-none"
+            >
+              <Download size={14} className="text-primary animate-pulse" />
+              <span>PNG</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex flex-col items-center gap-1 p-2 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer border-none"
+            >
+              <Printer size={14} className="text-primary" />
+              <span>Imprimir</span>
+            </button>
+            <button
+              onClick={handleCopy}
+              className="flex flex-col items-center gap-1 p-2 bg-surface-2 hover:bg-surface-3 text-app border border-app rounded-xl text-[10px] font-bold transition-all active:scale-95 cursor-pointer border-none"
+            >
+              {copied ? (
+                <CheckCircle2 size={14} className="text-success" />
+              ) : (
+                <Copy size={14} className="text-primary" />
+              )}
+              <span>{copied ? 'Copiado' : 'Copiar URL'}</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── COMPONENTE CONFIGURACIÓN DE MESAS (CRUD) ──────────────────────────────
 function AdminTablesCRUD({ onSuccess, onError }) {
   const [tables, setTables] = useState([])
   const [loadingList, setLoadingList] = useState(true)
   const [editTable, setEditTable] = useState(null)
+  const [qrTable, setQrTable] = useState(null)
   
   // Campos del Formulario
   const [nombre, setNombre] = useState('')
@@ -610,8 +756,8 @@ function AdminTablesCRUD({ onSuccess, onError }) {
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-app text-sm truncate">{table.nombre}</p>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase" style={{
-                        background: table.estado === 'disponible' ? '#34d39922' : table.estado === 'ocupada' ? '#fb923c22' : '#f8717122',
-                        color: table.estado === 'disponible' ? '#34d399' : table.estado === 'ocupada' ? '#fb923c' : '#f87171'
+                         background: table.estado === 'disponible' ? '#34d39922' : table.estado === 'ocupada' ? '#fb923c22' : '#f8717122',
+                         color: table.estado === 'disponible' ? '#34d399' : table.estado === 'ocupada' ? '#fb923c' : '#f87171'
                       }}>
                         {table.estado === 'solicitando_cuenta' ? 'Cuenta' : table.estado}
                       </span>
@@ -621,6 +767,14 @@ function AdminTablesCRUD({ onSuccess, onError }) {
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setQrTable(table)}
+                      className="w-8 h-8 rounded-lg bg-surface border border-app hover:border-app-hover flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm"
+                      title="Generar QR Autoservicio"
+                    >
+                      <QrCode size={14} className="text-primary animate-pulse" />
+                    </button>
+
                     <button
                       onClick={() => setEditTable(table)}
                       className="w-8 h-8 rounded-lg bg-surface border border-app hover:border-app-hover flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm"
@@ -719,6 +873,16 @@ function AdminTablesCRUD({ onSuccess, onError }) {
           </div>
         </div>
       </div>
+
+      {/* Modal de Código QR de Mesa */}
+      <AnimatePresence>
+        {qrTable && (
+          <TableQRModal
+            table={qrTable}
+            onClose={() => setQrTable(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -2492,19 +2656,21 @@ export default function AdminSettings() {
               </button>
 
               {/* Configuración de Mesas */}
-              <button
-                onClick={() => setActiveSubSection('mesas')}
-                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/10">
-                  <LayoutGrid size={20} className="text-amber-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-app">Configuración de Mesas</p>
-                  <p className="text-xs text-muted mt-0.5">Configura las mesas del restaurante/salón para el Portal de Mesero.</p>
-                </div>
-                <ChevronRight size={18} className="text-muted shrink-0" />
-              </button>
+              {formData.tablesEnabled && (
+                <button
+                  onClick={() => setActiveSubSection('mesas')}
+                  className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/10">
+                    <LayoutGrid size={20} className="text-amber-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-app">Configuración de Mesas</p>
+                    <p className="text-xs text-muted mt-0.5">Configura las mesas del restaurante/salón para el Portal de Mesero.</p>
+                  </div>
+                  <ChevronRight size={18} className="text-muted shrink-0" />
+                </button>
+              )}
 
             </div>
           </div>
@@ -3360,6 +3526,20 @@ export default function AdminSettings() {
                       <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                     </label>
                   </div>
+
+                  {/* Switch Mesas y QR */}
+                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
+                    <div>
+                      <p className="text-sm font-bold text-app">Módulo de Pedidos en Mesa y Autoservicio QR</p>
+                      <p className="text-xs text-muted mt-0.5">Habilita el mapa de salón para meseros, comandas para cocina a la mesa, y autogestión de clientes por escaneo de QR.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input type="checkbox" className="sr-only peer"
+                        checked={formData.tablesEnabled}
+                        onChange={(e) => setFormData({ ...formData, tablesEnabled: e.target.checked })} />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="p-5 border-t border-app bg-surface-2/30">
@@ -3370,6 +3550,7 @@ export default function AdminSettings() {
                           creditsEnabled: formData.creditsEnabled ?? true,
                           couponsEnabled: formData.couponsEnabled ?? true,
                           claimsEnabled: formData.claimsEnabled ?? false,
+                          tablesEnabled: formData.tablesEnabled ?? false,
                           wholesaleSettings: formData.wholesaleSettings
                         }
                         await updateAppConfig(payload)
