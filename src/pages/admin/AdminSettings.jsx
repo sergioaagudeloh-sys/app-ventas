@@ -1576,6 +1576,7 @@ export default function AdminSettings() {
         iosUrl: '',
         promoImageUrl: ''
       },
+      tablesEnabled: state.tablesEnabled ?? false,
       commercialOptimization: mergeCommercialOptimization(state.commercialOptimization)
     }
   })
@@ -1672,6 +1673,7 @@ export default function AdminSettings() {
           iosUrl: '',
           promoImageUrl: ''
         },
+        tablesEnabled: config.tablesEnabled ?? false,
         commercialOptimization: mergeCommercialOptimization(config.commercialOptimization)
       })
       setIsFormInitialized(true)
