@@ -146,6 +146,7 @@ const useAppConfigStore = create(
        * @param {object} config - Configuración completa de Firestore
        */
       setConfig: (config) => set({ ...config, isLoaded: true }),
+      setCatalogFilters: (catalogFilters) => set({ catalogFilters }),
 
       /**
        * Alterna entre modo oscuro y claro.

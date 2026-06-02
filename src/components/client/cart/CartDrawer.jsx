@@ -10,6 +10,7 @@ import SmartHint from '../guided/SmartHint'
 import useAppConfigStore from '../../../store/appConfigStore'
 import useAuthStore from '../../../store/authStore'
 import ProductDetailModal from '../catalog/ProductDetailModal'
+import QuantitySelector from '../../ui/QuantitySelector'
 
 export default function CartDrawer() {
   const { isOpen, closeCart, items, addItem, removeItem, deleteItem, getTotal } = useCartStore()
@@ -153,20 +154,20 @@ export default function CartDrawer() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative w-full max-w-md bg-surface h-full shadow-2xl flex flex-col"
+              transition={{ ease: [0.25, 1, 0.5, 1], duration: 0.35 }}
+              className="relative w-full max-w-md bg-surface h-full shadow-2xl flex flex-col will-change-transform"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-app bg-surface z-10 shrink-0">
+              <div className="flex items-center justify-between px-6 py-4 border-b-2 border-gray-100 bg-surface z-10 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                     <ShoppingBag size={20} />
                   </div>
-                  <h2 className="text-xl font-bold text-app">Tu Carrito</h2>
+                  <h2 className="text-xl font-bold text-gray-900">Tu Carrito</h2>
                 </div>
                 <button
                   onClick={closeCart}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-2 text-muted hover:text-app transition-colors"
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 >
                   <X size={20} />
                 </button>
@@ -194,7 +195,7 @@ export default function CartDrawer() {
                     </div>
                     <button
                       onClick={handleContinueShopping}
-                      className="mt-8 px-6 py-3 bg-surface border border-app text-app rounded-xl font-bold transition-all active:scale-95"
+                      className="mt-8 bg-transparent border-none text-gray-400 font-bold text-sm tracking-wide uppercase transition-colors hover:text-gray-700 active:scale-95"
                     >
                       Seguir Comprando
                     </button>
@@ -202,9 +203,9 @@ export default function CartDrawer() {
                 ) : (
                   <div className="space-y-4">
                     {items.map((item) => (
-                      <div key={`${item.productId}-${item.variantId}`} className="bg-surface rounded-2xl p-3 border border-app flex gap-4 items-center shadow-sm relative overflow-hidden">
+                      <div key={`${item.productId}-${item.variantId}`} className="bg-white rounded-2xl p-2 pr-4 border border-gray-100 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07)] flex gap-4 items-center relative">
                         {/* Img */}
-                        <div className="w-20 h-24 rounded-xl bg-surface-2 overflow-hidden flex-shrink-0">
+                        <div className="w-24 h-24 rounded-lg overflow-hidden shrink-0">
                           {item.imageUrl ? (
                             <img src={item.imageUrl} alt={item.nombre} className="w-full h-full object-cover" />
                           ) : (
@@ -213,44 +214,42 @@ export default function CartDrawer() {
                         </div>
                         
                         {/* Info */}
-                        <div className="flex-1 py-1 pr-1 flex flex-col justify-between min-h-[96px]">
+                        <div className="flex-1 flex flex-col gap-0.5">
                           <div>
-                            <h4 className="font-bold text-app text-sm leading-tight pr-6">{truncate(item.nombre, 35)}</h4>
+                            <h4 className="font-bold text-gray-900 text-[15px] leading-tight pr-6">{truncate(item.nombre, 35)}</h4>
                             <p className="text-[11px] text-muted mt-1 font-medium">
                               {item.talla && `Talla ${item.talla}`} {item.talla && item.color && '·'} {item.color && item.color}
                             </p>
                           </div>
                           
-                          <div className="flex items-center justify-between mt-3 gap-2">
-                            <p className="font-black text-primary text-sm">
+                          <div className="flex justify-between items-end mt-2">
+                            <p className="text-primary font-black text-base leading-none">
                               {formatCurrency(item.precio * item.cantidad)}
                             </p>
                             
                             {/* Contador de Cantidad Refinado */}
-                            <div className="flex items-center bg-surface-2/50 rounded-lg p-0.5 border border-app h-7">
-                              <button
-                                onClick={() => removeItem(item.productId, item.variantId)}
-                                className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-app hover:bg-surface transition-colors active:scale-95"
-                                disabled={item.cantidad <= 1}
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="w-6 text-center font-bold text-app text-xs">{item.cantidad}</span>
-                              <button
-                                onClick={() => addItem({ productId: item.productId, variantId: item.variantId })}
-                                className="w-6 h-6 rounded-md flex items-center justify-center text-muted hover:text-app hover:bg-surface transition-colors active:scale-95"
-                                disabled={item.cantidad >= 10}
-                              >
-                                <Plus size={12} />
-                              </button>
-                            </div>
+                            <QuantitySelector
+                              value={item.cantidad}
+                              onChange={(newQty) => {
+                                const diff = newQty - item.cantidad
+                                if (diff > 0) {
+                                  addItem({ productId: item.productId, variantId: item.variantId }, diff)
+                                } else if (diff < 0) {
+                                  removeItem(item.productId, item.variantId, Math.abs(diff))
+                                }
+                              }}
+                              min={1}
+                              max={item.maxStock || 10}
+                              className="scale-[0.7] origin-right shrink-0"
+                            />
                           </div>
                         </div>
 
                         {/* Eliminar TODO el stack de esa variante */}
                         <button
                           onClick={() => deleteItem(item.productId, item.variantId)}
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-error hover:bg-error/10 transition-colors absolute top-2 right-2"
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all opacity-50 hover:opacity-100 absolute top-2.5 right-2.5"
+                          title="Eliminar"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -319,13 +318,13 @@ export default function CartDrawer() {
 
               {/* Footer Fijo */}
               {items.length > 0 && (
-                <div className="p-6 border-t border-app bg-surface z-10 shrink-0">
-                  <div className="flex items-center justify-between mb-6">
+                <div className="p-6 border-t border-gray-100 bg-white z-10 shrink-0 shadow-2xl flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted font-medium">Total Estimado</span>
-                    <span className="text-2xl font-black text-primary">{formatCurrency(getTotal())}</span>
+                    <span className="text-2xl font-black text-gray-900">{formatCurrency(getTotal())}</span>
                   </div>
 
-                  <div className="relative mb-2">
+                  <div className="relative">
                     <SmartHint 
                       stepId="cart_checkout" 
                       message="Verifica que toda la información esté correcta antes de realizar el pedido." 
@@ -336,14 +335,14 @@ export default function CartDrawer() {
 
                   <button
                     onClick={handleCheckoutClick}
-                    className="w-full h-14 bg-action text-white rounded-2xl font-bold text-base transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-lg shadow-action"
+                    className="w-full h-[60px] rounded-full bg-action text-white font-black uppercase tracking-widest transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-xl"
                   >
                     Ir a Pagar <ArrowRight size={20} />
                   </button>
 
                   <button
                     onClick={handleContinueShopping}
-                    className="w-full h-12 mt-3 bg-surface border border-app text-app rounded-2xl font-semibold text-sm hover:bg-surface-2 transition-colors active:scale-95 flex items-center justify-center gap-2"
+                    className="bg-transparent border-none text-gray-500 font-bold text-[13px] uppercase tracking-widest hover:text-gray-800 transition-colors mt-3 text-center block w-full mx-auto"
                   >
                     Seguir agregando productos
                   </button>

@@ -192,9 +192,9 @@ export default function AdminQRPerformance() {
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-start gap-2.5">
+          <div className="p-4 rounded-2xl bg-primary-soft border border-primary-soft flex items-start gap-2.5">
             <AlertCircle size={16} className="text-primary shrink-0 mt-0.5" />
-            <p className="text-[11px] text-primary leading-normal font-semibold">
+            <p className="text-xs text-primary leading-normal font-semibold">
               Tip: Coloca códigos QR visibles en tus productos más vendidos para incentivar la compra recurrente a domicilio de forma directa.
             </p>
           </div>

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
+import { getMessaging, isSupported } from 'firebase/messaging'
 
 /**
  * Configuración oficial de Firebase para la aplicación.
@@ -24,4 +25,16 @@ const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 export const auth = getAuth(app)
 export const storage = getStorage(app)
+
+// Exportar mensajería asíncrona y segura
+let messaging = null
+isSupported().then((supported) => {
+  if (supported) {
+    messaging = getMessaging(app)
+  }
+}).catch((err) => {
+  console.warn('[FCM Config] Messaging no soportado:', err)
+})
+
+export { messaging }
 export default app

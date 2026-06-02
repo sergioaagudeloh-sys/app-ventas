@@ -60,23 +60,23 @@ export default function ClientProfile() {
   }
 
   return (
-    <div className="pb-6">
+    <div className="pb-2">
       {/* Header del Perfil */}
-      <div className="bg-primary/5 pt-8 pb-12 px-4 md:px-8">
+      <div className="bg-primary/5 pt-8 pb-8 px-4 md:px-8">
         <div className="max-w-7xl mx-auto flex items-center gap-5">
           
           {/* Avatar con Emoji Selector */}
           <div className="relative">
             <button 
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-xl shadow-primary/20 flex-shrink-0 relative group"
+              className="w-20 h-20 rounded-full bg-primary flex items-center justify-center shadow-[0_10px_40px_-10px_rgba(156,39,176,0.3)] ring-4 ring-white shadow-inner flex-shrink-0 relative group hover:brightness-105 transition-all"
             >
               {user?.emoji ? (
                 <span className="text-4xl">{user.emoji}</span>
               ) : (
-                <User size={36} className="text-white" />
+                <User size={32} className="text-white" />
               )}
-              <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-surface rounded-full border-2 border-surface flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-surface rounded-full border-[3px] border-white flex items-center justify-center text-primary shadow-md group-hover:-translate-y-1 transition-transform">
                 <Edit2 size={12} />
               </div>
             </button>
@@ -124,28 +124,28 @@ export default function ClientProfile() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-6 space-y-4">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 -mt-6 space-y-3">
         
         {/* ─── BOTONERA PRINCIPAL ─────────────────────────────────────── */}
-        <div className="bg-surface rounded-3xl p-2 border border-app shadow-sm">
-          <Link to="/tienda/pedidos" className="flex items-center justify-between p-4 hover:bg-surface-2 rounded-2xl transition-colors group">
-            <div className="flex items-center gap-4">
+        <div className="bg-surface rounded-2xl p-1.5 border border-app shadow-sm">
+          <Link to="/tienda/pedidos" className="flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 rounded-xl transition-colors group">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-app text-app flex items-center justify-center border border-app group-hover:border-primary/50 transition-colors">
                 <Package size={20} />
               </div>
-              <span className="font-bold text-app">Mis Pedidos</span>
+              <span className="font-bold text-sm text-app">Mis Pedidos</span>
             </div>
             <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
           </Link>
           
-          <div className="h-px bg-app mx-4" />
+          <div className="h-[0.5px] bg-gray-100 mx-2" />
           
-          <Link to="/tienda/creditos" className="flex items-center justify-between p-4 hover:bg-surface-2 rounded-2xl transition-colors group">
-            <div className="flex items-center gap-4">
+          <Link to="/tienda/creditos" className="flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 rounded-xl transition-colors group">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-app text-app flex items-center justify-center border border-app group-hover:border-primary/50 transition-colors">
                 <CreditCard size={20} />
               </div>
-              <span className="font-bold text-app">Mis Créditos</span>
+              <span className="font-bold text-sm text-app">Mis Créditos</span>
             </div>
             <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
           </Link>
@@ -153,7 +153,7 @@ export default function ClientProfile() {
 
         {/* ─── DESCARGAR APLICACIÓN ─────────────────────────────────────── */}
         {!isStandalone && (rawInstallable || isIOS) && (
-          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm flex flex-col gap-4">
+          <div className="bg-surface rounded-2xl p-4 border border-app shadow-sm flex flex-col gap-4">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
                 <Download size={20} />
@@ -183,7 +183,7 @@ export default function ClientProfile() {
         )}
 
         {isStandalone && (
-          <div className="bg-surface rounded-3xl p-4 border border-app shadow-sm flex items-center gap-3">
+          <div className="bg-surface rounded-2xl p-4 border border-app shadow-sm flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-500 flex items-center justify-center flex-shrink-0">
               <CheckCircle size={16} />
             </div>
@@ -193,7 +193,7 @@ export default function ClientProfile() {
 
         {/* ─── MODO ASISTENCIA (FASE 8) ────────────────────────────────── */}
         {guidedModeEnabled && (
-          <div className="bg-surface rounded-3xl p-5 border border-app shadow-sm">
+          <div className="bg-surface rounded-2xl p-4 border border-app shadow-sm">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
@@ -226,7 +226,7 @@ export default function ClientProfile() {
 
         {/* Banner Publicitario del Desarrollador (Limpio y Profesional) */}
         {developerPhone && (
-          <div className="relative overflow-hidden rounded-3xl bg-primary-soft border border-primary-soft p-5 shadow-xs">
+          <div className="relative overflow-hidden rounded-2xl bg-primary-soft border border-primary-soft p-4 shadow-xs">
             <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-primary/5 blur-xl pointer-events-none" />
             <div className="flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -251,7 +251,7 @@ export default function ClientProfile() {
         )}
 
         {/* ─── CONFIANZA Y SALIDA ──────────────────────────────────────── */}
-        <div className="bg-primary/5 rounded-2xl p-4 flex gap-3 mt-8">
+        <div className="bg-primary/5 rounded-2xl p-4 flex gap-3">
           <Info size={20} className="text-primary flex-shrink-0 mt-0.5" />
           <p className="text-xs text-app/80 leading-relaxed font-medium">
             {CLIENT_LOGIN_TRUST_MESSAGE}
@@ -260,7 +260,7 @@ export default function ClientProfile() {
 
         <button
           onClick={handleLogout}
-          className="w-full mt-6 flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/10 transition-all active:scale-95"
+          className="w-full flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-500 font-bold text-sm hover:bg-red-500/10 transition-all active:scale-95"
         >
           <LogOut size={20} />
           Cerrar Sesión

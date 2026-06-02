@@ -242,8 +242,8 @@ export const GUIDED_MESSAGES = {
 export const CLIENT_LOGIN_TRUST_MESSAGE =
   'Utilizaremos tu número únicamente para comunicarnos contigo sobre tus pedidos.'
 
-// ─── Contraseña del desarrollador para Facturación y Pruebas ──────────────────
-export const DEV_PASSWORD = '1q2w3e4r5t6y7u8i9o0p..'
+// ─── PIN del desarrollador para Facturación y Pruebas ──────────────────
+export const DEV_PIN = '1609'
 
 // ─── Metadatos ricos de estados para el tracking público ─────────────────────
 // Añadir aquí cualquier estado nuevo. OrderTracking.jsx lo mostrará automáticamente.

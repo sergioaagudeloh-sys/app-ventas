@@ -16,10 +16,9 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
+import { createCentralNotification, NC_TYPES, subscribeToAdminNotifications } from './notificationCenterService'
 
 const creditsRef = collection(db, COLLECTIONS.CREDITS)
-const notificationsRef = collection(db, 'notifications')
-import { createClientNotification } from './clientNotificationService'
 
 /**
  * Obtener todos los créditos (Para el Admin)
@@ -37,7 +36,7 @@ export async function getCredits(estado = 'activo') {
  */
 export async function getClientCredits(celular) {
   if (!celular) return []
-  const q = query(creditsRef, where('clienteCelular', '==', celular))
+  const q = query(creditsRef, where('cliente.celular', '==', celular))
   const snap = await getDocs(q)
   
   const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
@@ -67,11 +66,11 @@ export async function addPaymentToCredit(creditId, paymentData) {
     const nuevoAbono = {
       monto: paymentData.monto,
       nota: paymentData.nota || '',
-      fecha: new Date().toISOString(), // Usamos string local para arrays en Firebase
+      fecha: new Date().toISOString(),
     }
 
     const nuevosAbonos = [...(data.abonos || []), nuevoAbono]
-    const nuevoSaldo = Math.max(0, data.saldoPendiente - paymentData.monto)
+    const nuevoSaldo = Math.max(0, data.saldoPending || data.saldoPendiente - paymentData.monto)
     const nuevoEstado = nuevoSaldo === 0 ? 'pagado' : 'activo'
 
     transaction.update(creditRef, {
@@ -91,13 +90,29 @@ export async function addPaymentToCredit(creditId, paymentData) {
     }
   })
 
-  // Crear notificación persistente para el cliente después de que el abono se registre con éxito
+  // Crear notificación persistente para el cliente utilizando el Notification Center
+  if (creditData && creditData.cliente?.celular) {
+    await createCentralNotification({
+      recipientId: creditData.cliente.celular,
+      recipientRole: 'client',
+      title: 'Abono Registrado',
+      body: `Se aplicó un abono de $${paymentData.monto.toLocaleString()} a tu crédito para el pedido #${creditData.orderNumber || ''}.`,
+      type: NC_TYPES.ABONO_RECIBIDO,
+      orderId: creditData.orderId,
+      orderNumber: creditData.orderNumber
+    })
+  }
+
+  // Notificar al Admin en tiempo real sobre el abono/pago recibido
   if (creditData) {
-    await createClientNotification({
-      clienteCelular: creditData.clienteCelular,
-      message: `Se aplicó un abono de $${paymentData.monto.toLocaleString()} a tu crédito para el pedido #${creditData.orderNumber || ''}`,
-      type: 'abono',
-      orderId: creditData.orderId
+    await createCentralNotification({
+      recipientId: 'admin',
+      recipientRole: 'admin',
+      title: 'Abono Recibido',
+      body: `Se ha registrado un abono de $${paymentData.monto.toLocaleString()} por parte de ${creditData.cliente?.nombre || 'Cliente'} para el pedido #${creditData.orderNumber || ''}.`,
+      type: NC_TYPES.ABONO_RECIBIDO,
+      orderId: creditData.orderId,
+      orderNumber: creditData.orderNumber
     })
   }
 }
@@ -122,7 +137,7 @@ export function subscribeToClientCredits(celular, onUpdate) {
     onUpdate([])
     return () => {}
   }
-  const q = query(creditsRef, where('clienteCelular', '==', celular))
+  const q = query(creditsRef, where('cliente.celular', '==', celular))
   return onSnapshot(q, (snap) => {
     const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     const sorted = credits.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
@@ -155,30 +170,38 @@ export async function getCreditsPaged(estado = 'activo', limitSize = 10, startAf
 }
 
 /**
- * Registra una notificación de abono/pago de crédito en Firestore
+ * Registra una notificación de abono/pago de crédito en el Notification Center
  */
-export async function createCreditNotification(notificationData) {
-  try {
-    await addDoc(notificationsRef, {
-      ...notificationData,
-      createdAt: serverTimestamp(),
-      leida: false
-    })
-  } catch (error) {
-    console.error('Error al crear notificación de crédito:', error)
-  }
-}
-
-/**
- * Se suscribe a las notificaciones en tiempo real (para el Admin)
- */
-export function subscribeToNotifications(onUpdate) {
-  const q = query(notificationsRef, orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snap) => {
-    const notifications = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    onUpdate(notifications)
-  }, (error) => {
-    console.error('Error suscribiendo a notificaciones:', error)
+export async function reportCreditPayment({ creditId, monto, clienteNombre, clienteCelular, orderNumber, orderId }) {
+  await createCentralNotification({
+    recipientId: 'admin',
+    recipientRole: 'admin',
+    title: 'Reporte de Pago Recibido',
+    body: `${clienteNombre} (${clienteCelular}) reportó un abono de $${monto.toLocaleString()} para el pedido #${orderNumber}.`,
+    type: NC_TYPES.ABONO_RECIBIDO,
+    orderId,
+    orderNumber
   })
 }
 
+/**
+ * Registra una notificación de abono/pago de crédito (compatibilidad legacy)
+ */
+export async function createCreditNotification(notificationData) {
+  await createCentralNotification({
+    recipientId: 'admin',
+    recipientRole: 'admin',
+    title: 'Abono de Crédito',
+    body: `${notificationData.clienteNombre || 'Cliente'} abonó $${(notificationData.monto || 0).toLocaleString()}`,
+    type: NC_TYPES.ABONO_RECIBIDO,
+    orderId: notificationData.orderId || null,
+    orderNumber: notificationData.orderNumber || null
+  })
+}
+
+/**
+ * Suscripción compatible legada a notificaciones de crédito (compatibilidad legacy)
+ */
+export function subscribeToNotifications(onUpdate) {
+  return subscribeToAdminNotifications(onUpdate)
+}

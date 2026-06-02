@@ -6,8 +6,7 @@ import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
 import { formatCurrency } from '../../utils/formatters'
 import AppLoader from '../../components/ui/AppLoader'
-import { ORDER_STATE_META } from '../../constants'
-import { ROLES } from '../../constants'
+import { ORDER_STATE_META, ROLES } from '../../constants'
 import { getEmployeesByRole } from '../../services/employeeService'
 import { trackTrackingEvent } from '../../services/trackingAnalyticsService'
 import {
@@ -30,6 +29,8 @@ import {
   Download,
 } from 'lucide-react'
 import usePWAInstall from '../../hooks/usePWAInstall'
+import SoftPushPrompt from '../../components/client/SoftPushPrompt'
+
 
 // ─── Mapa de íconos de Lucide por nombre (string → componente) ────────────────
 // Cuando agregues un estado con un ícono nuevo, añádelo aquí.
@@ -352,7 +353,11 @@ export default function OrderTracking() {
             </div>
           )}
 
-          {/* Info destinatario + financiero */}
+          {/* Solicitud Inteligente y No Intrusiva de Permisos Push del Cliente */}
+          {order.cliente?.celular && (
+            <SoftPushPrompt userId={order.cliente.celular} role="client" />
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
             <div className="bg-surface-2/40 border border-app p-4 rounded-2xl space-y-1.5">
               <h4 className="text-[10px] font-black uppercase tracking-wider text-muted flex items-center gap-1.5 mb-2">

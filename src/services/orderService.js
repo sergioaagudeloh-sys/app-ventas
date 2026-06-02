@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS, ORDER_STATES, PAYMENT_METHODS } from '../constants'
-import { createClientNotification } from './clientNotificationService'
+import { createCentralNotification, NC_TYPES } from './notificationCenterService'
 
 const ordersRef = collection(db, COLLECTIONS.ORDERS)
 
@@ -119,6 +119,25 @@ export async function createOrder(orderData) {
     })
   })
 
+  // 5. Emitir Notificación Central de Pedido Recibido para el Administrador
+  try {
+    const isWholesale = orderData.tipo === 'wholesale' || orderData.items?.some(item => item.wholesale)
+    const isCustomOrder = orderData.tipo === 'custom_order' || orderData.customOrder || orderData.items?.some(item => item.custom)
+    const typeLabel = isWholesale ? 'Al por mayor' : isCustomOrder ? 'Por encargo' : 'Normal'
+
+    await createCentralNotification({
+      recipientId: 'admin',
+      recipientRole: 'admin',
+      title: 'Nuevo Pedido Recibido',
+      body: `Pedido ${typeLabel} de ${orderData.cliente?.nombre || 'Cliente'} (${orderData.cliente?.celular || ''}) por valor de $${orderData.total || 0}.`,
+      type: NC_TYPES.PEDIDO_RECIBIDO,
+      orderId: orderIdRef.id,
+      orderNumber
+    })
+  } catch (err) {
+    console.error('[orderService] Error al notificar creación de pedido:', err)
+  }
+
   return { id: orderIdRef.id, trackingToken }
 }
 
@@ -134,58 +153,52 @@ export async function getOrders() {
 /**
  * Se suscribe a todos los pedidos en tiempo real (para Admin)
  */
-export function subscribeToOrders(onUpdate) {
+export function subscribeToOrders(callback) {
   const q = query(ordersRef, orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
-    const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    onUpdate(orders)
+    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    callback(list)
   })
 }
 
 /**
- * Obtiene los pedidos de un cliente específico (para su Perfil)
+ * Obtiene los pedidos asociados a un cliente mediante su número celular
  */
 export async function getClientOrders(celular) {
-  if (!celular) return []
   const q = query(ordersRef, where('cliente.celular', '==', celular))
   const snap = await getDocs(q)
-  
-  const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-  return orders.sort((a, b) => {
-    const timeA = a.createdAt?.toMillis() || 0
-    const timeB = b.createdAt?.toMillis() || 0
-    return timeB - timeA
+  const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+  return list.sort((a, b) => {
+    const tA = a.createdAt?.toMillis?.() || 0
+    const tB = b.createdAt?.toMillis?.() || 0
+    return tB - tA
   })
 }
 
 /**
- * Se suscribe a los pedidos de un cliente en tiempo real
+ * Se suscribe a los pedidos de un cliente específico en tiempo real
  */
-export function subscribeToClientOrders(celular, onUpdate) {
-  if (!celular) {
-    onUpdate([])
-    return () => {}
-  }
+export function subscribeToClientOrders(celular, callback) {
   const q = query(ordersRef, where('cliente.celular', '==', celular))
   return onSnapshot(q, (snap) => {
-    const orders = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    const sorted = orders.sort((a, b) => {
-      const timeA = a.createdAt?.toMillis() || 0
-      const timeB = b.createdAt?.toMillis() || 0
-      return timeB - timeA
+    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const sorted = list.sort((a, b) => {
+      const tA = a.createdAt?.toMillis?.() || 0
+      const tB = b.createdAt?.toMillis?.() || 0
+      return tB - tA
     })
-    onUpdate(sorted)
+    callback(sorted)
   })
 }
 
 /**
- * Oculta los pedidos completados o cancelados del historial del cliente
+ * Elimina lógicamente (o limpia del cliente) un historial de pedidos en lote
  */
 export async function clearClientOrderHistory(orders) {
   const promises = orders.map(o => {
     const docRef = doc(db, COLLECTIONS.ORDERS, o.id)
     return updateDoc(docRef, {
-      ocultoCliente: true,
+      clienteOculto: true,
       updatedAt: serverTimestamp()
     })
   })
@@ -208,9 +221,8 @@ export async function archiveOrders(orders) {
 
 /**
  * Actualiza el estado de un pedido.
- * REGLA CRÍTICA (Fase 5): Si pasa a COMPLETADO, descuenta el stock de las variantes.
+ * REGLA CRÍTICA: Si pasa a COMPLETADO, descuenta el stock de las variantes si no estaba descontado.
  * Si pasa a CRÉDITO_APROBADO, descuenta el stock Y genera el documento de deuda en 'credits'.
- * Se usa una Transacción de Firestore para el stock y un addDoc separado para el crédito.
  */
 export async function updateOrderStatus(orderId, newStatus, currentOrder) {
   const orderRef = doc(db, COLLECTIONS.ORDERS, orderId)
@@ -218,22 +230,41 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
 
   const notifyClient = async () => {
     if (currentOrder?.cliente?.celular && currentOrder.cliente.celular !== 'Desconocido') {
-      await createClientNotification({
-        clienteCelular: currentOrder.cliente.celular,
-        message: `Tu pedido ${currentOrder.orderNumber || ''} cambió a ${newStatus.toUpperCase()}`,
-        type: 'status',
-        orderId: orderId
+      let resolvedType = NC_TYPES.PEDIDO_ESTADO
+      let title = 'Actualización de Pedido'
+      let body = `Tu pedido #${currentOrder.orderNumber || ''} cambió a ${newStatus.toUpperCase()}`
+
+      if (newStatus === ORDER_STATES.COMPLETED) {
+        resolvedType = NC_TYPES.PEDIDO_ENTREGADO
+        title = 'Pedido Completado'
+        body = `Tu pedido #${currentOrder.orderNumber || ''} ha sido completado con éxito. ¡Gracias por tu compra!`
+      } else if (newStatus === ORDER_STATES.DELIVERING) {
+        resolvedType = NC_TYPES.PEDIDO_EN_CAMINO
+        title = 'Pedido en Camino'
+        body = `Tu pedido #${currentOrder.orderNumber || ''} está en camino a tu dirección con nuestro mensajero.`
+      } else if (newStatus === ORDER_STATES.READY) {
+        resolvedType = NC_TYPES.PEDIDO_LISTO
+        title = 'Pedido Listo'
+        body = `Tu pedido #${currentOrder.orderNumber || ''} ya está listo y empacado.`
+      }
+
+      await createCentralNotification({
+        recipientId: currentOrder.cliente.celular,
+        recipientRole: 'client',
+        title,
+        body,
+        type: resolvedType,
+        orderId: orderId,
+        orderNumber: currentOrder.orderNumber
       })
     }
   }
 
   // ─── CANCELAR ─────────────────────────────────────────────────────────────
-  // Si el pedido tenía stock reservado, hay que devolverlo al inventario
   if (newStatus === ORDER_STATES.CANCELLED) {
     if (stockYaDescontado) {
       const items = currentOrder?.items || []
       await runTransaction(db, async (transaction) => {
-        // Leer todos los productos afectados
         const productsCache = {}
         for (const item of items) {
           if (item.productId?.startsWith('custom-')) continue
@@ -246,7 +277,6 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
           }
         }
 
-        // Restaurar stock
         const updatedProducts = {}
         for (const item of items) {
           if (item.productId?.startsWith('custom-')) continue
@@ -255,8 +285,9 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
 
           const variantes = [...productInfo.data.variantes]
           const variantIndex = variantes.findIndex(v => v.id === item.variantId)
+
           if (variantIndex !== -1) {
-            variantes[variantIndex].stock += item.cantidad
+            variantes[variantIndex].stock = variantes[variantIndex].stock + item.cantidad
             updatedProducts[item.productId] = {
               ...productInfo,
               data: { ...productInfo.data, variantes }
@@ -273,85 +304,13 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
 
         transaction.update(orderRef, {
           estado: newStatus,
+          stockDescontado: false,
           updatedAt: serverTimestamp()
         })
       })
     } else {
-      // Pedido viejo sin reserva: solo cambiar estado
-      await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
-    }
-    await notifyClient()
-    return
-  }
-
-  // ─── COMPLETAR / CRÉDITO APROBADO ─────────────────────────────────────────
-  if (newStatus === ORDER_STATES.COMPLETED || newStatus === 'credito_aprobado') {
-    let orderData = null
-
-    if (stockYaDescontado) {
-      // Stock ya fue descontado al crear el pedido → solo actualizar estado
-      const orderDoc = await getDoc(orderRef)
-      if (!orderDoc.exists()) throw new Error('Pedido no encontrado')
-      if (orderDoc.data().estado === ORDER_STATES.COMPLETED || orderDoc.data().estado === 'credito_aprobado') {
-        throw new Error('El pedido ya había sido procesado.')
-      }
-      orderData = orderDoc.data()
-      await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
-    } else {
-      // Pedido viejo (sin reserva): descontar stock ahora (comportamiento original)
-      await runTransaction(db, async (transaction) => {
-        const orderDoc = await transaction.get(orderRef)
-        if (!orderDoc.exists()) throw new Error('Pedido no encontrado')
-        if (orderDoc.data().estado === ORDER_STATES.COMPLETED || orderDoc.data().estado === 'credito_aprobado') {
-          throw new Error('El pedido ya había sido procesado.')
-        }
-        orderData = orderDoc.data()
-        const items = orderDoc.data().items || []
-
-        const productRefs = items
-          .filter(item => item.productId && !item.productId.startsWith('custom-'))
-          .map(item => doc(db, COLLECTIONS.PRODUCTS, item.productId))
-        const productsCache = {}
-        for (const pRef of productRefs) {
-          if (!productsCache[pRef.id]) {
-            const pDoc = await transaction.get(pRef)
-            if (pDoc.exists()) productsCache[pRef.id] = { ref: pRef, data: pDoc.data() }
-          }
-        }
-
-        const updatedProducts = {}
-        for (const item of items) {
-          if (item.productId && item.productId.startsWith('custom-')) continue
-          const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
-          if (!productInfo) continue
-          const variantes = [...productInfo.data.variantes]
-          const variantIndex = variantes.findIndex(v => v.id === item.variantId)
-          if (variantIndex !== -1) {
-            variantes[variantIndex].stock = Math.max(0, variantes[variantIndex].stock - item.cantidad)
-            updatedProducts[item.productId] = { ...productInfo, data: { ...productInfo.data, variantes } }
-          }
-        }
-
-        Object.values(updatedProducts).forEach(productInfo => {
-          transaction.update(productInfo.ref, { variantes: productInfo.data.variantes, updatedAt: serverTimestamp() })
-        })
-        transaction.update(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
-      })
-    }
-
-    // Generar crédito si aplica
-    if (newStatus === 'credito_aprobado' && orderData) {
-      const creditsRef = collection(db, COLLECTIONS.CREDITS)
-      await addDoc(creditsRef, {
-        orderId: orderId,
-        orderNumber: orderData.orderNumber,
-        clienteNombre: orderData.cliente?.nombre || 'Desconocido',
-        clienteCelular: orderData.cliente?.celular || 'Desconocido',
-        montoTotal: orderData.total || 0,
-        saldoPendiente: orderData.total || 0,
-        abonos: [],
-        estado: 'activo',
-        createdAt: serverTimestamp(),
+      await updateDoc(orderRef, {
+        estado: newStatus,
         updatedAt: serverTimestamp()
       })
     }
@@ -359,52 +318,127 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
     return
   }
 
-  // ─── CUALQUIER OTRO ESTADO (simple update) ────────────────────────────────
-  await updateDoc(orderRef, { estado: newStatus, updatedAt: serverTimestamp() })
+  // ─── CRÉDITO APROBADO ──────────────────────────────────────────────────────
+  if (newStatus === ORDER_STATES.CREDIT_APPROVED) {
+    if (!stockYaDescontado) {
+      const items = currentOrder?.items || []
+      await runTransaction(db, async (transaction) => {
+        const productsCache = {}
+        for (const item of items) {
+          if (item.productId?.startsWith('custom-')) continue
+          if (!productsCache[item.productId]) {
+            const pRef = doc(db, COLLECTIONS.PRODUCTS, item.productId)
+            const pDoc = await transaction.get(pRef)
+            if (pDoc.exists()) {
+              productsCache[item.productId] = { ref: pRef, data: pDoc.data() }
+            }
+          }
+        }
+
+        const updatedProducts = {}
+        for (const item of items) {
+          if (item.productId?.startsWith('custom-')) continue
+          const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
+          if (!productInfo) continue
+
+          const variantes = [...productInfo.data.variantes]
+          const variantIndex = variantes.findIndex(v => v.id === item.variantId)
+
+          if (variantIndex !== -1) {
+            const stockActual = variantes[variantIndex].stock
+            if (stockActual < item.cantidad) {
+              throw new Error(`Stock insuficiente para variante de ${item.nombre}`)
+            }
+            variantes[variantIndex].stock = stockActual - item.cantidad
+            updatedProducts[item.productId] = {
+              ...productInfo,
+              data: { ...productInfo.data, variantes }
+            }
+          }
+        }
+
+        Object.values(updatedProducts).forEach(productInfo => {
+          transaction.update(productInfo.ref, {
+            variantes: productInfo.data.variantes,
+            updatedAt: serverTimestamp()
+          })
+        })
+
+        transaction.update(orderRef, {
+          estado: newStatus,
+          stockDescontado: true,
+          updatedAt: serverTimestamp()
+        })
+      })
+    } else {
+      await updateDoc(orderRef, {
+        estado: newStatus,
+        updatedAt: serverTimestamp()
+      })
+    }
+
+    // Generar documento en Colección Credits
+    const creditsRef = collection(db, 'credits')
+    await addDoc(creditsRef, {
+      orderId,
+      orderNumber: currentOrder.orderNumber || '—',
+      cliente: currentOrder.cliente,
+      total: currentOrder.total,
+      saldoPendiente: currentOrder.total,
+      abonos: [],
+      estado: 'PENDIENTE',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
+
+    await notifyClient()
+    return
+  }
+
+  // ─── OTROS ESTADOS (PENDING, PREPARING, DELIVERING, COMPLETED, READY) ───────
+  await updateDoc(orderRef, {
+    estado: newStatus,
+    updatedAt: serverTimestamp()
+  })
   await notifyClient()
 }
 
 /**
- * Crea un pedido físico (venta directa POS) y descuenta stock inmediatamente en una transacción.
+ * Crea un pedido físico directamente en el portal admin (venta POS/Local)
  */
 export async function createPhysicalOrder(orderData, adminId) {
-  const orderNumber = `OR-${Math.floor(10000000 + Math.random() * 90000000)}`
+  const orderNumber = `OR-POS-${Math.floor(100000 + Math.random() * 900000)}`
   const orderIdRef = doc(collection(db, COLLECTIONS.ORDERS))
-  const orderId = orderIdRef.id
-
-  const trackingToken = await generateTrackingToken(orderId, orderData.cliente?.celular)
-
-  const items = orderData.items || []
-  const newStatus = orderData.metodoPago === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.COMPLETED
 
   await runTransaction(db, async (transaction) => {
-    // 1. Leer todos los productos involucrados (excluyendo personalizados)
+    const items = orderData.items || []
+
     const productsCache = {}
     for (const item of items) {
-      if (item.productId && item.productId.startsWith('custom-')) continue
+      if (item.productId?.startsWith('custom-')) continue
       if (!productsCache[item.productId]) {
         const pRef = doc(db, COLLECTIONS.PRODUCTS, item.productId)
         const pDoc = await transaction.get(pRef)
-        if (!pDoc.exists()) {
-          throw new Error(`Producto no encontrado en inventario: ${item.nombre}`)
-        }
+        if (!pDoc.exists()) throw new Error(`Producto no encontrado: ${item.nombre}`)
         productsCache[item.productId] = { ref: pRef, data: pDoc.data() }
       }
     }
 
-    // 2. Modificar el stock
     const updatedProducts = {}
     for (const item of items) {
-      if (item.productId && item.productId.startsWith('custom-')) continue
+      if (item.productId?.startsWith('custom-')) continue
       const productInfo = updatedProducts[item.productId] || productsCache[item.productId]
+      if (!productInfo) continue
+
       const variantes = [...productInfo.data.variantes]
       const variantIndex = variantes.findIndex(v => v.id === item.variantId)
 
       if (variantIndex !== -1) {
-        if (variantes[variantIndex].stock < item.cantidad) {
-          throw new Error(`Stock insuficiente para ${item.nombre} (${variantes[variantIndex].talla || ''} ${variantes[variantIndex].color || ''})`)
+        const stockActual = variantes[variantIndex].stock
+        if (stockActual < item.cantidad) {
+          throw new Error(`Stock insuficiente para "${item.nombre}"`)
         }
-        variantes[variantIndex].stock = Math.max(0, variantes[variantIndex].stock - item.cantidad)
+        variantes[variantIndex].stock = stockActual - item.cantidad
         updatedProducts[item.productId] = {
           ...productInfo,
           data: { ...productInfo.data, variantes }
@@ -412,7 +446,6 @@ export async function createPhysicalOrder(orderData, adminId) {
       }
     }
 
-    // 3. Escribir productos actualizados e incrementar ventas comerciales (salesCount)
     Object.values(updatedProducts).forEach(productInfo => {
       const productItems = items.filter(item => item.productId === productInfo.ref.id)
       const totalQtySold = productItems.reduce((sum, item) => sum + item.cantidad, 0)
@@ -424,35 +457,30 @@ export async function createPhysicalOrder(orderData, adminId) {
       })
     })
 
-    // 4. Escribir orden
     transaction.set(orderIdRef, {
       ...orderData,
       orderNumber,
-      estado: newStatus,
-      type: 'physical',
-      trackingToken,
+      stockDescontado: true,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      createdBy: adminId
+      updatedAt: serverTimestamp()
     })
   })
 
-  // FASE 6: Si es crédito, registrar la deuda
-  if (newStatus === ORDER_STATES.CREDIT_APPROVED) {
-    const creditsRef = collection(db, COLLECTIONS.CREDITS)
+  // Generar deuda si es método Crédito
+  if (orderData.metodoPago === PAYMENT_METHODS.CREDIT) {
+    const creditsRef = collection(db, 'credits')
     await addDoc(creditsRef, {
-      orderId: orderId,
-      orderNumber: orderNumber,
-      clienteNombre: orderData.cliente?.nombre || 'Desconocido',
-      clienteCelular: orderData.cliente?.celular || 'Desconocido',
-      montoTotal: orderData.total || 0,
-      saldoPendiente: orderData.total || 0,
+      orderId: orderIdRef.id,
+      orderNumber,
+      cliente: orderData.cliente,
+      total: orderData.total,
+      saldoPendiente: orderData.total,
       abonos: [],
-      estado: 'activo',
+      estado: 'PENDIENTE',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
   }
 
-  return { id: orderId, orderNumber }
+  return { id: orderIdRef.id, orderNumber }
 }

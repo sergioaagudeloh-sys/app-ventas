@@ -7,7 +7,7 @@ import useAppConfigStore from '../store/appConfigStore'
  * Debe ser llamado una sola vez en la raíz de la aplicación (App.jsx).
  */
 export default function useAppConfigSync() {
-  const { setConfig } = useAppConfigStore()
+  const { setConfig, setCatalogFilters } = useAppConfigStore()
 
   useEffect(() => {
     // Suscripción a los ajustes generales (nombre, tema, banco, whatsapp, etc.)
@@ -17,7 +17,7 @@ export default function useAppConfigSync() {
 
     // Suscripción a los filtros del catálogo activos
     const unsubscribeFilters = subscribeToCatalogFilters((filters) => {
-      setConfig({ catalogFilters: filters })
+      setCatalogFilters(filters)
     })
 
     // Cleanup: desuscribirse cuando se desmonta (idealmente nunca en la raíz)

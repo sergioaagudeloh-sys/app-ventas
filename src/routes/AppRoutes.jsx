@@ -25,6 +25,7 @@ const AdminClaims = lazy(() => import('../pages/admin/AdminClaims'))
 const AdminPortalQR = lazy(() => import('../pages/admin/AdminPortalQR'))
 const AdminQRPerformance = lazy(() => import('../pages/admin/AdminQRPerformance'))
 const AdminDeliveryPerformance = lazy(() => import('../pages/admin/AdminDeliveryPerformance'))
+const AdminNotificationAnalytics = lazy(() => import('../pages/admin/AdminNotificationAnalytics'))
 
 // Páginas Cliente
 const ClientCatalog = lazy(() => import('../pages/client/ClientCatalog'))
@@ -34,6 +35,7 @@ const ClientCredits = lazy(() => import('../pages/client/ClientCredits'))
 const ClientProfile = lazy(() => import('../pages/client/ClientProfile'))
 const OrderTracking = lazy(() => import('../pages/client/OrderTracking'))
 const ProductPublicDetail = lazy(() => import('../pages/client/ProductPublicDetail'))
+const ProductDetailPage = lazy(() => import('../pages/client/ProductDetailPage'))
 
 // Páginas Portal Operativo
 const PortalAuth = lazy(() => import('../pages/portal/PortalAuth'))
@@ -84,6 +86,7 @@ export default function AppRoutes() {
           <Route path="portales-qr" element={<AdminPortalQR />} />
           <Route path="rendimiento-qr" element={<AdminQRPerformance />} />
           <Route path="rendimiento-entregas" element={<AdminDeliveryPerformance />} />
+          <Route path="notificaciones" element={<AdminNotificationAnalytics />} />
         </Route>
 
         {/* ─── Rutas del Cliente ───────────────────────────────────────── */}
@@ -102,6 +105,15 @@ export default function AppRoutes() {
           <Route path="creditos" element={<ClientCredits />} />
           <Route path="perfil" element={<ClientProfile />} />
         </Route>
+
+        <Route
+          path="/producto/:id"
+          element={
+            <RequireAuth allowedRole={ROLES.CLIENT}>
+              <ProductDetailPage />
+            </RequireAuth>
+          }
+        />
 
         {/* ─── Portal Operativo: Autenticación por PIN ─────────────────── */}
         <Route path="/portal/auth" element={<PortalAuth />} />
@@ -140,7 +152,6 @@ export default function AppRoutes() {
               <PortalMensajero />
             </RequirePortalAuth>
           } />
-          <Route index element={<Navigate to="/portal/auth" replace />} />
         </Route>
 
         {/* ─── Ruta raíz: Bienvenida y Seguimiento Público ────────────────── */}
@@ -152,4 +163,3 @@ export default function AppRoutes() {
     </Suspense>
   )
 }
-

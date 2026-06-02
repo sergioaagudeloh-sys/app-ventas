@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, SlidersHorizontal, PackageX, Sparkles, X, Tag } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useProducts, useCategories } from '../../hooks/useInventory'
 import { getCategoryIconComponent } from '../../constants/categoryIcons'
 import { useAds } from '../../hooks/useAds'
 import useAppConfigStore from '../../store/appConfigStore'
 import SmartHint from '../../components/client/guided/SmartHint'
 import ProductCard from '../../components/client/catalog/ProductCard'
-import ProductDetailModal from '../../components/client/catalog/ProductDetailModal'
 import WholesaleRequestModal from '../../components/client/catalog/WholesaleRequestModal'
 import ClientFilterModal from '../../components/client/catalog/ClientFilterModal'
 import CatalogBanner from '../../components/client/catalog/CatalogBanner'
@@ -50,6 +50,7 @@ function WholesaleButton({ product, wholesaleSettings, onRequest }) {
 }
 
 export default function ClientCatalog() {
+  const navigate = useNavigate()
   // Datos
   const { data: allProducts = [], isLoading: isLoadingProducts } = useProducts(true) // Solo activos
   const { data: allCategories = [] } = useCategories()
@@ -62,7 +63,6 @@ export default function ClientCatalog() {
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false)
   
   // Modales
-  const [selectedProduct, setSelectedProduct] = useState(null)
   const [wholesaleRequest, setWholesaleRequest] = useState(null) // { product, type: 'mayorista' | 'encargo' }
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
@@ -209,17 +209,34 @@ export default function ClientCatalog() {
   // Manejar clics de CTA y banners
   const handleAdAction = (action) => {
     if (!action) return
-    
-    if (action.type === 'product') {
-      const prod = processedProducts.find(p => p.id === action.value?.id)
+    console.log("[ClientCatalog] handleAdAction invoked with action:", action)
+
+    // Si es un producto real o vinculación del inventario, abrimos su detalle de catálogo directo
+    if (action.type === 'product' || action.type === 'modal' || (action.ad && action.ad.type === 'inventory')) {
+      const targetProductId = action.value?.id || action.ad?.productId
+      const prod = processedProducts.find(p => p.id === targetProductId)
       if (prod) {
         if (prod.isTemporal) {
+          console.log("[ClientCatalog] Opening temporal product promo modal")
           setPromoModalAd(prod.promocion)
         } else {
-          setSelectedProduct(prod)
+          console.log("[ClientCatalog] Navigating to normal product detail page:", prod.nombre)
+          navigate('/producto/' + prod.id)
         }
+        return
+      } else {
+        console.warn("[ClientCatalog] Product not found for ID:", targetProductId)
       }
-    } else if (action.type === 'whatsapp') {
+    }
+
+    // Si viene del banner y es un anuncio personalizado o modal, forzamos abrir el modal de anuncio/promoción
+    if (action.fromBanner && action.ad && action.ad.type !== 'inventory') {
+      console.log("[ClientCatalog] Ad clicked from banner: forcing promo modal view")
+      setPromoModalAd(action.ad)
+      return
+    }
+    
+    if (action.type === 'whatsapp') {
       const cleanPhone = action.value ? action.value.replace(/\D/g, '') : (whatsappAdmin || SUPPORT_WHATSAPP).replace(/\D/g, '')
       const message = encodeURIComponent(`¡Hola! Estoy interesado en la promoción: *${action.ad?.title || 'Anuncio'}*`)
       window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank')
@@ -229,14 +246,23 @@ export default function ClientCatalog() {
         window.open(url, '_blank')
       }
     } else if (action.type === 'category') {
-      const cat = activeCategories.find(c => c.id === action.value || c.nombre.toLowerCase() === action.value.toLowerCase())
+      const searchVal = (action.value || '').trim().toLowerCase()
+      const cat = activeCategories.find(c => 
+        c.id === action.value || 
+        c.id === searchVal || 
+        c.nombre.toLowerCase().trim() === searchVal
+      )
       if (cat) {
         setSelectedCategoryId(cat.id)
       } else {
         setSelectedCategoryId('all')
       }
-    } else if (action.type === 'modal') {
-      setPromoModalAd(action.ad)
+    } else {
+      // Acción por defecto (modal, vacía, none, etc.): abrimos el modal promocional para máxima interactividad
+      if (action.ad) {
+        console.log("[ClientCatalog] Default action matches: opening promo modal for ad")
+        setPromoModalAd(action.ad)
+      }
     }
   }
 
@@ -253,6 +279,8 @@ export default function ClientCatalog() {
               <Search size={20} />
             </div>
             <input
+              id="search-input"
+              name="search"
               type="text"
               placeholder="¿Qué estás buscando hoy?"
               value={searchTerm}
@@ -310,23 +338,23 @@ export default function ClientCatalog() {
             </div>
 
             {/* Grid de tarjetas cuadradas de categorías en mobile / chips horizontales en desktop */}
-            <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-2 sm:gap-3">
+            <div className="flex overflow-x-auto pb-2 scrollbar-none w-full gap-2 sm:gap-3 sm:flex-wrap">
               {/* Tarjeta "Todos" */}
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setSelectedCategoryId('all')}
-                className={`aspect-square sm:aspect-auto w-full sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
+                className={`min-h-[80px] sm:min-h-0 sm:aspect-auto w-24 shrink-0 sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                   selectedCategoryId === 'all'
                     ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                     : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                 }`}
               >
                 <Tag 
-                  className={`w-7 h-7 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
+                  className={`w-6 h-6 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
                     selectedCategoryId === 'all' ? 'text-white' : 'text-primary'
                   }`} 
                 />
-                <span className="font-extrabold sm:font-bold text-[9px] sm:text-xs uppercase sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-1 select-none">
+                <span className="font-extrabold sm:font-bold text-[11px] sm:text-xs sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-1 select-none">
                   Todos
                 </span>
               </motion.button>
@@ -340,20 +368,18 @@ export default function ClientCatalog() {
                     key={cat.id}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setSelectedCategoryId(cat.id)}
-                    className={`aspect-square sm:aspect-auto w-full sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
-                      idx >= 3 && !isCategoriesExpanded ? 'hidden sm:flex' : 'flex'
-                    } ${
+                    className={`min-h-[80px] sm:min-h-0 sm:aspect-auto w-24 shrink-0 sm:w-auto sm:h-11 sm:px-5 flex flex-col sm:flex-row items-center justify-center p-2 rounded-2xl border transition-all duration-300 ${
                       isSelected
                         ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                         : 'bg-surface text-app border-primary-soft hover:border-primary hover:bg-surface-2'
                     }`}
                   >
                     <IconComponent 
-                      className={`w-7 h-7 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
+                      className={`w-6 h-6 sm:w-4 sm:h-4 shrink-0 mb-1 sm:mb-0 transition-colors ${
                         isSelected ? 'text-white' : 'text-primary'
                       }`} 
                     />
-                    <span className="font-extrabold sm:font-bold text-[9px] sm:text-xs uppercase sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-2 break-words select-none px-0.5 sm:px-0">
+                    <span className="font-extrabold sm:font-bold text-[11px] sm:text-xs sm:normal-case tracking-wider sm:tracking-normal text-center leading-tight line-clamp-2 break-words select-none px-0.5 sm:px-0">
                       {cat.nombre}
                     </span>
                   </motion.button>
@@ -404,7 +430,7 @@ export default function ClientCatalog() {
                     if (prod.isTemporal) {
                       setPromoModalAd(prod.promocion)
                     } else {
-                      setSelectedProduct(prod)
+                      navigate('/producto/' + prod.id)
                     }
                   }} 
                   layout={catalogLayout}
@@ -421,12 +447,6 @@ export default function ClientCatalog() {
       </div>
 
       {/* ─── MODALES ────────────────────────────────────────────────── */}
-      <ProductDetailModal
-        product={selectedProduct}
-        isOpen={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-      />
-
       <WholesaleRequestModal
         product={wholesaleRequest?.product}
         type={wholesaleRequest?.type}

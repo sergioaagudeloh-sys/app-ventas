@@ -84,6 +84,12 @@ export default function ProductPublicDetail() {
   const optEnabled = commercialOptimization?.enabled === true
   const advancedGalleryEnabled = optEnabled && commercialOptimization?.tools?.advancedGallery?.enabled !== false
   const visualVariationsEnabled = optEnabled && commercialOptimization?.tools?.visualVariations?.enabled !== false
+  const installmentsEnabled = optEnabled && commercialOptimization?.tools?.installments?.enabled !== false
+  const premiumBannerEnabled = optEnabled && commercialOptimization?.tools?.premiumBanner?.enabled !== false
+  const trustBadgesEnabled = optEnabled && commercialOptimization?.tools?.trustBadges?.enabled !== false
+  const smartTagsEnabled = optEnabled && commercialOptimization?.tools?.smartTags?.enabled !== false
+  const newProductTagEnabled = smartTagsEnabled && commercialOptimization?.tools?.smartTags?.newProduct?.enabled !== false
+  const bestSellerTagEnabled = smartTagsEnabled && commercialOptimization?.tools?.smartTags?.bestSeller?.enabled !== false
   
   const [selectedTalla, setSelectedTalla] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
@@ -470,27 +476,29 @@ export default function ProductPublicDetail() {
         {/* Ficha técnica y comercial SUPERIOR - arriba de la foto, matching Screenshots 1 & 4 */}
         <div className="space-y-2">
           {/* Metadatos Comerciales Superiores */}
-          <div className="flex items-center gap-2 flex-wrap text-xs text-muted font-medium">
-            {isNewProduct ? (
-              <span className="font-semibold text-[#333] dark:text-[#ccc]">
-                Nuevo
-              </span>
-            ) : null}
-            {isNewProduct && product.salesCount > 0 && (
-              <span className="text-muted/30">|</span>
-            )}
-            {product.salesCount && product.salesCount > 0 ? (
-              <span className="font-semibold">
-                +{product.salesCount} vendidos
-              </span>
-            ) : null}
-            
-            <div className="flex items-center gap-0.5 ml-auto shrink-0 font-semibold">
-              <span className="text-app">4.8</span>
-              <span className="text-yellow-500 text-[10px]">★★★★★</span>
-              <span className="text-[10px] text-muted font-normal">(12)</span>
+          {optEnabled && (
+            <div className="flex items-center gap-2 flex-wrap text-xs text-muted font-medium">
+              {isNewProduct && newProductTagEnabled ? (
+                <span className="font-semibold text-[#333] dark:text-[#ccc]">
+                  Nuevo
+                </span>
+              ) : null}
+              {isNewProduct && newProductTagEnabled && product.salesCount > 0 && bestSellerTagEnabled && (
+                <span className="text-muted/30">|</span>
+              )}
+              {product.salesCount && product.salesCount > 0 && bestSellerTagEnabled ? (
+                <span className="font-semibold">
+                  +{product.salesCount} vendidos
+                </span>
+              ) : null}
+              
+              <div className="flex items-center gap-0.5 ml-auto shrink-0 font-semibold">
+                <span className="text-app">4.8</span>
+                <span className="text-yellow-500 text-[10px]">★★★★★</span>
+                <span className="text-[10px] text-muted font-normal">(12)</span>
+              </div>
             </div>
-          </div>
+          )}
 
           <h1 className="text-xl font-bold text-app leading-tight tracking-tight">{product.nombre}</h1>
 
@@ -763,58 +771,6 @@ export default function ProductPublicDetail() {
             )}
           </div>
 
-          {/* Cuotas sin interés dinámicas, matching Screenshots 4 & 5 */}
-          {actualPrice > 0 && (
-            <div className="space-y-1.5 pt-0.5">
-              <p className="text-xs text-[#00a650] font-bold flex items-center gap-1 leading-none">
-                en {actualPrice < 100000 ? 3 : 6} cuotas de {formatCurrency(Math.round(actualPrice / (actualPrice < 100000 ? 3 : 6)))} con 0% de interés
-              </p>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted">
-                <span className="hover:underline cursor-pointer text-primary font-semibold">Medios de pago</span>
-                <span className="text-muted/40">|</span>
-                <div className="flex items-center gap-1 opacity-75">
-                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">VISA</span>
-                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">MC</span>
-                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">AMEX</span>
-                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">PSE</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Banner de beneficios premium / cuotas extras matching Screenshots 4 */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-primary/10 border border-purple-500/20 flex items-center justify-between gap-3 shadow-inner">
-            <div className="space-y-0.5">
-              <p className="text-[10px] font-black text-app uppercase tracking-wider">CUOTAS EXTRA SIN INTERÉS</p>
-              <p className="text-[9px] text-muted leading-tight">Accede a 12 cuotas con 0% y envíos prioritarios gratis</p>
-            </div>
-            <div className="bg-primary text-white text-[8px] font-black px-2 py-1 rounded-lg shrink-0 uppercase cursor-pointer hover:opacity-90 active:scale-95 transition-all">
-              SUSCRIBIRME
-            </div>
-          </div>
-
-          {/* Detalles de Envío / Devolución matching Screenshots 2, 4 & 5 */}
-          <div className="pt-3 space-y-3">
-            <div className="flex items-start gap-2.5">
-              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-[#00a650] shrink-0 mt-0.5 text-xs font-bold">
-                ⚡
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#00a650]">Llega gratis mañana</p>
-                <p className="text-[10px] text-muted">Beneficio de envío rápido Full para tu ubicación actual</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-2.5">
-              <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-primary shrink-0 mt-0.5 text-xs font-bold">
-                🔄
-              </div>
-              <div>
-                <p className="text-xs font-bold text-primary">Devolución gratis</p>
-                <p className="text-[10px] text-muted">Tienes 30 días desde que lo recibes para arrepentirte sin costos</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Descripción corta */}

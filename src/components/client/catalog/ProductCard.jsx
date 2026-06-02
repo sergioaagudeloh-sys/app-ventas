@@ -148,13 +148,19 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
       whileHover={{ y: -4 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={`bg-surface overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer border border-app group ${
-        layout === 'list' ? 'flex flex-row h-32' : 'flex flex-col'
+        layout === 'list' ? 'flex flex-row h-32' : 'flex flex-col h-full'
       } ${isOutOfStock ? 'opacity-70' : ''}`}
       style={{
         ...glowStyle,
         borderRadius: 'var(--radius-base)'
       }}
-      onClick={() => onOpenDetail(product)}
+      onClick={() => {
+        if (product.isTemporal) {
+          onOpenDetail(product)
+        } else {
+          navigate('/producto/' + product.id)
+        }
+      }}
     >
       {/* Imagen */}
       <div className={`relative bg-surface-2 overflow-hidden shrink-0 ${
@@ -165,6 +171,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
             src={product.imageUrl}
             alt={product.nombre}
             className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isOutOfStock ? 'grayscale' : ''}`}
+            style={{ viewTransitionName: 'product-image' }}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-muted">
@@ -192,18 +199,12 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           >
             {activeSmartTag.text}
           </span>
-        ) : product.tienePromocion ? (
+        ) : product.tienePromocion && product.isTemporal ? (
           <span 
             className="absolute top-3 left-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-primary text-white shadow-md z-10 border border-primary-soft"
             style={{ borderRadius: 'var(--radius-base)' }}
           >
-            {product.isTemporal ? (
-              'COMBO'
-            ) : product.promocion?.discountType === 'percentage' ? (
-              `-${product.promocion.discountValue}%`
-            ) : (
-              'OFERTA'
-            )}
+            COMBO
           </span>
         ) : null}
 
@@ -228,32 +229,19 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
         </motion.button>
 
         {/* Floating Quick Buy button matching screenshots */}
-        {!isOutOfStock && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onOpenDetail(product)
-            }}
-            className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white text-primary flex items-center justify-center border border-black/10 shadow-md active:scale-90 transition-all z-10 hover:bg-slate-50"
-            aria-label="Ver opciones"
-          >
-            <Plus size={18} className="text-primary font-bold" />
-          </button>
-        )}
       </div>
 
       {/* Info */}
-      <div className={`p-4 flex-1 flex flex-col justify-between min-w-0`}>
+      <div className="p-4 flex-1 flex flex-col gap-1 min-w-0">
         <div>
-          <h3 className="font-bold text-app text-sm leading-tight mb-1 truncate" title={product.nombre}>
-            {layout === 'list' ? product.nombre : truncate(product.nombre, 40)}
+          <h3 className="text-gray-800 font-semibold group-hover:text-primary transition-colors duration-200 text-sm leading-tight line-clamp-2 mb-0.5" title={product.nombre}>
+            {product.nombre}
           </h3>
-          <p className="text-xs text-muted mb-1">{product.categoria}</p>
+          <p className="text-xs text-muted">{product.categoria}</p>
 
           {/* Indicador de Variantes en Tarjeta */}
           {variationIndicatorsEnabled && uniqueColors.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-1 pb-1 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-1.5 pb-1 flex-wrap">
               {uniqueColors.map((color, idx) => {
                 const hex = getCssColor(color)
                 return (
@@ -280,41 +268,45 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           )}
         </div>
         
-        <div className="flex flex-col gap-1 mt-auto pt-2">
-          {product.tienePromocion && product.precioPromo < product.precioBase ? (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                <span className="text-[9px] font-black text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-md">
-                  {product.promocion?.discountType === 'percentage'
-                    ? `${product.promocion.discountValue}% OFF`
-                    : 'OFERTA'}
-                </span>
-                <span className="text-xs text-muted line-through font-semibold leading-none">
-                  {formatCurrency(product.precioBase)}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <p className="font-bold text-primary text-base leading-none">
+        <div className="flex items-center justify-between gap-2 mt-auto pt-1">
+          <div className="min-w-0">
+            {product.tienePromocion && product.precioPromo < product.precioBase ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-lg font-bold text-primary leading-none">
                   {formatCurrency(product.precioPromo)}
                 </p>
-                {product.salesCount && product.salesCount > 0 && (
-                  <span className="text-[10px] text-muted font-medium">
-                    +{product.salesCount} vendidos
-                  </span>
-                )}
+                <span className="text-xs text-gray-400 line-through leading-none">
+                  {formatCurrency(product.precioBase)}
+                </span>
+                <span className="text-[9px] font-black text-green-600 bg-green-500/10 px-1 py-0.5 rounded">
+                  {product.promocion?.discountType === 'percentage'
+                    ? `${product.promocion.discountValue}%`
+                    : 'OFERTA'}
+                </span>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-baseline gap-2 flex-wrap">
-              <p className={`font-bold text-base leading-none ${isOutOfStock ? 'text-muted' : 'text-primary'}`}>
+            ) : (
+              <p className={`text-lg font-bold leading-none ${isOutOfStock ? 'text-gray-400 line-through' : 'text-primary'}`}>
                 {formatCurrency(product.precioBase)}
               </p>
-              {product.salesCount && product.salesCount > 0 && (
-                <span className="text-[10px] text-muted font-medium">
-                  +{product.salesCount} vendidos
-                </span>
-              )}
-            </div>
+            )}
+          </div>
+
+          {!isOutOfStock && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (product.isTemporal) {
+                  onOpenDetail(product)
+                } else {
+                  navigate('/producto/' + product.id)
+                }
+              }}
+              className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20 hover:shadow-lg hover:scale-110 active:scale-90 transition-all duration-200 shrink-0"
+              aria-label="Ver opciones"
+            >
+              <Plus size={16} strokeWidth={3} />
+            </button>
           )}
         </div>
       </div>

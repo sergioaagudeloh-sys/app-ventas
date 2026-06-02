@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  addDoc,
   query,
   orderBy,
   onSnapshot,
@@ -9,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
+import { createCentralNotification, NC_TYPES } from './notificationCenterService'
 
 const claimsRef = collection(db, COLLECTIONS.CLAIMS || 'claims')
 
@@ -23,6 +25,36 @@ export function subscribeToClaims(onUpdate) {
     const claims = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     onUpdate(claims)
   })
+}
+
+/**
+ * Registra un reclamo de cliente y notifica al Admin mediante el Notification Center
+ */
+export async function createClientClaim({ orderId, orderNumber, clientName, clientCelular, reason, description }) {
+  const ref = await addDoc(claimsRef, {
+    orderId,
+    orderNumber,
+    clientName,
+    clientCelular,
+    reason,
+    description,
+    status: 'PENDING',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  })
+
+  // Notificar al Admin en tiempo real
+  await createCentralNotification({
+    recipientId: 'admin',
+    recipientRole: 'admin',
+    title: 'Nuevo Reclamo Recibido',
+    body: `Reclamo de ${clientName} (${clientCelular}) para el pedido #${orderNumber}. Motivo: ${reason}`,
+    type: NC_TYPES.RECLAMO_NUEVO,
+    orderId,
+    orderNumber
+  })
+
+  return ref.id
 }
 
 /**

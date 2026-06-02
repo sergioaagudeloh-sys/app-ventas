@@ -98,7 +98,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          className="relative w-full max-w-md bg-surface rounded-3xl shadow-2xl p-6 border border-app overflow-hidden"
+          className="relative w-full max-w-md bg-surface rounded-3xl shadow-[0_10px_50px_rgba(0,0,0,0.1),inset_0_1px_1px_rgba(255,255,255,0.1)] p-6 border border-slate-200/50 overflow-hidden"
         >
           {success ? (
             <div className="text-center py-8">
@@ -115,10 +115,10 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
             <>
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                     <PackagePlus size={20} />
                   </div>
-                  <h2 className="text-lg font-bold text-app">
+                  <h2 className="text-lg font-extrabold text-app">
                     {isWholesale ? 'Venta al por mayor' : 'Pedir por encargo'}
                   </h2>
                 </div>
@@ -130,8 +130,8 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                 </button>
               </div>
 
-              <div className="mb-4 bg-surface-2 p-3 rounded-xl border border-app">
-                <p className="text-sm font-semibold text-app line-clamp-1">{product.nombre}</p>
+              <div className="mb-4 bg-surface-2 p-4 rounded-2xl border border-slate-200/40">
+                <p className="text-sm font-bold text-app line-clamp-1">{product.nombre}</p>
                 {isWholesale && product.precioMayorista && (
                   <p className="text-xs text-primary font-bold mt-1">
                     Precio especial al por mayor disponible
@@ -140,19 +140,19 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
               </div>
 
               {/* Desglose de precios en tiempo real */}
-              <div className="mb-4 bg-surface-2 p-4 rounded-xl border border-app space-y-2">
+              <div className="mb-4 bg-surface-2 p-4 rounded-2xl border border-slate-200/40 space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted">Precio Detal (unidad):</span>
-                  <span className="text-app font-medium">${Number(product.precioBase || 0).toLocaleString()} COP</span>
+                  <span className="text-muted text-sm">Precio Detal (unidad):</span>
+                  <span className="text-app text-base font-semibold">${Number(product.precioBase || 0).toLocaleString()} COP</span>
                 </div>
                 {isWholesale && product.precioMayorista && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted">Precio Mayorista (unidad):</span>
-                    <span className="text-primary font-bold">${Number(product.precioMayorista).toLocaleString()} COP</span>
+                    <span className="text-muted text-sm">Precio Mayorista (unidad):</span>
+                    <span className="text-primary text-base font-bold">${Number(product.precioMayorista).toLocaleString()} COP</span>
                   </div>
                 )}
                 {isWholesale && product.precioMayorista && Number(cantidad) >= 12 && (
-                  <div className="pt-2 border-t border-app flex justify-between items-center">
+                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
                     <span className="text-xs font-bold text-app">Cotización Estimada ({cantidad} uds):</span>
                     <span className="text-sm font-black text-primary">
                       ${(Number(cantidad) * Number(product.precioMayorista)).toLocaleString()} COP
@@ -160,7 +160,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                   </div>
                 )}
                 {!isWholesale && Number(cantidad) > 0 && (
-                  <div className="pt-2 border-t border-app flex justify-between items-center">
+                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
                     <span className="text-xs font-bold text-app">Valor Estimado ({cantidad} uds):</span>
                     <span className="text-sm font-black text-primary">
                       ${(Number(cantidad) * Number(product.precioBase)).toLocaleString()} COP
@@ -169,7 +169,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                 )}
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-app mb-1">
                     {isWholesale ? 'Cantidad deseada (Mín. 12) *' : 'Cantidad deseada *'}
@@ -180,7 +180,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                     required
                     value={cantidad}
                     onChange={(e) => setCantidad(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-surface border border-app text-app focus:outline-none focus:border-primary text-center font-bold text-lg"
+                    className="w-full h-12 px-4 rounded-2xl bg-surface border border-slate-200/60 text-app focus:outline-none focus:border-primary text-center font-bold text-lg"
                     placeholder={isWholesale ? "Ej: 12" : "Ej: 3"}
                   />
                 </div>
@@ -193,12 +193,12 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                     rows={3}
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
-                    className="w-full p-3 rounded-xl bg-surface border border-app text-app focus:outline-none focus:border-primary text-sm resize-none"
+                    className="w-full p-3 rounded-2xl bg-surface border border-slate-200/60 text-app focus:outline-none focus:border-primary text-sm resize-none"
                     placeholder={isWholesale ? "Ej: Necesito tallas surtidas..." : "Ej: Color o especificaciones particulares..."}
                   />
                 </div>
 
-                <div className="bg-primary/5 p-3 rounded-xl mt-2">
+                <div className="bg-primary/5 p-3 rounded-2xl mt-2">
                   <p className="text-xs text-primary leading-relaxed">
                     <strong>Nota:</strong> Esta solicitud abrirá WhatsApp para enviar el desglose de tu cotización y se guardará en tu historial de pedidos especiales.
                   </p>
@@ -207,7 +207,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer"
+                  className="w-full h-12 bg-primary text-white rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer"
                 >
                   {isSubmitting ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

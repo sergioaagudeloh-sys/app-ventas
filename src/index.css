@@ -1242,7 +1242,34 @@ select option {
 .qr-session-status::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 99px; background: currentColor; animation: pulse 1.5s infinite; }
 
 .qr-no-sessions { text-align: center; padding: 3rem 1rem; border: 1px dashed var(--color-border); border-radius: 1rem; color: var(--color-text-muted); font-size: 0.8rem; background: var(--color-surface); }
+/* ─── Animación Wiggle Suave (10 grados cada 2s) ────────────────────────── */
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-10deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+}
+.animate-wiggle-infinite {
+  animation: wiggle 2s ease-in-out infinite;
+}
 
-
-
-
+/* ─── Animación Shimmer (Barrido de Brillo Horizontal Suave e Impecable) ───────────── */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-180%) skewX(-30deg);
+  }
+  35% {
+    transform: translateX(180%) skewX(-30deg);
+  }
+  100% {
+    transform: translateX(180%) skewX(-30deg);
+  }
+}
+.animate-shimmer-infinite {
+  animation: shimmer 5s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}

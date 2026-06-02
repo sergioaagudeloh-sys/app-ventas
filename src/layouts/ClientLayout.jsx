@@ -10,12 +10,11 @@ import useInactivityTimer from '../hooks/useInactivityTimer'
 import SmartHint from '../components/client/guided/SmartHint'
 import ClientCouponsModal from '../components/client/coupons/ClientCouponsModal'
 import { useCoupons } from '../hooks/useCoupons'
-import {
-  subscribeToClientNotifications,
-  markNotificationAsRead,
-  clearAllClientNotifications
-} from '../services/clientNotificationService'
-import { playClientSound } from '../utils/audio'
+
+import useNotificationCenter from '../hooks/useNotificationCenter'
+import useFCMPermission from '../hooks/useFCMPermission'
+import NotificationHistoryTray from '../components/common/NotificationHistoryTray'
+import NCToastContainer from '../components/common/NCToastContainer'
 
 const NAV_ITEMS_LEFT = [
   { path: '/tienda/catalogo', icon: ShoppingCart, label: 'Catálogo' },
@@ -35,12 +34,6 @@ const ALL_NAV_ITEMS = [
   { path: '/tienda/perfil', icon: User, label: 'Perfil' },
 ]
 
-/**
- * Layout principal del Cliente.
- * Desktop: sidebar izquierdo fijo.
- * Mobile: barra de navegación inferior con botón central circular para cupones.
- * Incluye el CartDrawer global accesible desde cualquier página.
- */
 export default function ClientLayout() {
   const { appName, appIcon, creditsEnabled, couponsEnabled } = useAppConfigStore()
   const { getCount, openCart, isOpen: isCartOpen } = useCartStore()
@@ -55,16 +48,59 @@ export default function ClientLayout() {
   const allNavItems = useMemo(() => {
     return ALL_NAV_ITEMS.filter(item => item.path !== '/tienda/creditos' || creditsEnabled)
   }, [creditsEnabled])
-  
+
   const [isCouponsOpen, setIsCouponsOpen] = useState(false)
   const [toasts, setToasts] = useState([])
-  const [notifications, setNotifications] = useState([])
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
-  const [isRinging, setIsRinging] = useState(false)
   const cartCount = getCount()
   const userId = user?.celular || user?.uid
 
-  // Conteo de cupones activos para el badge del botón de Ofertas
+  // Sincronizar el permiso y tokens de FCM para Cliente
+  const { requestPermission } = useFCMPermission(user?.celular || 'client', 'client')
+
+  useEffect(() => {
+    if (user?.celular) {
+      requestPermission()
+    }
+  }, [user?.celular, requestPermission])
+
+  // Hook central del Notification Center para Clientes
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const {
+    notifications,
+    unreadCount,
+    isRinging,
+    markRead,
+    markAllRead,
+    clearAll
+  } = useNotificationCenter({
+    recipientId: user?.celular || 'client',
+    recipientRole: 'client',
+    soundEnabled
+  })
+
+  // Generar toasts en tiempo real cuando llega una notificación no leída genuinamente nueva
+  useEffect(() => {
+    const unread = notifications.filter(n => n.status === 'unread')
+    if (unread.length > 0) {
+      const mostRecent = unread[0]
+      setToasts(prev => {
+        if (prev.some(t => t.id === mostRecent.id)) return prev
+        const newToast = {
+          id: mostRecent.id,
+          title: mostRecent.title,
+          body: mostRecent.body,
+          clickAction: mostRecent.clickAction
+        }
+        setTimeout(() => {
+          setToasts(current => current.filter(t => t.id !== mostRecent.id))
+        }, 5000)
+        return [...prev, newToast]
+      })
+    }
+  }, [notifications])
+
+  // Conteo de cupones activos
   const { data: allCoupons = [] } = useCoupons()
   const activeCouponsCount = useMemo(() => {
     const now = new Date()
@@ -82,63 +118,6 @@ export default function ClientLayout() {
   // Inactividad: 10s si hay items pero el carrito está cerrado
   const { isInactive: isCartInactive } = useInactivityTimer(10000, cartCount > 0 && !isCartOpen)
 
-  // Tracker de notificaciones
-  const isFirstLoadNotifications = useRef(true)
-  const prevNotificationsCount = useRef(0)
-  const currentNotificationsRef = useRef([])
-
-  useEffect(() => {
-    currentNotificationsRef.current = notifications
-  }, [notifications])
-
-  const triggerToast = (message, type = 'status', orderId = null) => {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, message, type, orderId }])
-    playClientSound()
-    setIsRinging(true)
-    setTimeout(() => setIsRinging(false), 2000)
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, 5000)
-  }
-
-  // Suscribirse a las notificaciones persistentes en tiempo real
-  useEffect(() => {
-    if (!user?.celular) return
-
-    console.log("[ClientLayout] Suscribiéndose a notificaciones para celular:", user.celular)
-    const unsubNotifications = subscribeToClientNotifications(user.celular, (notifs) => {
-      console.log("[ClientLayout] Recibido snapshot de notificaciones. Cantidad:", notifs.length, "FirstLoad:", isFirstLoadNotifications.current)
-      
-      if (isFirstLoadNotifications.current) {
-        setNotifications(notifs)
-        prevNotificationsCount.current = notifs.length
-        isFirstLoadNotifications.current = false
-        return
-      }
-
-      if (notifs.length > prevNotificationsCount.current) {
-        // Encontrar las que son verdaderamente nuevas
-        const currentIds = new Set(currentNotificationsRef.current.map(n => n.id))
-        const newNotifs = notifs.filter(n => !currentIds.has(n.id))
-        
-        newNotifs.forEach(n => {
-          console.log("[ClientLayout] Nueva notificación recibida en tiempo real:", n.message)
-          triggerToast(n.message, n.type, n.orderId)
-        })
-      }
-
-      setNotifications(notifs)
-      prevNotificationsCount.current = notifs.length
-    })
-
-    return () => {
-      unsubNotifications()
-      isFirstLoadNotifications.current = true
-      prevNotificationsCount.current = 0
-    }
-  }, [user?.celular])
-
   useEffect(() => {
     if (userId) {
       subscribe(userId)
@@ -147,20 +126,21 @@ export default function ClientLayout() {
     }
   }, [userId, subscribe, unsubscribe])
 
-  const handleNotificationClick = async (n) => {
-    setIsNotificationsOpen(false)
-    if (n.id) {
-      await markNotificationAsRead(n.id)
-    }
-    if (n.orderId) {
-      navigate('/tienda/pedidos', { state: { highlightOrderId: n.orderId } })
-    } else {
-      navigate('/tienda/pedidos')
+  const handleToastClick = (toast) => {
+    setToasts(prev => prev.filter(t => t.id !== toast.id))
+    if (toast.clickAction) {
+      navigate(toast.clickAction)
     }
   }
 
   return (
     <div className="min-h-screen bg-app flex w-full max-w-[100vw] overflow-x-hidden">
+      {/* Contenedor de Toasts Unificado del NC */}
+      <NCToastContainer
+        toasts={toasts}
+        onCloseToast={(id) => setToasts(prev => prev.filter(t => t.id !== id))}
+        onToastClick={handleToastClick}
+      />
 
       {/* ─── SIDEBAR DESKTOP ────────────────────────────────────────────── */}
       <aside
@@ -168,335 +148,224 @@ export default function ClientLayout() {
         aria-label="Navegación del cliente"
       >
         {/* Header del sidebar */}
-        <div className="flex items-center justify-between p-6 border-b border-app">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between p-4 border-b border-app gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             {appIcon ? (
               <img
                 src={appIcon}
                 alt={`Logo ${appName}`}
-                className="w-[54px] h-[54px] rounded-2xl object-cover"
+                className="w-10 h-10 rounded-xl object-cover shrink-0"
               />
             ) : (
-              <div className="w-[54px] h-[54px] rounded-2xl bg-primary flex items-center justify-center">
-                <ShoppingCart size={26} className="text-white" aria-hidden="true" />
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shrink-0">
+                <ShoppingCart size={18} className="text-white" aria-hidden="true" />
               </div>
             )}
-            <p className="font-bold text-sm text-app">{appName}</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-extrabold text-sm text-app truncate leading-tight">{appName}</p>
+              <p className="text-[10px] text-muted truncate">Tienda Virtual</p>
+            </div>
           </div>
 
-          {/* Campana de notificaciones (Desktop Sidebar) */}
-          <div className="relative">
+          {/* Carrito y Campana de notificaciones (Desktop Sidebar) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Carrito de Compras Permanente */}
             <button
-              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              onClick={openCart}
               className="relative w-8 h-8 rounded-lg bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
-              aria-label="Notificaciones"
+              aria-label="Carrito de compras"
             >
-              <motion.div
-                animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
-                transition={{ duration: 0.6, ease: 'easeInOut' }}
-              >
-                <Bell size={14} />
-              </motion.div>
-              {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
-                  {notifications.length}
+              <ShoppingCart size={14} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
+                  {cartCount}
                 </span>
               )}
             </button>
-            <AnimatePresence>
-              {isNotificationsOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-[9999] bg-transparent" 
-                    onClick={() => setIsNotificationsOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                    className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-[10000] p-4 space-y-3"
-                  >
-                  <div className="flex items-center justify-between border-b border-app pb-2">
-                    <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
-                    {notifications.length > 0 && (
-                      <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
-                    )}
-                  </div>
-                  {notifications.length === 0 ? (
-                    <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
-                  ) : (
-                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                      {notifications.map(n => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => handleNotificationClick(n)}
-                          className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
-                              {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
-                            </span>
-                          </div>
-                          <p className="text-muted leading-tight">{n.message}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+
+            {/* Campana de notificaciones */}
+            <div className="relative">
+              <button
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="relative w-8 h-8 rounded-lg bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+                aria-label="Notificaciones"
+              >
+                <motion.div
+                  animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
+                  transition={{ duration: 0.6, ease: 'easeInOut' }}
+                >
+                  <Bell size={14} />
                 </motion.div>
-              </>
-              )}
-            </AnimatePresence>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Navegación */}
-        <nav className="flex-1 px-3 py-4 space-y-1" aria-label="Secciones del cliente">
+        {/* Navegación Sidebar */}
+        <nav className="flex-1 px-3 py-6 space-y-1">
           {allNavItems.map(({ path, icon: Icon, label }) => (
             <NavLink
               key={path}
               to={path}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 ${
-                  isActive
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-app hover:bg-surface-2'
+                  isActive ? 'bg-primary text-white shadow-sm' : 'text-app hover:bg-surface-2'
                 }`
               }
-              aria-label={`Ir a ${label}`}
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={18} aria-hidden="true" />
+                  <Icon size={18} />
                   <span>{label}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="client-active-pill"
+                      className="ml-auto w-1.5 h-1.5 rounded-full bg-white"
+                    />
+                  )}
                 </>
               )}
             </NavLink>
           ))}
+        </nav>
+      </aside>
 
-          {/* Botón Cupones en Desktop Sidebar */}
-          {couponsEnabled && (
-            <button
-              onClick={() => setIsCouponsOpen(true)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-app hover:bg-surface-2 transition-all duration-300 border border-dashed border-primary/20 hover:border-primary/40 mt-4 bg-primary/5 text-primary relative"
-              aria-label="Ver cupones y ofertas"
+      {/* Popover / Cajón Lateral de Notificaciones Responsivo al 100% */}
+      <AnimatePresence>
+        {isNotificationsOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setIsNotificationsOpen(false)}
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-screen w-full md:w-96 z-50 shadow-2xl"
             >
-              <Tag size={18} className="text-primary" aria-hidden="true" />
-              <span className="font-bold text-primary">Ofertas Flash</span>
-              {activeCouponsCount > 0 && (
-                <span className="ml-auto bg-primary text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow">
-                  {activeCouponsCount}
+              <NotificationHistoryTray
+                notifications={notifications}
+                unreadCount={unreadCount}
+                soundEnabled={soundEnabled}
+                onToggleSound={() => setSoundEnabled(!soundEnabled)}
+                onMarkRead={markRead}
+                onMarkAllRead={markAllRead}
+                onClearAll={clearAll}
+                onClose={() => setIsNotificationsOpen(false)}
+                onNavigate={(path) => {
+                  setIsNotificationsOpen(false)
+                  navigate(path)
+                }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ─── CONTENIDO PRINCIPAL ────────────────────────────────────────── */}
+      <main className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen w-full max-w-[100vw] md:max-w-none overflow-x-hidden relative flex flex-col">
+        {/* Cabecera superior móvil premium */}
+        <header className="flex md:hidden items-center justify-between px-4 py-3 bg-white/90 backdrop-blur-md z-30 sticky top-0 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.05)] shrink-0">
+          <div className="flex items-center gap-2.5">
+            {appIcon ? (
+              <img
+                src={appIcon}
+                alt={`Logo ${appName}`}
+                className="w-9 h-9 rounded-xl object-cover"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+                <ShoppingCart size={18} className="text-white" />
+              </div>
+            )}
+            <span className="font-black text-sm text-app tracking-tight">{appName}</span>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {/* Carrito de Compras Permanente en Header Móvil */}
+            <button
+              onClick={openCart}
+              className="relative w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+              aria-label="Carrito de compras"
+            >
+              <ShoppingCart size={16} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-primary text-white text-[9px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center border-2 border-white animate-bounce [animation-duration:3s]">
+                  {cartCount}
                 </span>
               )}
             </button>
-          )}
-        </nav>
 
-        {/* Botón carrito en sidebar */}
-        <div className="p-3 border-t border-app relative">
-          {/* Asistencia Guiada: Carrito Inactivo */}
-          <SmartHint 
-            stepId="cart_inactivity" 
-            message="Ahora puedes revisar tu carrito." 
-            position="top" 
-            inactivityTrigger={true}
-            isInactive={isCartInactive}
-            className="mb-14"
-          />
-
-          <button
-            onClick={openCart}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-white text-sm font-semibold transition-all duration-300 active:scale-95 hover:opacity-90 ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
-            aria-label={`Ver carrito con ${cartCount} productos`}
-          >
-            <ShoppingCart size={18} aria-hidden="true" />
-            <span>Mi carrito</span>
-            {cartCount > 0 && (
-              <span className="ml-auto bg-white text-primary text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </aside>
-
-      {/* ─── HEADER MOBILE ────────────────────────────── */}
-      <header
-        className="flex md:hidden fixed top-0 left-0 right-0 h-14 z-30 items-center justify-between px-4 bg-surface/70 backdrop-blur-xl border-b border-app"
-        aria-label="Encabezado"
-      >
-        <div className="flex items-center gap-2">
-          {appIcon ? (
-            <img
-              src={appIcon}
-              alt={`Logo ${appName}`}
-              className="w-12 h-12 rounded-xl object-cover"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-              <ShoppingCart size={22} className="text-white" aria-hidden="true" />
-            </div>
-          )}
-          <p className="font-bold text-sm text-app">{appName}</p>
-        </div>
-        
-        {/* Carrito e Icono Perfil en Header para Mobile */}
-        <div className="flex items-center gap-2 relative">
-          <NavLink
-            to="/tienda/perfil"
-            className={({ isActive }) =>
-              `w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 ${
-                isActive ? 'text-primary' : 'text-muted'
-              }`
-            }
-            aria-label="Ver perfil"
-          >
-            <User size={20} />
-          </NavLink>
-
-          {/* Campana de notificaciones en header mobile */}
-          <div className="relative">
+            {/* Campana de Notificaciones en Header Móvil */}
             <button
               onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-              className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-surface-2 transition-all duration-300 active:scale-95 text-muted hover:text-app"
-              aria-label="Notificaciones"
+              className="relative w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+              aria-label="Campana de Notificaciones"
             >
               <motion.div
                 animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
                 transition={{ duration: 0.6, ease: 'easeInOut' }}
               >
-                <Bell size={20} />
+                <Bell size={16} />
               </motion.div>
-              {notifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse border-2 border-surface">
-                  {notifications.length}
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center border-2 border-white animate-pulse">
+                  {unreadCount}
                 </span>
               )}
             </button>
-            <AnimatePresence>
-              {isNotificationsOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-[9999] bg-transparent" 
-                    onClick={() => setIsNotificationsOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                    className="absolute right-0 top-12 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-[10000]"
-                  >
-                    <div className="flex items-center justify-between border-b border-app pb-2">
-                      <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
-                      {notifications.length > 0 && (
-                        <button onClick={() => clearAllClientNotifications(user?.celular)} className="text-[10px] text-primary font-bold hover:underline">Limpiar</button>
-                      )}
-                    </div>
-                    {notifications.length === 0 ? (
-                      <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
-                    ) : (
-                      <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                        {notifications.map(n => (
-                          <div 
-                            key={n.id} 
-                            onClick={() => handleNotificationClick(n)}
-                            className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[9px] font-bold uppercase tracking-wide ${n.type === 'abono' ? 'text-emerald-500' : 'text-primary'}`}>
-                                {n.type === 'abono' ? 'Abono' : 'Estado Pedido'}
-                              </span>
-                            </div>
-                            <p className="text-muted leading-tight">{n.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+
+            {/* Avatar de Perfil en Header Móvil */}
+            <NavLink
+              to="/tienda/perfil"
+              className={({ isActive }) =>
+                `w-9 h-9 rounded-xl border flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                  isActive 
+                    ? 'bg-primary text-white border-primary shadow-sm ring-1 ring-white/20 ring-inset' 
+                    : 'bg-slate-50 border-slate-100 text-muted hover:text-app'
+                }`
+              }
+              aria-label="Mi Perfil"
+            >
+              <User size={16} />
+            </NavLink>
           </div>
+        </header>
 
-          <motion.button
-            onClick={openCart}
-            animate={{
-              scale: cartCount > 0 ? [1, 1.08, 1] : 1,
-              boxShadow: cartCount > 0 
-                ? [
-                    '0 4px 10px rgba(var(--color-primary-rgb, 124, 58, 237), 0.2)',
-                    '0 4px 20px rgba(var(--color-primary-rgb, 124, 58, 237), 0.5)',
-                    '0 4px 10px rgba(var(--color-primary-rgb, 124, 58, 237), 0.2)'
-                  ] 
-                : 'none'
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            whileTap={{ scale: 0.95 }}
-            className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 ${
-              cartCount > 0 
-                ? 'bg-primary text-white' 
-                : 'bg-surface-2 text-muted hover:text-primary'
-            } ${isCartInactive ? 'animate-pulse ring-4 ring-primary/30' : ''}`}
-            aria-label={`Abrir carrito con ${cartCount} productos`}
-          >
-            <ShoppingCart size={20} className={cartCount > 0 ? 'text-white' : 'text-primary'} aria-hidden="true" />
-            {cartCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 bg-white text-primary text-[10px] font-black rounded-full w-4.5 h-4.5 flex items-center justify-center border border-primary shadow-sm"
-              >
-                {cartCount}
-              </motion.span>
-            )}
-          </motion.button>
-          
-          <SmartHint 
-            stepId="cart_inactivity" 
-            message="Revisa tu carrito." 
-            position="bottom" 
-            inactivityTrigger={true}
-            isInactive={isCartInactive}
-            className="right-0 mt-12 w-48"
-          />
+        <div className="flex-1 w-full relative">
+          <Outlet />
         </div>
-      </header>
-
-      {/* ─── CONTENIDO PRINCIPAL ────────────────────────────────────────── */}
-      <main
-        className="flex-1 md:ml-64 pt-14 md:pt-0 pb-20 md:pb-0 min-h-screen w-full max-w-[100vw] md:max-w-none overflow-x-hidden"
-        id="main-content"
-      >
-        <Outlet />
       </main>
 
-      {/* ─── NAVBOTTOM MOBILE con botón circular central destacando Cupones ─── */}
-      <nav
-        className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] items-center justify-around px-2"
-        aria-label="Navegación inferior cliente"
-      >
-        {/* Lado izquierdo */}
+      {/* ─── BARRA DE NAVEGACIÓN INFERIOR (MOBILE) ───────────────────────── */}
+      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-2">
         {NAV_ITEMS_LEFT.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative outline-none focus:outline-none ${
-                isActive ? 'text-primary' : 'text-muted'
+              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
+                isActive ? 'text-primary' : 'text-muted hover:text-app'
               }`
             }
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-            aria-label={label}
           >
             {({ isActive }) => (
               <>
                 {isActive && (
                   <motion.div
                     layoutId="client-nav-indicator"
-                    className="absolute top-[-10px] left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
                   />
                 )}
                 <Icon size={20} aria-hidden="true" />
@@ -506,117 +375,62 @@ export default function ClientLayout() {
           </NavLink>
         ))}
 
-        {/* Botón Central Circular (Cupones / Ofertas) con animación magnética premium, sacudida de icono y barrido de brillo */}
+        {/* Botón Central Ofertas / Cupones Rediseñado */}
         {couponsEnabled && (
-          <div className="flex-1 flex flex-col items-center justify-start relative group">
-            <button
-              onClick={() => setIsCouponsOpen(true)}
-              className="flex flex-col items-center justify-center -translate-y-2.5 relative"
-              aria-label="Ver ofertas y cupones"
-            >
-              {/* Ondas de pulso más notorias de fondo */}
-              <motion.div
+          <div className="flex-1 flex flex-col items-center justify-start relative">
+            <div className="flex flex-col items-center justify-center -translate-y-3">
+              <motion.button
+                onClick={() => setIsCouponsOpen(true)}
                 animate={{
-                  scale: [1, 1.3, 1.5],
-                  opacity: [0.8, 0.4, 0]
+                  scale: [1, 1.04, 1],
                 }}
                 transition={{
-                  duration: 2.2,
+                  duration: 2,
                   repeat: Infinity,
-                  ease: "easeOut"
+                  ease: "easeInOut",
                 }}
-                className="absolute w-16 h-16 rounded-full bg-primary/30 z-0"
-                style={{ pointerEvents: 'none' }}
-              />
-              
-              <motion.div
-                animate={{
-                  scale: [1, 1.2, 1.35],
-                  opacity: [0.6, 0.2, 0]
-                }}
-                transition={{
-                  duration: 2.2,
-                  delay: 1.1,
-                  repeat: Infinity,
-                  ease: "easeOut"
-                }}
-                className="absolute w-16 h-16 rounded-full bg-primary/20 z-0"
-                style={{ pointerEvents: 'none' }}
-              />
+                whileTap={{ scale: 0.94 }}
+                className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center shadow-lg border-4 border-surface relative overflow-visible select-none shrink-0"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+                aria-label="Ofertas y Cupones"
+              >
+                {/* Shimmer de brillo diagonal flotante infinito */}
+                <div className="absolute inset-0 w-full h-full rounded-full overflow-hidden pointer-events-none">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-infinite pointer-events-none" />
+                </div>
 
-              {/* Botón Circular Principal con overflow-hidden para contener el barrido de brillo */}
-              <div className="relative z-10">
-                <motion.div 
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.93 }}
-                  className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg hover:shadow-primary/40 transition-shadow duration-300 border-4 border-surface bg-primary text-white overflow-hidden relative"
-                >
-                  {/* Barrido de brillo (Reflejo metálico diagonal cruzando cada 3s) */}
-                  <motion.div
-                    animate={{
-                      x: ['-100%', '200%']
-                    }}
-                    transition={{
-                      duration: 2.5,
-                      repeat: Infinity,
-                      repeatDelay: 1,
-                      ease: "easeInOut"
-                    }}
-                    className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/35 to-transparent skew-x-[-25deg] z-10 pointer-events-none"
-                  />
+                {/* Icono de Tag a 28px con animación de wiggle infinito */}
+                <div className="animate-wiggle-infinite flex items-center justify-center pointer-events-none z-10">
+                  <Tag size={28} className="text-white" />
+                </div>
 
-                  {/* Icono con animación de sacudida (Shaking/Campana) cada 4 segundos */}
-                  <motion.div
-                    animate={{
-                      rotate: [0, -15, 12, -10, 8, -4, 0]
-                    }}
-                    transition={{
-                      duration: 1.2,
-                      repeat: Infinity,
-                      repeatDelay: 3.5,
-                      ease: "easeInOut"
-                    }}
-                    whileHover={{ rotate: 360, scale: 1.1 }}
-                    className="z-20 flex items-center justify-center"
-                  >
-                    <Tag size={26} aria-hidden="true" />
-                  </motion.div>
-                </motion.div>
-
-                {/* Badge de cupones activos - COLOCADO AFUERA del contenedor con overflow-hidden */}
+                {/* Badge de contador duplicado (w-7 h-7) con fuente 14px posicionado en top-[-6px] y right-[-6px] */}
                 {activeCouponsCount > 0 && (
-                  <span className="absolute top-[2px] right-[2px] bg-white text-primary text-[9px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-primary shadow-md z-30">
+                  <span className="absolute -top-[6px] -right-[6px] bg-red-500 text-white text-[14px] font-black rounded-full w-7 h-7 flex items-center justify-center border-2 border-surface animate-bounce shadow-md z-20">
                     {activeCouponsCount}
                   </span>
                 )}
-              </div>
-              
-              <span className="text-[9px] font-bold mt-1 uppercase tracking-wider text-muted hover:text-primary transition-colors duration-300 z-10">
-                Ofertas
-              </span>
-            </button>
+              </motion.button>
+            </div>
           </div>
         )}
 
-        {/* Lado derecho */}
         {navItemsRight.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative outline-none focus:outline-none ${
-                isActive ? 'text-primary' : 'text-muted'
+              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
+                isActive ? 'text-primary' : 'text-muted hover:text-app'
               }`
             }
-            style={{ WebkitTapHighlightColor: 'transparent' }}
-            aria-label={label}
           >
             {({ isActive }) => (
               <>
                 {isActive && (
                   <motion.div
                     layoutId="client-nav-indicator"
-                    className="absolute top-[-10px] left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
                   />
                 )}
                 <Icon size={20} aria-hidden="true" />
@@ -627,51 +441,19 @@ export default function ClientLayout() {
         ))}
       </nav>
 
-      {/* Modal global de cupones */}
-      <ClientCouponsModal
-        isOpen={isCouponsOpen}
-        onClose={() => setIsCouponsOpen(false)}
-      />
+      {/* Modal de Cupones */}
+      {couponsEnabled && (
+        <ClientCouponsModal isOpen={isCouponsOpen} onClose={() => setIsCouponsOpen(false)} />
+      )}
 
-      {/* Contenedor de Toasts de Notificaciones del Cliente */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4">
-        <AnimatePresence>
-          {toasts.map(t => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              onClick={() => {
-                setToasts(prev => prev.filter(item => item.id !== t.id))
-                if (t.orderId) {
-                  navigate('/tienda/pedidos', { state: { highlightOrderId: t.orderId } })
-                } else {
-                  navigate('/tienda/pedidos')
-                }
-              }}
-              className="bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
-            >
-              <div className={`p-2 rounded-xl ${t.type === 'abono' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-primary/10 text-primary'}`}>
-                {t.type === 'abono' ? <CreditCard size={18} /> : <Package size={18} />}
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold text-app">Notificación</p>
-                <p className="text-xs text-muted mt-0.5 leading-relaxed">{t.message}</p>
-              </div>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setToasts(prev => prev.filter(item => item.id !== t.id))
-                }}
-                className="text-muted hover:text-app transition-colors p-1"
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      {/* Insinuación Inteligente del Carrito Flotante (Inactividad) */}
+      {cartCount > 0 && (
+        <SmartHint
+          isInactive={isCartInactive}
+          cartCount={cartCount}
+          onOpenCart={openCart}
+        />
+      )}
     </div>
   )
 }

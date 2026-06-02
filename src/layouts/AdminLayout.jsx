@@ -19,13 +19,11 @@ import { auth } from '../config/firebaseConfig'
 import useAppConfigStore from '../store/appConfigStore'
 import useAuthStore from '../store/authStore'
 import { useEffect, useState, useMemo } from 'react'
-import { subscribeToOrders } from '../services/orderService'
-import { subscribeToNotifications } from '../services/creditService'
-import { subscribeToClaims } from '../services/claimsService'
-import { subscribeToWholesaleRequests } from '../services/wholesaleService'
-import { formatCurrency } from '../utils/formatters'
-import { playAdminSound } from '../utils/audio'
-import { ORDER_STATES } from '../constants'
+
+import useNotificationCenter from '../hooks/useNotificationCenter'
+import useFCMPermission from '../hooks/useFCMPermission'
+import NotificationHistoryTray from '../components/common/NotificationHistoryTray'
+import NCToastContainer from '../components/common/NCToastContainer'
 
 const NAV_ITEMS = [
   { path: '/admin/inicio', icon: LayoutDashboard, label: 'Inicio' },
@@ -35,249 +33,67 @@ const NAV_ITEMS = [
   { path: '/admin/configuracion', icon: Settings, label: 'Config.' },
 ]
 
-/**
- * Layout principal del Administrador.
- * Desktop: sidebar izquierdo fijo.
- * Mobile: barra de navegación inferior.
- * Exclusión mutua garantizada (Guía Maestra §3.6).
- */
 export default function AdminLayout() {
   const { appName, appIcon, creditsEnabled } = useAppConfigStore()
-  const { logout } = useAuthStore()
+  const { logout, user } = useAuthStore()
   const navigate = useNavigate()
+
+  // Sincronizar el permiso y tokens de FCM para Admin
+  const { requestPermission } = useFCMPermission(user?.uid || 'admin', 'admin')
+
+  // Solicitar permiso FCM automáticamente al entrar
+  useEffect(() => {
+    requestPermission()
+  }, [requestPermission])
+
+  // Hook centralizado del Notification Center
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const {
+    notifications,
+    unreadCount,
+    isRinging,
+    markRead,
+    markAllRead,
+    clearAll
+  } = useNotificationCenter({
+    recipientId: 'admin',
+    recipientRole: 'admin',
+    soundEnabled
+  })
+
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [toasts, setToasts] = useState([])
+
+  // Generar toasts en tiempo real cuando llega una notificación no leída genuinamente nueva
+  useEffect(() => {
+    const unread = notifications.filter(n => n.status === 'unread')
+    if (unread.length > 0) {
+      const mostRecent = unread[0]
+      // Evitar duplicados en Toasts activos
+      setToasts(prev => {
+        if (prev.some(t => t.id === mostRecent.id)) return prev
+        const newToast = {
+          id: mostRecent.id,
+          title: mostRecent.title,
+          body: mostRecent.body,
+          clickAction: mostRecent.clickAction
+        }
+        // Auto-remover en 5 segundos
+        setTimeout(() => {
+          setToasts(current => current.filter(t => t.id !== mostRecent.id))
+        }, 5000)
+        return [...prev, newToast]
+      })
+    }
+  }, [notifications])
 
   // Navegación adaptativa según feature flags de módulos
   const filteredNavItems = useMemo(() => {
     return NAV_ITEMS.filter(item => {
-      // Si la ruta contiene credito y creditsEnabled es falso, la removemos
       if (item.path.includes('credito') && !creditsEnabled) return false
       return true
     })
   }, [creditsEnabled])
-
-  // Notificaciones Globales del Administrador
-  const [notifications, setNotifications] = useState([])
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
-  const [toasts, setToasts] = useState([])
-  const [isRinging, setIsRinging] = useState(false)
-
-  // Persistir IDs de pedidos ya notificados en localStorage para sobrevivir recargas/HMR
-  const getSeenOrders = () => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem('admin_seen_orders') || '[]'))
-    } catch { return new Set() }
-  }
-  const markOrderSeen = (id) => {
-    try {
-      const seen = getSeenOrders()
-      seen.add(id)
-      const arr = Array.from(seen).slice(-500)
-      localStorage.setItem('admin_seen_orders', JSON.stringify(arr))
-    } catch {}
-  }
-
-  // Persistir IDs de solicitudes especiales (wholesale)
-  const getSeenWholesale = () => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem('admin_seen_wholesale') || '[]'))
-    } catch { return new Set() }
-  }
-  const markWholesaleSeen = (id) => {
-    try {
-      const seen = getSeenWholesale()
-      seen.add(id)
-      const arr = Array.from(seen).slice(-500)
-      localStorage.setItem('admin_seen_wholesale', JSON.stringify(arr))
-    } catch {}
-  }
-
-  // Persistir estados previos de mayorista/encargo para detectar cambios
-  const getWholesaleStates = () => {
-    try {
-      return JSON.parse(localStorage.getItem('admin_wholesale_states') || '{}')
-    } catch { return {} }
-  }
-  const updateWholesaleStateCache = (id, state) => {
-    try {
-      const states = getWholesaleStates()
-      states[id] = state
-      localStorage.setItem('admin_wholesale_states', JSON.stringify(states))
-    } catch {}
-  }
-
-  const triggerToast = (message, path = '/admin/pedidos') => {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, message, path }])
-    playAdminSound()
-    setIsRinging(true)
-    setTimeout(() => setIsRinging(false), 2000)
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, 5000)
-  }
-
-  useEffect(() => {
-    const seenOnMount = getSeenOrders()
-    let initialized = false
-
-    const unsubscribe = subscribeToOrders((orders) => {
-      if (!initialized) {
-        orders.forEach(o => {
-          if (!seenOnMount.has(o.id)) {
-            markOrderSeen(o.id)
-          }
-        })
-        initialized = true
-        return
-      }
-
-      const currentSeen = getSeenOrders()
-      orders.forEach(o => {
-        if (!currentSeen.has(o.id)) {
-          const isWholesale = o.tipo === 'wholesale' || o.items?.some(item => item.wholesale)
-          const isCustomOrder = o.tipo === 'custom_order' || o.customOrder || o.items?.some(item => item.custom)
-          
-          if (o.estado === ORDER_STATES.PENDING) {
-            const typeLabel = isWholesale ? 'Al por mayor' : isCustomOrder ? 'Por encargo' : 'Normal'
-            const msg = `Pedido ${typeLabel} recibido de ${o.cliente?.nombre || 'Cliente'}.`
-            setNotifications(prev => [
-              {
-                id: o.id,
-                orderNumber: o.orderNumber,
-                message: msg,
-              },
-              ...prev
-            ])
-            triggerToast(msg, '/admin/pedidos')
-          }
-          markOrderSeen(o.id)
-        }
-      })
-    })
-
-    // Suscribirse a solicitudes al por mayor y encargos (especiales)
-    const mountTime = Date.now()
-    console.log("[AdminLayout] Montando suscripción de solicitudes especiales en tiempo real. MountTime:", mountTime)
-
-    const unsubscribeWholesale = subscribeToWholesaleRequests((requests) => {
-      console.log("[AdminLayout] Snapshot de solicitudes recibido. Cantidad:", requests.length)
-      
-      requests.forEach(r => {
-        const concept = r.tipo === 'encargo' ? 'por encargo' : 'al por mayor'
-        
-        // Obtener la fecha de creación en milisegundos
-        let createdMs = 0
-        if (r.createdAt) {
-          createdMs = r.createdAt.toDate ? r.createdAt.toDate().getTime() : new Date(r.createdAt).getTime()
-        }
-
-        // Si la solicitud se creó después de montar la aplicación (es nueva)
-        // y su estado es pendiente, y no la hemos notificado en esta sesión
-        const seenWholesale = getSeenWholesale()
-        
-        if (createdMs > mountTime - 10000) { // Tolerancia de 10s por diferencias de reloj del servidor
-          if (!seenWholesale.has(r.id)) {
-            console.log("[AdminLayout] ¡Nueva solicitud especial detectada en tiempo real!", r.id, r.productoNombre)
-            
-            if (r.estado === 'pendiente') {
-              const msg = `Nueva solicitud ${concept} de "${r.productoNombre}" recibida de ${r.clienteNombre || 'Cliente'}.`
-              setNotifications(prev => [
-                {
-                  id: r.id,
-                  concept,
-                  message: msg,
-                  isWholesaleRequest: true,
-                },
-                ...prev
-              ])
-              triggerToast(msg, '/admin/pedidos')
-            }
-            markWholesaleSeen(r.id)
-            updateWholesaleStateCache(r.id, r.estado)
-          }
-        }
-
-        // Actualizar caché de estados silenciosamente para pedidos existentes (sin disparar alertas redundantes al admin)
-        if (r.estado) {
-          updateWholesaleStateCache(r.id, r.estado)
-        }
-      })
-    })
-
-    // Suscribirse a las notificaciones de créditos en tiempo real
-    const seenNotificationsOnMount = new Set()
-    let notifInitialized = false
-
-    const unsubscribeNotifications = subscribeToNotifications((notifs) => {
-      if (!notifInitialized) {
-        notifs.forEach(n => seenNotificationsOnMount.add(n.id))
-        notifInitialized = true
-        return
-      }
-
-      notifs.forEach(n => {
-        if (!seenNotificationsOnMount.has(n.id)) {
-          seenNotificationsOnMount.add(n.id)
-          
-          const label = n.type === 'pago_total' ? 'Pago Total de Crédito' : 'Abono a Crédito'
-          const msg = `${n.clienteNombre} (${n.clienteCelular}) reportó un ${n.type === 'pago_total' ? 'pago total' : 'abono'} de ${formatCurrency(n.monto)} para el pedido #${n.orderNumber}.`
-          
-          setNotifications(prev => [
-            {
-              id: n.id,
-              orderNumber: n.orderNumber,
-              message: msg,
-              isCreditNotification: true,
-            },
-            ...prev
-          ])
-          
-          triggerToast(msg, '/admin/credito')
-        }
-      })
-    })
-
-    // Suscribirse a los reclamos en tiempo real
-    const seenClaimsOnMount = new Set()
-    let claimsInitialized = false
-
-    const unsubscribeClaims = subscribeToClaims((claimsList) => {
-      if (!claimsInitialized) {
-        claimsList.forEach(c => seenClaimsOnMount.add(c.id))
-        claimsInitialized = true
-        return
-      }
-
-      claimsList.forEach(c => {
-        if (!seenClaimsOnMount.has(c.id)) {
-          seenClaimsOnMount.add(c.id)
-          
-          if (c.status === 'PENDING') {
-            const msg = `Nuevo reclamo de ${c.clientName} para el pedido #${c.orderNumber}.`
-            
-            setNotifications(prev => [
-              {
-                id: c.id,
-                orderNumber: c.orderNumber,
-                message: msg,
-                isClaimNotification: true,
-              },
-              ...prev
-            ])
-            
-            triggerToast(msg, '/admin/reclamos')
-          }
-        }
-      })
-    })
-
-    return () => {
-      unsubscribe()
-      unsubscribeWholesale()
-      unsubscribeNotifications()
-      unsubscribeClaims()
-    }
-  }, [])
 
   const handleLogout = async () => {
     try {
@@ -289,8 +105,21 @@ export default function AdminLayout() {
     }
   }
 
+  const handleToastClick = (toast) => {
+    setToasts(prev => prev.filter(t => t.id !== toast.id))
+    if (toast.clickAction) {
+      navigate(toast.clickAction)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-app flex w-full max-w-[100vw] overflow-x-hidden">
+      {/* Container de Toasts Unificado del Notification Center */}
+      <NCToastContainer
+        toasts={toasts}
+        onCloseToast={(id) => setToasts(prev => prev.filter(t => t.id !== id))}
+        onToastClick={handleToastClick}
+      />
 
       {/* ─── SIDEBAR DESKTOP (hidden en mobile) ─────────────────────────── */}
       <aside
@@ -330,61 +159,12 @@ export default function AdminLayout() {
               >
                 <Bell size={14} />
               </motion.div>
-              {notifications.length > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
-                  {notifications.length}
+                  {unreadCount}
                 </span>
               )}
             </button>
-            {/* Popover */}
-            <AnimatePresence>
-              {isNotificationsOpen && (
-                <>
-                  {/* Backdrop para cerrar haciendo clic en cualquier lado fuera de la ventana */}
-                  <div 
-                    className="fixed inset-0 z-[9999] bg-transparent" 
-                    onClick={() => setIsNotificationsOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                    className="absolute left-0 mt-2 w-64 bg-surface border border-app rounded-2xl shadow-xl z-[10000] p-4 space-y-3"
-                  >
-                    <div className="flex items-center justify-between border-b border-app pb-2">
-                      <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
-                      {notifications.length > 0 && (
-                        <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">
-                          Limpiar
-                        </button>
-                      )}
-                    </div>
-                    {notifications.length === 0 ? (
-                      <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
-                    ) : (
-                      <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                        {notifications.map(n => (
-                          <div 
-                            key={n.id} 
-                            onClick={() => {
-                              setIsNotificationsOpen(false)
-                              navigate(n.isCreditNotification ? '/admin/credito' : '/admin/pedidos')
-                            }}
-                            className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
-                          >
-                            <div className="flex justify-between font-bold">
-                              <span className="text-primary">{n.isCreditNotification ? 'Crédito' : 'Nuevo Pedido'}</span>
-                              <span className="text-[9px] text-muted">{n.orderNumber}</span>
-                            </div>
-                            <p className="text-muted leading-tight">{n.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
           </div>
         </div>
 
@@ -440,6 +220,44 @@ export default function AdminLayout() {
         </div>
       </aside>
 
+      {/* Popover / Cajón Lateral de Notificaciones (Desktop) */}
+      <AnimatePresence>
+        {isNotificationsOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-40 bg-black/50"
+              onClick={() => setIsNotificationsOpen(false)}
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="fixed right-0 top-0 h-screen w-full md:w-80 z-50 shadow-2xl"
+            >
+              <NotificationHistoryTray
+                notifications={notifications}
+                unreadCount={unreadCount}
+                soundEnabled={soundEnabled}
+                onToggleSound={() => setSoundEnabled(!soundEnabled)}
+                onMarkRead={markRead}
+                onMarkAllRead={markAllRead}
+                onClearAll={clearAll}
+                onClose={() => setIsNotificationsOpen(false)}
+                onNavigate={(path) => {
+                  setIsNotificationsOpen(false)
+                  navigate(path)
+                }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* ─── CONTENIDO PRINCIPAL ────────────────────────────────────────── */}
       <main
         className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen w-full max-w-[100vw] md:max-w-none overflow-x-hidden"
@@ -459,7 +277,6 @@ export default function AdminLayout() {
 
           const handleNavClick = (e, isActive) => {
             if (isConfig && isActive) {
-              // Despachar evento personalizado para retornar al menú de configuración principal
               window.dispatchEvent(new CustomEvent('reset-settings-menu'))
             }
           }
@@ -518,7 +335,7 @@ export default function AdminLayout() {
       </nav>
 
       {/* Botón Flotante de Notificaciones en Mobile (esquina superior derecha, hidden en desktop) */}
-      <div className="md:hidden fixed top-4 right-4 z-50">
+      <div className="md:hidden fixed top-4 right-4 z-40">
         <button
           onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
           className="w-11 h-11 rounded-2xl bg-primary text-white shadow-xl flex items-center justify-center relative active:scale-90 transition-all hover:opacity-90"
@@ -530,100 +347,12 @@ export default function AdminLayout() {
           >
             <Bell size={18} />
           </motion.div>
-          {notifications.length > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse border-2 border-surface">
-              {notifications.length}
+              {unreadCount}
             </span>
           )}
         </button>
-        
-        {/* Popover Mobile (se abre hacia abajo) */}
-        <AnimatePresence>
-          {isNotificationsOpen && (
-            <>
-              {/* Backdrop para cerrar haciendo clic en cualquier lado fuera de la ventana */}
-              <div 
-                className="fixed inset-0 z-[9999] bg-transparent" 
-                onClick={() => setIsNotificationsOpen(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -8 }}
-                className="absolute right-0 top-13 mt-1 w-72 bg-surface border border-app rounded-2xl shadow-2xl p-4 space-y-3 z-[10000]"
-              >
-                <div className="flex items-center justify-between border-b border-app pb-2">
-                  <p className="text-xs font-bold text-app">Notificaciones ({notifications.length})</p>
-                  {notifications.length > 0 && (
-                    <button onClick={() => setNotifications([])} className="text-[10px] text-primary font-bold hover:underline">
-                      Limpiar
-                    </button>
-                  )}
-                </div>
-                {notifications.length === 0 ? (
-                  <p className="text-[11px] text-muted text-center py-4">No hay nuevas notificaciones</p>
-                ) : (
-                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                    {notifications.map(n => (
-                      <div 
-                        key={n.id} 
-                        onClick={() => {
-                          setIsNotificationsOpen(false)
-                          navigate(n.isCreditNotification ? '/admin/credito' : '/admin/pedidos')
-                        }}
-                        className="p-2.5 rounded-xl bg-surface-2 border border-app text-[11px] text-app space-y-1 cursor-pointer hover:border-primary/50 transition-colors"
-                      >
-                        <div className="flex justify-between font-bold">
-                          <span className="text-primary">{n.isCreditNotification ? 'Crédito' : 'Nuevo Pedido'}</span>
-                          <span className="text-[9px] text-muted">{n.orderNumber}</span>
-                        </div>
-                        <p className="text-muted leading-tight">{n.message}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Contenedor de Toasts de Notificaciones del Administrador */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4">
-        <AnimatePresence>
-          {toasts.map(t => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              onClick={() => {
-                setToasts(prev => prev.filter(item => item.id !== t.id))
-                navigate(t.path || '/admin/pedidos')
-              }}
-              className="bg-white border border-slate-200 shadow-xl rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
-            >
-              <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                <Bell size={18} />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold text-app">
-                  {t.path === '/admin/credito' ? 'Crédito' : 'Nuevo Pedido'}
-                </p>
-                <p className="text-xs text-muted mt-0.5 leading-relaxed">{t.message}</p>
-              </div>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setToasts(prev => prev.filter(item => item.id !== t.id))
-                }}
-                className="text-muted hover:text-app transition-colors p-1"
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          ))}
-        </AnimatePresence>
       </div>
     </div>
   )

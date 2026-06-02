@@ -24,18 +24,18 @@ export default function QuantitySelector({
   }
 
   return (
-    <div className={`flex items-center bg-surface-2 rounded-2xl p-1 border border-app h-11 ${className}`}>
+    <div className={`flex items-center bg-surface-2 rounded-full p-1.5 border border-app h-14 shrink-0 ${className}`}>
       <button
         type="button"
         onClick={handleDecrement}
         disabled={value <= min}
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-app hover:bg-surface transition-colors active:scale-95 disabled:opacity-40 border border-app/10"
+        className="w-11 h-11 rounded-full flex items-center justify-center text-app bg-surface shadow-sm hover:bg-surface-2 transition-transform active:scale-90 disabled:opacity-40"
         aria-label="Disminuir cantidad"
       >
-        <Minus size={14} />
+        <Minus size={16} />
       </button>
       
-      <span className="w-8 text-center font-bold text-app text-sm select-none">
+      <span className="w-10 text-center font-bold text-app text-base select-none">
         {value}
       </span>
       
@@ -43,10 +43,10 @@ export default function QuantitySelector({
         type="button"
         onClick={handleIncrement}
         disabled={value >= max}
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-app hover:bg-surface transition-colors active:scale-95 disabled:opacity-40 border border-app/10"
+        className="w-11 h-11 rounded-full flex items-center justify-center text-app bg-surface shadow-sm hover:bg-surface-2 transition-transform active:scale-90 disabled:opacity-40"
         aria-label="Aumentar cantidad"
       >
-        <Plus size={14} />
+        <Plus size={16} />
       </button>
     </div>
   )

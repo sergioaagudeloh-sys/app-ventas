@@ -42,6 +42,8 @@ export function subscribeToEmployees(callback) {
   const q = query(collection(db, COL), orderBy('nombre'))
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, error => {
+    console.warn("[employeeService] Error en la suscripción a empleados:", error.message)
   })
 }
 
@@ -123,6 +125,8 @@ export function subscribeToEmployeesByRole(rol, callback) {
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, error => {
+    console.warn(`[employeeService] Error en la suscripción a empleados por rol (${rol}):`, error.message)
   })
 }
 

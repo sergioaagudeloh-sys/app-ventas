@@ -710,8 +710,8 @@ export default function ClientOrders() {
   }
 
   return (
-    <div className="p-4 pb-6 max-w-lg mx-auto md:max-w-3xl lg:max-w-7xl lg:px-8 overflow-x-hidden">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex justify-between items-start sm:items-center gap-4">
+    <div className="p-4 pb-6 w-full max-w-7xl mx-auto lg:px-8 overflow-x-hidden">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-app leading-tight">Mis Pedidos</h1>
           <p className="text-sm text-muted">Aquí puedes consultar el estado de tus pedidos.</p>
@@ -719,14 +719,14 @@ export default function ClientOrders() {
         {activeTab === 'normal' ? (
           <div className="flex items-center gap-2 flex-shrink-0">
             {activeOrders.length > 0 && (
-              <span className="h-9 px-3 bg-primary-soft border border-primary-soft text-primary rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap">
+              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full border-none h-fit flex items-center justify-center whitespace-nowrap">
                 {activeOrders.length} activos
               </span>
             )}
             <button
               onClick={() => setShowConfirmClear(true)}
               disabled={!hasCompletedOrCancelled}
-              className="flex items-center gap-1.5 px-3 h-9 bg-primary-soft text-primary border border-primary-soft rounded-xl text-xs font-bold hover:bg-primary/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-3 h-9 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-bold active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Archive size={14} />
               Archivar historial
@@ -735,14 +735,14 @@ export default function ClientOrders() {
         ) : (
           <div className="flex items-center gap-2 flex-shrink-0">
             {activeWholesale.length > 0 && (
-              <span className="h-9 px-3 bg-primary-soft border border-primary-soft text-primary rounded-xl text-xs font-bold flex items-center justify-center whitespace-nowrap">
+              <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full border-none h-fit flex items-center justify-center whitespace-nowrap">
                 {activeWholesale.length} activos
               </span>
             )}
             <button
               onClick={() => setShowConfirmClear(true)}
               disabled={!hasRejectedWholesale}
-              className="flex items-center gap-1.5 px-3 h-9 bg-primary-soft text-primary border border-primary-soft rounded-xl text-xs font-bold hover:bg-primary/20 active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="flex items-center gap-1.5 px-3 h-9 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-bold active:scale-95 transition-all flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Archive size={14} />
               Archivar historial
@@ -753,28 +753,34 @@ export default function ClientOrders() {
 
       {/* Selector Dinámico de Pestañas (Solo si hay pedidos especiales/encargos visibles) */}
       {visibleWholesaleCount > 0 && (
-        <div className="flex gap-2 p-1 bg-surface-2 border border-app rounded-2xl mb-6">
+        <div className="flex gap-2 p-1 bg-surface-2 border border-slate-100 rounded-2xl mb-6">
           <button
             onClick={() => setActiveTab('normal')}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'normal'
-                ? 'bg-surface text-primary shadow-xs border border-app'
-                : 'text-muted hover:text-app'
+                ? 'bg-surface text-primary shadow-[0_2px_10px_-3px_rgba(156,39,176,0.2)]'
+                : 'text-slate-500 hover:text-app'
             }`}
           >
-            <Package size={16} />
-            Pedidos Comunes ({orders.length})
+            <Package className="w-4 h-4 shrink-0" />
+            <span>Pedidos Comunes</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors duration-150 ${activeTab === 'normal' ? 'bg-primary/10 text-primary' : 'bg-slate-200/60 text-slate-500'}`}>
+              {orders.length}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('especial')}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
               activeTab === 'especial'
-                ? 'bg-surface text-primary shadow-xs border border-app'
-                : 'text-muted hover:text-app'
+                ? 'bg-surface text-primary shadow-[0_2px_10px_-3px_rgba(156,39,176,0.2)]'
+                : 'text-slate-500 hover:text-app'
             }`}
           >
-            <PackagePlus size={16} />
-            Pedidos Especiales ({visibleWholesaleCount})
+            <PackagePlus className="w-4 h-4 shrink-0" />
+            <span>Pedidos Especiales</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors duration-150 ${activeTab === 'especial' ? 'bg-primary/10 text-primary' : 'bg-slate-200/60 text-slate-500'}`}>
+              {visibleWholesaleCount}
+            </span>
           </button>
         </div>
       )}

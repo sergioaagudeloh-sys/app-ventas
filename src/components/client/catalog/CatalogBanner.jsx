@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import useEmblaCarousel from 'embla-carousel-react'
+import Autoplay from 'embla-carousel-autoplay'
 import useAppConfigStore from '../../../store/appConfigStore'
 import { useAds } from '../../../hooks/useAds'
 import { useProducts } from '../../../hooks/useInventory'
@@ -9,7 +11,6 @@ export default function CatalogBanner({ onAction }) {
   const { catalogBanner } = useAppConfigStore()
   const { data: ads = [] } = useAds()
   const { data: products = [] } = useProducts(true)
-  const [currentIndex, setCurrentIndex] = useState(0)
 
   // Filtrar anuncios activos en el rango de fechas
   const activeAds = ads.filter(ad => {
@@ -18,14 +19,62 @@ export default function CatalogBanner({ onAction }) {
     return today >= ad.startDate && today <= ad.endDate
   })
 
-  // Auto-rotación del carrusel
+  // Configuración de Embla Carousel con plugin de Autoplay
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    { loop: true },
+    [Autoplay({ delay: 5000, stopOnInteraction: true })]
+  )
+  const [selectedIndex, setSelectedIndex] = useState(0)
+
   useEffect(() => {
-    if (activeAds.length <= 1) return
-    const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % activeAds.length)
-    }, 6000)
-    return () => clearInterval(timer)
-  }, [activeAds.length])
+    if (!emblaApi) return
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap())
+    }
+    emblaApi.on('select', onSelect)
+    onSelect()
+    return () => {
+      emblaApi.off('select', onSelect)
+    }
+  }, [emblaApi])
+
+  const scrollPrev = () => emblaApi && emblaApi.scrollPrev()
+  const scrollNext = () => emblaApi && emblaApi.scrollNext()
+  const scrollTo = (index) => emblaApi && emblaApi.scrollTo(index)
+
+  // Lógica principal de ejecución de la acción
+  const handleBannerClick = (e, ad, linkedProduct) => {
+    if (e) {
+      e.stopPropagation()
+    }
+    
+    console.log("[CatalogBanner] Dispatching action for ad", ad.id || ad.title, ad)
+    
+    if (!onAction) {
+      console.warn("[CatalogBanner] onAction is not defined!")
+      return
+    }
+
+    if (ad.type === 'inventory') {
+      if (linkedProduct) {
+        onAction({ type: 'product', value: linkedProduct, ad: ad, fromBanner: true })
+      } else {
+        console.warn("[CatalogBanner] linkedProduct not found for inventory ad, falling back to modal view!")
+        onAction({ 
+          type: 'modal', 
+          ad: ad,
+          fromBanner: true
+        })
+      }
+    } else {
+      onAction({ 
+        type: ad.ctaAction || 'modal', 
+        value: ad.ctaValue, 
+        ad: ad,
+        fromBanner: true
+      })
+    }
+  }
 
   // Si no hay anuncios activos, mostramos el banner estático por defecto
   if (activeAds.length === 0) {
@@ -71,38 +120,6 @@ export default function CatalogBanner({ onAction }) {
     )
   }
 
-  // Si hay anuncios activos, mostramos el carrusel interactivo
-  const currentAd = activeAds[currentIndex]
-  const linkedProduct = currentAd.type === 'inventory' ? products.find(p => p.id === currentAd.productId) : null
-
-  // Obtener imágenes o estilos del anuncio actual
-  const bgStyle = currentAd.type === 'custom' && currentAd.colors?.bg 
-    ? { background: currentAd.colors.bg } 
-    : { background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' }
-
-  const textStyle = currentAd.type === 'custom' && currentAd.colors?.text
-    ? { color: currentAd.colors.text }
-    : { color: '#ffffff' }
-
-  const bannerImg = currentAd.type === 'inventory' 
-    ? (currentAd.customBanner || linkedProduct?.imageUrl) 
-    : (currentAd.banner || currentAd.image)
-
-  const handleBannerClick = () => {
-    if (!onAction) return
-    if (currentAd.type === 'inventory') {
-      if (linkedProduct) {
-        onAction({ type: 'product', value: linkedProduct })
-      }
-    } else {
-      onAction({ 
-        type: currentAd.ctaAction || 'modal', 
-        value: currentAd.ctaValue, 
-        ad: currentAd 
-      })
-    }
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -135,112 +152,149 @@ export default function CatalogBanner({ onAction }) {
         }
       `}</style>
 
-      <div 
-        onClick={handleBannerClick}
-        className={`w-full h-40 sm:h-48 md:h-56 rounded-3xl overflow-hidden relative shadow-md flex items-center cursor-pointer select-none transition-all duration-300 hover:scale-[1.01] hover:shadow-lg active:scale-95 ${
-          currentAd.glowEffect ? 'border-2 animate-glow-pulse' : 'border border-app'
-        }`}
-        style={!bannerImg ? bgStyle : {}}
-      >
-        {/* Haz de luz de Shimmer (Incita a hacer clic) */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
-          <div className="w-[30%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent absolute top-0 left-0 animate-shimmer-sweep" />
-        </div>
-
-        {/* Imagen de fondo si existe */}
-        {bannerImg && (
-          <>
-            <img 
-              src={bannerImg} 
-              alt={currentAd.title || 'Promoción'} 
-              className="absolute inset-0 w-full h-full object-cover animate-fade-in transition-transform duration-700 group-hover:scale-105"
-              onError={(e) => { e.target.style.display = 'none' }}
-            />
-            {/* Overlay sutil para legibilidad de textos */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/45 to-transparent" />
-          </>
-        )}
-
-        {/* Contenido del Anuncio */}
-        <div className="relative z-10 px-6 sm:px-10 md:px-12 py-4 sm:py-5 flex flex-col justify-between h-full text-left max-w-lg" style={!bannerImg ? textStyle : { color: '#ffffff' }}>
-          <div>
-            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-primary/20 backdrop-blur-md text-primary-soft px-2.5 py-1 rounded-full w-max mb-1.5 sm:mb-2 border border-primary/20 flex items-center gap-1 animate-pulse">
-              {currentAd.type === 'inventory' ? '⚡ Oferta Relámpago' : currentAd.category || 'Promoción Especial'}
-            </span>
-            <h2 className="font-extrabold text-base sm:text-lg md:text-xl tracking-tight leading-tight line-clamp-1 drop-shadow-sm">
-              {currentAd.type === 'inventory' 
-                ? (currentAd.customTitle || linkedProduct?.nombre || 'Oferta Especial') 
-                : currentAd.title}
-            </h2>
-            <p className="text-[11px] sm:text-xs opacity-90 mt-1 line-clamp-2 max-w-sm drop-shadow-sm font-medium leading-normal">
-              {currentAd.type === 'inventory' 
-                ? (linkedProduct?.descripcion || 'Descuentos increíbles por tiempo limitado.') 
-                : currentAd.description}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleBannerClick()
-              }}
-              className="px-4 py-2 bg-primary text-white text-[11px] font-bold rounded-xl shadow-lg shadow-primary/30 transition-all hover:opacity-90 active:scale-95 flex items-center justify-center border border-primary-soft hover:shadow-primary/50 h-9"
-              style={{ borderRadius: 'var(--radius-base)' }}
-            >
-              {currentAd.type === 'inventory' ? 'Comprar Ahora' : (currentAd.ctaText || 'Aprovechar Oferta')}
-            </button>
+      {/* Viewport de Embla Carousel */}
+      <div className="overflow-hidden w-full rounded-3xl" ref={emblaRef}>
+        {/* Contenedor de Embla (flex) */}
+        <div className="flex">
+          {activeAds.map((ad, idx) => {
+            const linkedProduct = ad.type === 'inventory' ? products.find(p => p.id === ad.productId) : null
             
-            {currentAd.type === 'inventory' && linkedProduct && (
-              <span className="text-xs font-black text-white/90 bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10 h-9 flex items-center justify-center">
-                {currentAd.discountType === 'percentage' 
-                  ? `${currentAd.discountValue}% OFF` 
-                  : `-$${currentAd.discountValue.toLocaleString()}`}
-              </span>
-            )}
-          </div>
-        </div>
+            const bgStyle = ad.type === 'custom' && ad.colors?.bg 
+              ? { background: ad.colors.bg } 
+              : { background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))' }
 
-        {/* Controles de Navegación del Carrusel (Solo si hay más de 1) */}
-        {activeAds.length > 1 && (
-          <>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setCurrentIndex((prev) => (prev - 1 + activeAds.length) % activeAds.length)
-              }}
-              className="absolute left-3 w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-md hover:bg-black/50 transition-colors flex items-center justify-center z-20 opacity-0 group-hover:opacity-100"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setCurrentIndex((prev) => (prev + 1) % activeAds.length)
-              }}
-              className="absolute right-3 w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-md hover:bg-black/50 transition-colors flex items-center justify-center z-20 opacity-0 group-hover:opacity-100"
-            >
-              <ChevronRight size={16} />
-            </button>
+            const textStyle = ad.type === 'custom' && ad.colors?.text
+              ? { color: ad.colors.text }
+              : { color: '#ffffff' }
 
-            {/* Puntos de Paginación */}
-            <div className="absolute bottom-3 right-6 flex gap-1.5 z-20">
-              {activeAds.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setCurrentIndex(idx)
-                  }}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
-                    idx === currentIndex ? 'bg-primary w-4' : 'bg-white/40 hover:bg-white/60'
+            const bannerImg = ad.type === 'inventory' 
+              ? (ad.customBanner || linkedProduct?.imageUrl) 
+              : (ad.banner || ad.image)
+
+            return (
+              <div 
+                key={ad.id || idx}
+                className="flex-[0_0_100%] min-w-0"
+              >
+                <div 
+                  onClick={(e) => handleBannerClick(e, ad, linkedProduct)}
+                  className={`w-full h-40 sm:h-48 md:h-56 relative flex items-center cursor-pointer pointer-events-auto ${
+                    ad.glowEffect ? 'border-none shadow-[0_20px_50px_rgba(156,39,176,0.15)]' : 'border border-app shadow-md'
                   }`}
-                />
-              ))}
-            </div>
-          </>
-        )}
+                  style={!bannerImg ? bgStyle : {}}
+                >
+                  {/* Haz de luz de Shimmer (Incita a hacer clic) */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
+                    <div className="w-[30%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent absolute top-0 left-0 animate-shimmer-sweep animate-pulse pointer-events-none" />
+                  </div>
+
+                  {/* Imagen de fondo si existe */}
+                  {bannerImg && (
+                    <>
+                      <img 
+                        src={bannerImg} 
+                        alt={ad.title || 'Promoción'} 
+                        className="absolute inset-0 w-full h-full object-cover animate-fade-in transition-transform duration-700 group-hover:scale-105 z-0"
+                        onError={(e) => { e.target.style.display = 'none' }}
+                      />
+                      {/* Overlay sutil vertical para legibilidad de textos */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10 pointer-events-none" />
+                      {/* Gradiente horizontal de protección al lado izquierdo */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent z-10 pointer-events-none" />
+                    </>
+                  )}
+
+                  {/* Contenido del Anuncio */}
+                  <div className="relative z-30 px-6 sm:px-10 md:px-12 py-4 sm:py-5 flex flex-col justify-center gap-y-4 h-full text-left max-w-lg" style={!bannerImg ? textStyle : { color: '#ffffff' }}>
+                    <div>
+                      {ad.type === 'inventory' ? (
+                        <span className="bg-yellow-400 text-black px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm w-max mb-1.5 sm:mb-2 flex items-center gap-1 animate-pulse border-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]">
+                          ⚡ Oferta Relámpago
+                        </span>
+                      ) : (
+                        <span className="bg-white/20 backdrop-blur-xl border border-white/30 px-3 py-1 rounded-full text-[10px] font-bold shadow-sm w-max mb-1.5 sm:mb-2 flex items-center gap-1 animate-pulse uppercase text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]">
+                          {ad.category || 'Promoción Especial'}
+                        </span>
+                      )}
+                      <h2 className="font-black text-2xl sm:text-3xl tracking-tight leading-tight line-clamp-1 drop-shadow-md">
+                        {ad.type === 'inventory' 
+                          ? (ad.customTitle || linkedProduct?.nombre || 'Oferta Especial') 
+                          : ad.title}
+                      </h2>
+                      <p className="text-[10px] tracking-[0.3em] font-medium opacity-70 mb-2 uppercase drop-shadow-md mt-1 line-clamp-2 max-w-sm leading-normal">
+                        {ad.type === 'inventory' 
+                          ? (linkedProduct?.descripcion || 'Descuentos increíbles por tiempo limitado.') 
+                          : ad.description}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleBannerClick(e, ad, linkedProduct)
+                        }}
+                        className="px-4 h-8 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-md shadow-primary/20 hover:brightness-110 hover:shadow-[0_0_20px_rgba(156,39,176,0.4)] text-[11px] font-bold rounded-xl active:scale-95 transition-all duration-300 flex items-center justify-center text-white border-none cursor-pointer"
+                      >
+                        {ad.type === 'inventory' ? 'Comprar Ahora' : (ad.ctaText || 'Aprovechar Oferta')}
+                      </button>
+                      
+                      {ad.type === 'inventory' && linkedProduct && (
+                        <span className="text-xs font-black text-white/90 bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10 h-8 flex items-center justify-center">
+                          {ad.discountType === 'percentage' 
+                            ? `${ad.discountValue}% OFF` 
+                            : `-$${ad.discountValue.toLocaleString()}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
+
+      {/* Controles de Navegación del Carrusel (Solo si hay más de 1) */}
+      {activeAds.length > 1 && (
+        <>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              scrollPrev()
+            }}
+            className="absolute left-6 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-md hover:bg-black/50 transition-colors flex items-center justify-center z-20 opacity-0 group-hover:opacity-100"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              scrollNext()
+            }}
+            className="absolute right-6 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/30 text-white backdrop-blur-md hover:bg-black/50 transition-colors flex items-center justify-center z-20 opacity-0 group-hover:opacity-100"
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          {/* Puntos de Paginación */}
+          <div className="absolute bottom-3 right-12 flex gap-1.5 z-20">
+            {activeAds.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  scrollTo(idx)
+                }}
+                className={`w-1.5 h-1.5 rounded-full transition-all ${
+                  idx === selectedIndex ? 'bg-primary w-4' : 'bg-white/40 hover:bg-white/60'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </motion.div>
   )
 }

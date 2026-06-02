@@ -139,7 +139,6 @@ const initialForm = {
   discountValue: 0,
   galeria: [],
   varianteImages: {},
-  videoUrl: '',
   descripcionLarga: '',
   beneficios: [],
   caracteristicas: {},
@@ -148,12 +147,12 @@ const initialForm = {
   productosComplementarios: [],
   seoTitle: '',
   seoDescription: '',
-  estado: 'activo'
+  estado: null
 }
 
 export default function ProductFormModal({ isOpen, onClose, onSave, initialData = null }) {
   const { data: categories = [] } = useCategories()
-  const { catalogFilters } = useAppConfigStore()
+  const { catalogFilters, commercialOptimization, claimsEnabled } = useAppConfigStore()
   const [formData, setFormData] = useState(initialForm)
   const [errors, setErrors] = useState({})
 
@@ -165,6 +164,18 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   // Estados del Wizard (Solo creación)
   const [currentStep, setCurrentStep] = useState(1)
   const [showCommercialConfig, setShowCommercialConfig] = useState(false)
+
+  // ─── Banderas de Visibilidad de Campos (basadas en Optimización Comercial) ───
+  const optEnabled = commercialOptimization?.enabled === true
+  const advancedGalleryEnabled = optEnabled && commercialOptimization?.tools?.advancedGallery?.enabled !== false
+  const visualVariationsEnabled = optEnabled && commercialOptimization?.tools?.visualVariations?.enabled !== false
+  const recommendationsEnabled = optEnabled && (
+    commercialOptimization?.tools?.cartRecommendations?.enabled !== false ||
+    commercialOptimization?.tools?.historyRecommendations?.enabled !== false
+  )
+  const seoEnabled = optEnabled
+  // El acordeón avanzado solo aparece si al menos uno de sus módulos está activo
+  const showAdvancedSection = advancedGalleryEnabled || seoEnabled || !!claimsEnabled || recommendationsEnabled
 
   const steps = [
     { number: 1, title: 'Imagen' },
@@ -242,6 +253,8 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                 descripcion: suggestions.descripcion || prev.descripcion,
                 precioBase: suggestions.precioBase?.toString() || prev.precioBase,
                 categoriaId: suggestions.categoriaId || prev.categoriaId,
+                seoTitle: suggestions.seoTitle || prev.seoTitle,
+                seoDescription: suggestions.seoDescription || prev.seoDescription,
               }))
               setLoadingIA(false)
             }
@@ -269,7 +282,6 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         discountValue: initialData.discountValue || 0,
         galeria: initialData.galeria || [],
         varianteImages: initialData.varianteImages || {},
-        videoUrl: initialData.videoUrl || '',
         descripcionLarga: initialData.descripcionLarga || '',
         beneficios: initialData.beneficios || [],
         caracteristicas: initialData.caracteristicas || {},
@@ -278,7 +290,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         productosComplementarios: initialData.productosComplementarios || [],
         seoTitle: initialData.seoTitle || '',
         seoDescription: initialData.seoDescription || '',
-        estado: initialData.estado || 'activo'
+        estado: initialData.estado || null
       })
       setCurrentStep(1)
     } else if (isOpen) {
@@ -396,15 +408,15 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       if (!allValid) return
     }
 
-    let finalVariantes = formData.variantes.map(v => ({
-      ...v,
-      stock: v.stock === '' ? 0 : Number(v.stock),
-      precio: (v.precio === '' || v.precio === undefined || v.precio === null) ? '' : Number(v.precio)
-    }))
-
-    if (!catalogFilters.sizes && !catalogFilters.colors) {
-      finalVariantes = [{ ...finalVariantes[0], talla: '', color: '' }]
-    }
+    // Hacemos que siempre sea una única variante por defecto para simplificar y eliminar variantes
+    const mainStock = formData.variantes?.[0]?.stock ?? 0
+    let finalVariantes = [{
+      id: 'default',
+      talla: '',
+      color: '',
+      stock: mainStock === '' ? 0 : Number(mainStock),
+      precio: ''
+    }]
 
     // Resolver nombre de categoría a partir del ID seleccionado
     const selectedCategory = categories.find(c => c.id === formData.categoriaId)
@@ -612,6 +624,71 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
               </div>
 
               {errors.imageUrl && <p className="text-error text-xs">{errors.imageUrl}</p>}
+
+              {/* Galería de imágenes secundarias (Carrusel) */}
+              {advancedGalleryEnabled && (
+                <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-app uppercase tracking-wider block">Imágenes Secundarias</span>
+                      <span className="text-[10px] text-muted block mt-0.5">Agrega otras fotos para el carrusel de detalle.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          galeria: [...(prev.galeria || []), '']
+                        }))
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={14} /> Agregar
+                    </button>
+                  </div>
+
+                  {formData.galeria && formData.galeria.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2.5 max-h-48 overflow-y-auto no-scrollbar">
+                      {formData.galeria.map((url, idx) => (
+                        <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app">
+                          <div className="w-10 h-10 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
+                            {url ? (
+                              <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon size={14} className="text-muted" />
+                            )}
+                          </div>
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={e => {
+                              const newGal = [...formData.galeria]
+                              newGal[idx] = e.target.value
+                              setFormData({ ...formData, galeria: newGal })
+                            }}
+                            placeholder="https://ejemplo.com/foto-secundario.jpg"
+                            className="flex-1 h-9 px-3 rounded-lg bg-surface-2 border border-app text-xs text-app focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newGal = formData.galeria.filter((_, i) => i !== idx)
+                              setFormData({ ...formData, galeria: newGal })
+                            }}
+                            className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-3 border border-dashed border-app rounded-xl bg-surface/50">
+                      <p className="text-[11px] text-muted">Sin fotos secundarias. Solo se usará la principal.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         )
@@ -861,163 +938,37 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
           >
             <div className="text-center max-w-sm mx-auto mb-4">
               <h3 className="text-lg font-bold text-app">
-                {(catalogFilters.sizes || catalogFilters.colors) ? 'Variantes y Stock' : 'Inventario de Tienda'}
+                Inventario de Tienda
               </h3>
               <p className="text-xs text-muted">
-                {(catalogFilters.sizes || catalogFilters.colors) ? 'Añade combinaciones y cantidades.' : 'Indica las unidades disponibles en el stock.'}
+                Indica las unidades disponibles en el stock general.
               </p>
             </div>
 
-            <div className="space-y-4">
-              {(catalogFilters.sizes || catalogFilters.colors) && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleAddVariant}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
-                  >
-                    <Plus size={14} /> Añadir Variante
-                  </button>
-                </div>
-              )}
-
-              {Object.keys(errors).some(k => k.startsWith('variantes')) && (
-                <p className="text-error text-xs font-bold">Por favor verifica los stocks ingresados en las variantes.</p>
-              )}
-
-              <div className="space-y-4 max-h-[30vh] overflow-y-auto no-scrollbar">
-                {(catalogFilters.sizes || catalogFilters.colors ? formData.variantes : [formData.variantes[0]]).filter(Boolean).map((variant, index) => {
-                  const tallasList = Array.from(new Set([...COMMON_TALLAS, variant.talla])).filter(Boolean)
-                  const coloresList = Array.from(new Set([...COMMON_COLORES, variant.color])).filter(Boolean)
-
-                  return (
-                    <div key={variant.id} className="relative bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
-                      {/* Botón Eliminar */}
-                      {(catalogFilters.sizes || catalogFilters.colors) && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVariant(variant.id)}
-                          disabled={formData.variantes.length === 1}
-                          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-
-                      <div className="flex flex-col gap-3 pr-6">
-                        {catalogFilters.sizes && (
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1.5 block">Talla: {variant.talla || 'Ninguna'}</label>
-                            <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                              {tallasList.map(t => (
-                                <button
-                                  key={t}
-                                  type="button"
-                                  onClick={() => handleVariantChange(variant.id, 'talla', variant.talla === t ? '' : t)}
-                                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 border ${
-                                    variant.talla === t
-                                      ? 'bg-primary text-white border-primary shadow-sm'
-                                      : 'bg-surface text-app border-app hover:border-primary/50'
-                                  }`}
-                                >
-                                  {t}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {catalogFilters.colors && (
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1.5 block">Color: {variant.color || 'Ninguno'}</label>
-                            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5">
-                              {coloresList.map(c => {
-                                const hex = getCssColor(c)
-                                const isLight = isLightColor(hex)
-                                const isSelected = variant.color === c
-                                return (
-                                  <button
-                                    key={c}
-                                    type="button"
-                                    onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
-                                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 border flex items-center gap-1`}
-                                    style={{
-                                      backgroundColor: hex,
-                                      color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
-                                      borderColor: isSelected 
-                                        ? 'var(--color-primary)' 
-                                        : (isLight ? 'var(--color-border)' : 'transparent'),
-                                      boxShadow: isSelected ? '0 0 8px rgba(124,58,237,0.35)' : undefined
-                                    }}
-                                  >
-                                    {c}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1 block">Cantidad Disponible (Stock) *</label>
-                            <NumberInput
-                              min={0}
-                              placeholder="Ej. 10"
-                              value={variant.stock}
-                              onChange={(val) => handleVariantChange(variant.id, 'stock', val)}
-                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                            />
-                            {errors[`variantes.${index}.stock`] && (
-                              <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.stock`]}</p>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1 block">Nombre de Variante</label>
-                            <input
-                              type="text"
-                              placeholder="Ej: Presentación familiar"
-                              value={variant.nombre || ''}
-                              onChange={e => handleVariantChange(variant.id, 'nombre', e.target.value)}
-                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1 block">Precio Propio (COP $)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              placeholder="Precio diferente"
-                              value={variant.precio || ''}
-                              onChange={e => handleVariantChange(variant.id, 'precio', e.target.value === '' ? '' : Number(e.target.value))}
-                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-app mb-1 block">SKU de Variante</label>
-                            <input
-                              type="text"
-                              placeholder="SKU"
-                              value={variant.sku || ''}
-                              onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
-                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-bold text-app mb-1 block">URL Foto de Variante (Opcional)</label>
-                            <input
-                              type="url"
-                              placeholder="https://ejemplo.com/variante.jpg"
-                              value={variant.imageUrl || ''}
-                              onChange={e => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
-                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+            <div className="space-y-4 bg-surface-2 p-5 rounded-3xl border border-app shadow-sm max-w-md mx-auto">
+              <div>
+                <label className="text-xs font-bold text-app mb-2 block">Cantidad Disponible en Stock *</label>
+                <NumberInput
+                  min={0}
+                  placeholder="Ej. 10"
+                  value={formData.variantes?.[0]?.stock ?? 0}
+                  onChange={(val) => {
+                    const cleanVal = val === '' ? 0 : Number(val)
+                    setFormData(prev => {
+                      const list = [...prev.variantes]
+                      if (list[0]) {
+                        list[0].stock = cleanVal
+                      } else {
+                        list[0] = { ...initialVariant, id: crypto.randomUUID(), stock: cleanVal }
+                      }
+                      return { ...prev, variantes: list }
+                    })
+                  }}
+                  className="w-full h-12 px-4 rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold text-base"
+                />
+                {errors[`variantes.0.stock`] && (
+                  <p className="text-error text-xs mt-1.5">{errors[`variantes.0.stock`]}</p>
+                )}
               </div>
             </div>
           </motion.div>
@@ -1186,48 +1137,73 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                 </div>
               </div>
 
-              <div className="relative h-28 rounded-2xl border border-app bg-surface-2 overflow-hidden flex items-center justify-center">
-                {loadingIA ? (
-                  <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
-                    <div className="relative flex items-center justify-center">
-                      <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                      <Sparkles size={14} className="text-primary absolute animate-pulse" />
-                    </div>
-                    <p className="text-[11px] font-extrabold text-primary animate-pulse">
-                      Gemini IA Analizando...
-                    </p>
+            </div>
+            {errors.imageUrl && <p className="text-error text-xs mt-1">{errors.imageUrl}</p>}
+            
+            {/* Galería de imágenes secundarias (Carrusel del producto) */}
+            {advancedGalleryEnabled && (
+              <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-app uppercase tracking-wider block">Galería de Imágenes Secundarias</span>
+                    <span className="text-[10px] text-muted block mt-0.5">Agrega otras tomas del producto para habilitar el carrusel deslizable.</span>
                   </div>
-                ) : formData.imageUrl ? (
-                  <div className="w-full h-full relative group">
-                    <img 
-                      src={formData.imageUrl} 
-                      alt="Vista previa" 
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (currentDraftId) {
-                          await handleCleanupTemp(currentDraftId, currentDraftFilePath)
-                          setCurrentDraftId(null)
-                          setCurrentDraftFilePath(null)
-                        }
-                        setFormData({ ...formData, imageUrl: '' })
-                      }}
-                      className="absolute top-2 right-2 bg-black/60 text-white hover:bg-red-500 rounded-lg p-1.5 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        galeria: [...(prev.galeria || []), '']
+                      }))
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
+                  >
+                    <Plus size={14} /> Agregar Imagen
+                  </button>
+                </div>
+
+                {formData.galeria && formData.galeria.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto no-scrollbar">
+                    {formData.galeria.map((url, idx) => (
+                      <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app">
+                        <div className="w-12 h-12 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
+                          {url ? (
+                            <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon size={16} className="text-muted" />
+                          )}
+                        </div>
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={e => {
+                            const newGal = [...formData.galeria]
+                            newGal[idx] = e.target.value
+                            setFormData({ ...formData, galeria: newGal })
+                          }}
+                          placeholder="https://ejemplo.com/foto-secundario.jpg"
+                          className="flex-1 h-9 px-3 rounded-lg bg-surface-2 border border-app text-xs text-app focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newGal = formData.galeria.filter((_, i) => i !== idx)
+                            setFormData({ ...formData, galeria: newGal })
+                          }}
+                          className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="text-center p-4">
-                    <ImageIcon size={24} className="text-muted mx-auto mb-1.5 opacity-40" />
-                    <p className="text-[11px] text-muted">Sin imagen cargada</p>
+                  <div className="text-center py-4 border border-dashed border-app rounded-xl bg-surface/50">
+                    <p className="text-xs text-muted">No hay imágenes secundarias. Solo se mostrará la foto principal.</p>
                   </div>
                 )}
               </div>
-            </div>
-            {errors.imageUrl && <p className="text-error text-xs mt-1">{errors.imageUrl}</p>}
+            )}
           </div>
 
           <div>
@@ -1328,309 +1304,188 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         <div className="border-t border-app pt-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-bold text-app">
-                {(catalogFilters.sizes || catalogFilters.colors) ? 'Variantes y Stock' : 'Inventario y Stock'}
-              </h3>
+              <h3 className="text-lg font-bold text-app">Inventario y Stock</h3>
             </div>
-            {(catalogFilters.sizes || catalogFilters.colors) && (
-              <button
-                type="button"
-                onClick={handleAddVariant}
-                className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm font-semibold hover:bg-primary/20 transition-colors"
-              >
-                <Plus size={16} /> Añadir Variante
-              </button>
-            )}
           </div>
           
-          {errors.variantes && <p className="text-error text-sm mb-3">{errors.variantes}</p>}
-
-          <div className="space-y-4">
-            {(catalogFilters.sizes || catalogFilters.colors ? formData.variantes : [formData.variantes[0]]).filter(Boolean).map((variant) => {
-              const tallasList = Array.from(new Set([...COMMON_TALLAS, variant.talla])).filter(Boolean)
-              const coloresList = Array.from(new Set([...COMMON_COLORES, variant.color])).filter(Boolean)
-
-              return (
-                <div key={variant.id} className="relative bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
-                  {(catalogFilters.sizes || catalogFilters.colors) && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveVariant(variant.id)}
-                      disabled={formData.variantes.length === 1}
-                      className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-30 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-
-                  <div className="flex flex-col gap-4 pr-6">
-                    {catalogFilters.sizes && (
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">Talla: {variant.talla || 'Ninguna'}</label>
-                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                          {tallasList.map(t => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => handleVariantChange(variant.id, 'talla', variant.talla === t ? '' : t)}
-                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 border-2 ${
-                                variant.talla === t
-                                  ? 'bg-primary text-white border-primary shadow-md'
-                                  : 'bg-surface text-app border-app hover:border-primary/50'
-                              }`}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {catalogFilters.colors && (
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">Color: {variant.color || 'Ninguno'}</label>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1.5 pt-1">
-                          {coloresList.map(c => {
-                            const hex = getCssColor(c)
-                            const isLight = isLightColor(hex)
-                            const isSelected = variant.color === c
-                            return (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={() => handleVariantChange(variant.id, 'color', variant.color === c ? '' : c)}
-                                className="flex-shrink-0 px-4 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all active:scale-95 border-2 flex items-center gap-1.5 shadow-sm"
-                                style={{
-                                  backgroundColor: hex,
-                                  color: isLight ? 'rgba(0,0,0,0.85)' : '#ffffff',
-                                  borderColor: isSelected ? 'var(--color-primary)' : (isLight ? 'var(--color-border)' : 'transparent'),
-                                }}
-                              >
-                                {c}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 15"
-                          value={variant.stock}
-                          onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
-                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">Nombre de Variante (Opcional)</label>
-                        <input
-                          type="text"
-                          placeholder="Ej: Presentación familiar"
-                          value={variant.nombre || ''}
-                          onChange={e => handleVariantChange(variant.id, 'nombre', e.target.value)}
-                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">Precio Propio (COP $, Opcional)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Precio diferente"
-                          value={variant.precio || ''}
-                          onChange={e => handleVariantChange(variant.id, 'precio', e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-app mb-2 block">SKU de Variante (Opcional)</label>
-                        <input
-                          type="text"
-                          placeholder="SKU"
-                          value={variant.sku || ''}
-                          onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
-                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-semibold text-app mb-2 block">URL Foto de Variante (Opcional)</label>
-                        <input
-                          type="url"
-                          placeholder="https://ejemplo.com/variante.jpg"
-                          value={variant.imageUrl || ''}
-                          onChange={e => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
-                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+          <div className="bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
+            <div>
+              <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="Ej: 15"
+                value={formData.variantes?.[0]?.stock ?? 0}
+                onChange={e => {
+                  const val = e.target.value === '' ? 0 : Number(e.target.value)
+                  setFormData(prev => {
+                    const list = [...prev.variantes]
+                    if (list[0]) {
+                      list[0].stock = val
+                    } else {
+                      list[0] = { ...initialVariant, id: 'default', stock: val }
+                    }
+                    return { ...prev, variantes: list }
+                  })
+                }}
+                className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
+              />
+              {errors[`variantes.0.stock`] && (
+                <p className="text-error text-xs mt-1">{errors[`variantes.0.stock`]}</p>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Sección de Configuración Comercial, QR y SEO */}
-        <div className="border-t border-app pt-6 mt-6">
-          <button
-            type="button"
-            onClick={() => setShowCommercialConfig(!showCommercialConfig)}
-            className="w-full flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app hover:bg-surface transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black text-app uppercase tracking-wider">Configuración Comercial, QR y SEO Avanzado</span>
-            </div>
-            <ChevronDown size={18} className={`text-muted transition-transform ${showCommercialConfig ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showCommercialConfig && (
-            <div className="mt-4 p-4 rounded-2xl bg-surface-2 border border-app space-y-4 animate-in fade-in duration-200">
-              {/* Estado Público */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Estado Público del Producto</label>
-                <CustomSelect
-                  value={formData.estado || 'activo'}
-                  onChange={(val) => setFormData({ ...formData, estado: val })}
-                  options={[
-                    { value: 'activo', label: 'Activo (Venta normal)' },
-                    { value: 'agotado', label: 'Agotado (Bloquea compra / Encargo)' },
-                    { value: 'oculto', label: 'Oculto (No aparece en catálogo público)' },
-                    { value: 'archivado', label: 'Archivado (Solo histórico)' },
-                    { value: 'descontinuado', label: 'Descontinuado (Mensaje de no disponible)' },
-                    { value: 'eliminado', label: 'Eliminado (Conserva URL con mensaje especial)' }
-                  ]}
-                  placeholder="Selecciona estado..."
-                />
+        {/* Sección de Configuración Comercial, QR y SEO — solo visible si hay algún módulo activo */}
+        {showAdvancedSection && (
+          <div className="border-t border-app pt-6 mt-6">
+            <button
+              type="button"
+              onClick={() => setShowCommercialConfig(!showCommercialConfig)}
+              className="w-full flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app hover:bg-surface transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-app uppercase tracking-wider">Configuración Avanzada de Producto</span>
               </div>
+              <ChevronDown size={18} className={`text-muted transition-transform ${showCommercialConfig ? 'rotate-180' : ''}`} />
+            </button>
 
-              {/* Galería de imágenes secundarias */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Galería de Imágenes Secundarias (URLs separadas por comas)</label>
-                <textarea
-                  rows={2}
-                  value={formData.galeria?.join(', ') || ''}
-                  onChange={e => setFormData({
-                    ...formData,
-                    galeria: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                  })}
-                  placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg"
-                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
-                />
-              </div>
-
-              {/* Multimedia / Video */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">URL de Vídeo Comercial (YouTube / Vimeo / Directo)</label>
-                <input
-                  type="url"
-                  value={formData.videoUrl || ''}
-                  onChange={e => setFormData({ ...formData, videoUrl: e.target.value })}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              {/* Información comercial extendida */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Descripción Comercial Detallada / Características</label>
-                <textarea
-                  rows={3}
-                  value={formData.descripcionLarga || ''}
-                  onChange={e => setFormData({ ...formData, descripcionLarga: e.target.value })}
-                  placeholder="Escribe especificaciones, materiales, o información comercial adicional..."
-                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none animate-in fade-in"
-                />
-              </div>
-
-              {/* Beneficios (Uno por línea) */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Beneficios del Producto (Uno por línea)</label>
-                <textarea
-                  rows={3}
-                  value={formData.beneficios?.join('\n') || ''}
-                  onChange={e => setFormData({
-                    ...formData,
-                    beneficios: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-                  })}
-                  placeholder="✓ Envío gratis hoy&#10;✓ Garantía de 12 meses&#10;✓ Devolución fácil"
-                  className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
-                />
-              </div>
-
-              {/* Garantía */}
-              <div>
-                <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Información de Garantía y Soporte</label>
-                <input
-                  type="text"
-                  value={formData.garantiaInfo || ''}
-                  onChange={e => setFormData({ ...formData, garantiaInfo: e.target.value })}
-                  placeholder="Ej: 6 meses de garantía por defectos de fábrica"
-                  className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              {/* SEO Title & Description */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {showCommercialConfig && (
+              <div className="mt-4 p-4 rounded-2xl bg-surface-2 border border-app space-y-4 animate-in fade-in duration-200">
+                {/* Visibilidad manual del producto — solo para casos excepcionales */}
                 <div>
-                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">SEO Título (Open Graph)</label>
-                  <input
-                    type="text"
-                    value={formData.seoTitle || ''}
-                    onChange={e => setFormData({ ...formData, seoTitle: e.target.value })}
-                    placeholder="Título optimizado para buscadores"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                  <label className="block text-xs font-bold text-app mb-1 uppercase tracking-wider">Visibilidad Manual del Producto</label>
+                  <p className="text-[11px] text-muted mb-2">Por defecto la app lo gestiona sola: con stock → <span className="font-semibold text-success">Activo</span>, sin stock → <span className="font-semibold text-warning">Agotado</span>. Solo usa esto si quieres forzar un estado especial.</p>
+                  <CustomSelect
+                    value={formData.estado || ''}
+                    onChange={(val) => setFormData({ ...formData, estado: val || null })}
+                    options={[
+                      { value: '', label: '— Automático (gestionado por stock) —' },
+                      { value: 'oculto', label: '🙈 Oculto — No aparece en el catálogo público' },
+                      { value: 'archivado', label: '📦 Archivado — Solo histórico, fuera de venta' },
+                      { value: 'descontinuado', label: '⛔ Descontinuado — Muestra mensaje de no disponible' },
+                      { value: 'eliminado', label: '🗑️ Eliminado — Conserva URL con mensaje especial' },
+                    ]}
+                    placeholder="— Automático (gestionado por stock) —"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">SEO Descripción</label>
-                  <input
-                    type="text"
-                    value={formData.seoDescription || ''}
-                    onChange={e => setFormData({ ...formData, seoDescription: e.target.value })}
-                    placeholder="Descripción resumida para compartir"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
 
-              {/* Relacionados y Complementarios */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Relacionados (IDs separados por coma)</label>
-                  <input
-                    type="text"
-                    value={formData.productosRelacionados?.join(', ') || ''}
-                    onChange={e => setFormData({
-                      ...formData,
-                      productosRelacionados: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    })}
-                    placeholder="ID1, ID2, ID3"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Complementarios (IDs separados por coma)</label>
-                  <input
-                    type="text"
-                    value={formData.productosComplementarios?.join(', ') || ''}
-                    onChange={e => setFormData({
-                      ...formData,
-                      productosComplementarios: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
-                    })}
-                    placeholder="ID4, ID5"
-                    className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
+                {/* Galería de imágenes secundarias — requiere advancedGallery */}
+                {advancedGalleryEnabled && (
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Galería de Imágenes Secundarias (URLs separadas por comas)</label>
+                    <textarea
+                      rows={2}
+                      value={formData.galeria?.join(', ') || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        galeria: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                      })}
+                      placeholder="https://ejemplo.com/img1.jpg, https://ejemplo.com/img2.jpg"
+                      className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
+                    />
+                  </div>
+                )}
 
-            </div>
-          )}
-        </div>
+                {/* Descripción larga y beneficios — requiere seoEnabled */}
+                {seoEnabled && (
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Beneficios del Producto (Uno por línea)</label>
+                    <textarea
+                      rows={3}
+                      value={formData.beneficios?.join('\n') || ''}
+                      onChange={e => setFormData({
+                        ...formData,
+                        beneficios: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
+                      })}
+                      placeholder="✓ Envío gratis hoy&#10;✓ Garantía de 12 meses&#10;✓ Devolución fácil"
+                      className="w-full p-3 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none resize-none"
+                    />
+                  </div>
+                )}
+
+                {/* Garantía — requiere claimsEnabled */}
+                {!!claimsEnabled && (
+                  <div>
+                    <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Información de Garantía y Soporte</label>
+                    <input
+                      type="text"
+                      value={formData.garantiaInfo || ''}
+                      onChange={e => setFormData({ ...formData, garantiaInfo: e.target.value })}
+                      placeholder="Ej: 6 meses de garantía por defectos de fábrica"
+                      className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* SEO — auto-generado por Gemini, solo visible para referencia/edición manual si SEO activo */}
+                {seoEnabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-app mb-1 uppercase tracking-wider">SEO Título
+                        <span className="ml-1 text-primary font-normal normal-case">✦ Gemini</span>
+                      </label>
+                      <p className="text-[10px] text-muted mb-1.5">Auto-generado al subir imagen. Edita si quieres.</p>
+                      <input
+                        type="text"
+                        value={formData.seoTitle || ''}
+                        onChange={e => setFormData({ ...formData, seoTitle: e.target.value })}
+                        placeholder="Auto-generado por IA al subir la foto..."
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-app mb-1 uppercase tracking-wider">SEO Descripción
+                        <span className="ml-1 text-primary font-normal normal-case">✦ Gemini</span>
+                      </label>
+                      <p className="text-[10px] text-muted mb-1.5">Auto-generado al subir imagen. Edita si quieres.</p>
+                      <input
+                        type="text"
+                        value={formData.seoDescription || ''}
+                        onChange={e => setFormData({ ...formData, seoDescription: e.target.value })}
+                        placeholder="Auto-generado por IA al subir la foto..."
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Relacionados y Complementarios — requiere recommendations */}
+                {recommendationsEnabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Relacionados (IDs separados por coma)</label>
+                      <input
+                        type="text"
+                        value={formData.productosRelacionados?.join(', ') || ''}
+                        onChange={e => setFormData({
+                          ...formData,
+                          productosRelacionados: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                        })}
+                        placeholder="ID1, ID2, ID3"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Productos Complementarios (IDs separados por coma)</label>
+                      <input
+                        type="text"
+                        value={formData.productosComplementarios?.join(', ') || ''}
+                        onChange={e => setFormData({
+                          ...formData,
+                          productosComplementarios: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                        })}
+                        placeholder="ID4, ID5"
+                        className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </form>
     )
   }

@@ -13,7 +13,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Subcolecciones de configuración (ej. mensajeros externos)
+    // Subcolecciones de configuración
     match /config/delivery/messengers/{messengerId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -21,16 +21,12 @@ service cloud.firestore {
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
-      // Un cliente solo puede leer/escribir su propio documento (donde userId es su número de celular)
-      // El Administrador puede realizar cualquier operación
       allow read, write: if isAdmin() || request.auth == null; 
-      // Nota: Dado que la autenticación de clientes es sin clave, se permite la creación/actualización 
-      // de su propio perfil basándose en el ID del documento (celular). Evitamos lecturas de lista masivas:
       allow list: if isAdmin();
       allow delete: if isAdmin();
       
       match /favorites/{favoriteId} {
-        allow read, write: if isAdmin() || true; // El cliente escribe sus propios favoritos localmente
+        allow read, write: if isAdmin() || true;
       }
     }
 
@@ -39,7 +35,7 @@ service cloud.firestore {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['variantes', 'updatedAt'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['variantes', 'salesCount', 'updatedAt'])
       );
     }
     match /categories/{document} {
@@ -50,17 +46,13 @@ service cloud.firestore {
     // Pedidos (Retail y Mayoristas)
     match /orders/{document} {
       allow create: if true;
-      // Lectura permitida a administradores, consultas de cliente por celular, o consultas de tracking público con token seguro
       allow read: if isAdmin() || 
                   (resource.data.cliente.celular != null) ||
                   (resource.data.trackingToken != null);
       allow update: if isAdmin() || (
-        // El cliente sin auth puede cancelar su propio pedido o vaciar su historial.
         resource.data.cliente.celular != null &&
         (
-          // Opción 1: Cancelar (pasar a cancelado si estaba pendiente)
           (request.resource.data.estado == 'cancelado' && resource.data.estado == 'pendiente') ||
-          // Opción 2: Ocultar de su historial
           (request.resource.data.ocultoCliente == true)
         )
       );
@@ -75,8 +67,7 @@ service cloud.firestore {
 
     // Créditos / Fiados
     match /credits/{document} {
-      allow read: if isAdmin() || (resource.data.clienteCelular != null);
-      allow write, delete: if isAdmin();
+      allow read, write: if true;
     }
 
     // Publicidad y Promociones
@@ -98,14 +89,19 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Notificaciones
+    // [NUEVO] Centro de Notificaciones Centralizado
     match /notifications/{document} {
-      allow create: if true;
-      allow read: if isAdmin();
-      allow update, delete: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Notificaciones del Cliente
+    // [NUEVO] Registro de Tokens FCM (Dispositivos)
+    match /fcmTokens/{document} {
+      allow read: if isAdmin();
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // Notificaciones del Cliente (Legacy compatibility)
     match /clientNotifications/{document} {
       allow read: if isAdmin() || (resource.data.clienteCelular != null);
       allow create: if true;
@@ -113,38 +109,34 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ─── NUEVAS COLECCIONES SISTEMA DE ROLES OPERATIVOS ─────────────────────
-    
     // Configuración y PINs de empleados (Altamente sensible)
     match /employees/{employeeId} {
-      // Lectura permitida si se consulta un empleado individual (para validación de PIN en portal_auth/lobby)
-      // Escritura restringida exclusivamente a Administradores Autenticados
       allow get: if true;
       allow list, write: if isAdmin();
     }
 
-    // Mesas de servicio en salón (restaurantes)
+    // Mesas de servicio en salón
     match /tables/{tableId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Órdenes en cola de producción (cocina y bodega)
+    // Órdenes en cola de producción
     match /production/{prodId} {
       allow read: if true;
-      allow write: if isAdmin() || true; // Permitido para transicionar estados desde portales con PIN
+      allow write: if isAdmin() || true;
     }
 
-    // Entregas y despachos (mensajería/domiciliarios)
+    // Entregas y despachos
     match /deliveries/{deliveryId} {
       allow read: if true;
-      allow write: if isAdmin() || true; // Permitido para actualizar coordenadas o estados en tránsito
+      allow write: if isAdmin() || true;
     }
 
     // Kardex y Movimientos de Stock
     match /stockMovements/{movementId} {
       allow read: if isAdmin();
-      allow create: if isAdmin() || true; // Permitido crear movimientos al vender/descartar
+      allow create: if isAdmin() || true;
       allow update, delete: if isAdmin();
     }
 
@@ -161,7 +153,7 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Telemetría y Analíticas del Seguimiento de Pedidos
+    // Telemetría y Analíticas
     match /trackingAnalytics/{analyticsId} {
       allow read: if isAdmin();
       allow create: if true;
