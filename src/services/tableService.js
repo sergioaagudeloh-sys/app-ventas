@@ -98,11 +98,25 @@ export function subscribeToTableRequests(callback) {
   })
 }
 
-export async function resolveTableRequest(requestId, meseroId) {
-  const ref = doc(db, 'tableRequests', requestId)
+export async function resolveTableRequest(request, meseroId) {
+  const reqId = typeof request === 'string' ? request : request.id
+  const ref = doc(db, 'tableRequests', reqId)
   await updateDoc(ref, {
     status: 'atendido',
     meseroId: meseroId || null,
     updatedAt: serverTimestamp(),
   })
+
+  if (typeof request === 'object' && request.tableId) {
+    if (request.type === 'cuenta') {
+      await closeTable(request.tableId)
+    } else {
+      // Restablecer/asegurar que el estado sea ocupada al atender el llamado
+      const tableRef = doc(db, COL, request.tableId)
+      await updateDoc(tableRef, {
+        estado: 'ocupada',
+        updatedAt: serverTimestamp()
+      })
+    }
+  }
 }
