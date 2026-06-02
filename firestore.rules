@@ -66,11 +66,7 @@ service cloud.firestore {
 
     // Créditos / Fiados
     match /credits/{document} {
-      allow read: if isAdmin() ||
-                  (request.auth != null && (
-                    resource.data.clienteUid == request.auth.uid ||
-                    resource.data.clienteCelular == request.auth.token.phone_number
-                  ));
+      allow read: if isAdmin() || (resource.data.cliente.celular != null);
       allow write: if isAdmin();
     }
 
