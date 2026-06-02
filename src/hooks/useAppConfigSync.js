@@ -25,5 +25,5 @@ export default function useAppConfigSync() {
       unsubscribeSettings()
       unsubscribeFilters()
     }
-  }, [setConfig])
+  }, [setConfig, setCatalogFilters])
 }

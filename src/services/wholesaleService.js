@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  addDoc,
   updateDoc,
   getDoc,
   getDocs,
@@ -9,7 +10,8 @@ import {
   where,
   limit,
   startAfter,
-  onSnapshot
+  onSnapshot,
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
@@ -141,3 +143,15 @@ export async function clearClientWholesaleHistory(requests) {
   await Promise.all(promises)
 }
 
+/**
+ * Crea una nueva solicitud al por mayor o por encargo en Firestore.
+ * @param {object} data - Datos de la solicitud
+ * @returns {Promise<string>} ID del documento creado
+ */
+export async function createWholesaleOrder(data) {
+  const docRef = await addDoc(wholesaleRef, {
+    ...data,
+    createdAt: serverTimestamp(),
+  })
+  return docRef.id
+}

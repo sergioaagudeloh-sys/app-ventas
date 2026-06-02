@@ -15,26 +15,9 @@ export default function RequirePortalAuth({ children, allowedRole }) {
   const [isValid, setIsValid] = useState(true)
   const [checking, setChecking] = useState(true)
 
-  // 1. Validar switch global
-  if (!hasMultipleEmployees) {
-    if (portalEmployee) {
-      clearPortalEmployee()
-    }
-    return <Navigate to="/portal/auth" replace />
-  }
-
-  // 2. Validar sesión local
-  if (!portalEmployee) {
-    return <Navigate to="/portal/auth" replace />
-  }
-
-  if (allowedRole && portalEmployee.rol !== allowedRole) {
-    return <Navigate to="/portal/auth" replace />
-  }
-
-  // 3. Suscribirse al documento del empleado en Firestore en tiempo real para validar estado activo y que no esté deshabilitado
+  // 1. Suscribirse al documento del empleado en Firestore en tiempo real para validar estado activo
   useEffect(() => {
-    if (!portalEmployee?.id) {
+    if (!hasMultipleEmployees || !portalEmployee?.id) {
       setChecking(false)
       return
     }
@@ -67,7 +50,24 @@ export default function RequirePortalAuth({ children, allowedRole }) {
     })
 
     return () => unsubscribe()
-  }, [portalEmployee?.id, clearPortalEmployee])
+  }, [portalEmployee?.id, portalEmployee?.rol, hasMultipleEmployees, clearPortalEmployee])
+
+  // 2. Validar switch global
+  if (!hasMultipleEmployees) {
+    if (portalEmployee) {
+      clearPortalEmployee()
+    }
+    return <Navigate to="/portal/auth" replace />
+  }
+
+  // 3. Validar sesión local
+  if (!portalEmployee) {
+    return <Navigate to="/portal/auth" replace />
+  }
+
+  if (allowedRole && portalEmployee.rol !== allowedRole) {
+    return <Navigate to="/portal/auth" replace />
+  }
 
   if (checking) {
     return (

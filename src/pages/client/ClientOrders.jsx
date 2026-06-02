@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Clock, Truck, CheckCircle, XCircle, ChevronDown, Repeat, MessageCircle, Archive, CreditCard, FileText, ShieldAlert, PackagePlus, Store, Rocket, Bike } from 'lucide-react'
@@ -13,7 +13,10 @@ import useCartStore from '../../store/cartStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, GUIDED_MESSAGES, SUPPORT_WHATSAPP } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
-import ClaimRequestModal from '../../components/client/claims/ClaimRequestModal'
+import Pagination from '../../components/ui/Pagination'
+
+// Lazy-load complex modals only when they are needed by the user
+const ClaimRequestModal = lazy(() => import('../../components/client/claims/ClaimRequestModal'))
 
 const STATE_ICONS = {
   [ORDER_STATES.PENDING]: Clock,
@@ -73,6 +76,9 @@ export default function ClientOrders() {
   const location = useLocation()
 
   const [activeTab, setActiveTab] = useState('normal') // 'normal' o 'especial'
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+
   const [showHidden, setShowHidden] = useState(false)
   const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [expandedWholesaleId, setExpandedWholesaleId] = useState(null)
@@ -100,9 +106,10 @@ export default function ClientOrders() {
     }
   }, [visibleWholesaleCount, activeTab])
 
-  // Resetear showHidden al cambiar de pestaña
+  // Resetear showHidden y volver a página 1 al cambiar de pestaña
   useEffect(() => {
     setShowHidden(false)
+    setCurrentPage(1)
   }, [activeTab])
 
   // Abrir y expandir automáticamente el pedido si viene desde una notificación
@@ -533,6 +540,7 @@ export default function ClientOrders() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
               className="border-t border-app bg-surface-2/20"
             >
               <div className="p-5 space-y-4">
@@ -653,13 +661,13 @@ export default function ClientOrders() {
 
                 {/* Botón de Seguimiento en Tiempo Real / En Vivo */}
                 {orderTrackingEnabled && order.trackingToken && (
-                  <div className="pt-3 border-t border-app/50">
+                  <div className="mt-4 pt-4 border-t border-app/50">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         navigate(`/pedido/status?t=${order.trackingToken}`)
                       }}
-                      className="w-full flex items-center justify-center gap-2 h-11 bg-primary text-white rounded-xl font-bold text-xs shadow-md hover:opacity-90 transition-all active:scale-[0.98] cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-primary text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-lg hover:opacity-90 transition-all active:scale-[0.95] cursor-pointer"
                     >
                       <Rocket size={14} /> Ver Seguimiento en Tiempo Real
                     </button>
@@ -673,7 +681,7 @@ export default function ClientOrders() {
         {/* Botones de Acción Siempre Visibles */}
         <div 
           onClick={(e) => e.stopPropagation()} 
-          className="p-5 pt-0 border-t border-app bg-surface"
+          className="p-5 pt-0 bg-surface"
         >
           {order.estado === ORDER_STATES.COMPLETED && (
             <div className="flex flex-col gap-2 mb-3">
@@ -825,8 +833,15 @@ export default function ClientOrders() {
               {activeWholesale.length > 0 ? (
                 <div className="flex flex-col gap-4">
                   <AnimatePresence>
-                    {activeWholesale.map(req => renderWholesaleCard(req))}
+                    {activeWholesale.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(req => renderWholesaleCard(req))}
                   </AnimatePresence>
+
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={activeWholesale.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
               ) : (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-10 bg-surface rounded-3xl border border-app text-muted">
@@ -896,8 +911,15 @@ export default function ClientOrders() {
               {activeOrders.length > 0 ? (
                 <div className="flex flex-col gap-4">
                   <AnimatePresence>
-                    {activeOrders.map(order => renderOrderCard(order))}
+                    {activeOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(order => renderOrderCard(order))}
                   </AnimatePresence>
+
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={activeOrders.length}
+                    itemsPerPage={itemsPerPage}
+                    onPageChange={setCurrentPage}
+                  />
                 </div>
               ) : (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-10 bg-surface rounded-3xl border border-app text-muted">
@@ -1145,11 +1167,13 @@ export default function ClientOrders() {
       </AnimatePresence>
 
       {claimOrder && (
-        <ClaimRequestModal
-          isOpen={!!claimOrder}
-          onClose={() => setClaimOrder(null)}
-          order={claimOrder}
-        />
+        <Suspense fallback={null}>
+          <ClaimRequestModal
+            isOpen={!!claimOrder}
+            onClose={() => setClaimOrder(null)}
+            order={claimOrder}
+          />
+        </Suspense>
       )}
     </div>
   )

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ShieldAlert, AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react'
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
-import { db } from '../../../config/firebaseConfig'
 import { COLLECTIONS } from '../../../constants'
 import ModalTemplate from '../../common/ModalTemplate'
 import QuantitySelector from '../../ui/QuantitySelector'
+import { createClaim } from '../../../services/claimsService'
 
 
 export default function ClaimRequestModal({ isOpen, onClose, order, onSuccess }) {
@@ -86,7 +85,7 @@ export default function ClaimRequestModal({ isOpen, onClose, order, onSuccess })
         adminNotes: ''
       }
 
-      await addDoc(collection(db, COLLECTIONS.CLAIMS || 'claims'), claimPayload)
+      await createClaim(claimPayload)
       setSubmitted(true)
       if (onSuccess) onSuccess()
     } catch (err) {

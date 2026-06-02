@@ -287,9 +287,10 @@ export default function CatalogBanner({ onAction }) {
                   e.stopPropagation()
                   scrollTo(idx)
                 }}
-                className={`w-1.5 h-1.5 rounded-full transition-all ${
-                  idx === selectedIndex ? 'bg-primary w-4' : 'bg-white/40 hover:bg-white/60'
+                className={`w-4 h-4 rounded-full transition-all ${
+                  idx === selectedIndex ? 'bg-primary w-6' : 'bg-white/40 hover:bg-white/60'
                 }`}
+                aria-label={`Ver imagen ${idx + 1}`}
               />
             ))}
           </div>

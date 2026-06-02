@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../config/firebaseConfig'
 import { COLLECTIONS } from '../constants'
 
@@ -10,7 +10,6 @@ import { COLLECTIONS } from '../constants'
 export async function getClientByPhone(celular) {
   if (!celular) return null
   
-  // Normalizar: el documento se guarda con dígitos puros
   const cleanPhone = String(celular).replace(/\D/g, '')
   if (!cleanPhone) return null
 
@@ -36,5 +35,17 @@ export async function saveClientProfile(celular, nombre) {
     celular,
     nombre,
     updatedAt: serverTimestamp(),
-  }, { merge: true }) // merge: true asegura que si ya existía, no borre otros datos
+  }, { merge: true })
 }
+
+/**
+ * Actualiza campos parciales del perfil de un cliente en Firestore.
+ * @param {string} celular - Número de celular (ID del documento)
+ * @param {object} data - Campos a actualizar (ej: { emoji: '😎' })
+ */
+export async function updateClientProfile(celular, data) {
+  if (!celular) return
+  const userRef = doc(db, COLLECTIONS.USERS, celular)
+  await updateDoc(userRef, { ...data, updatedAt: serverTimestamp() })
+}
+

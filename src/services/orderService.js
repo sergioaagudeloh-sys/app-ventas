@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   where,
+  limit,
   serverTimestamp,
   orderBy,
   runTransaction,
@@ -483,4 +484,39 @@ export async function createPhysicalOrder(orderData, adminId) {
   }
 
   return { id: orderIdRef.id, orderNumber }
+}
+
+/**
+ * Actualiza el costo de envío de un pedido y recalcula el total.
+ * @param {string} orderId - ID del pedido
+ * @param {number} newCost - Nuevo costo de envío
+ * @param {number} currentTotal - Total actual del pedido (para calcular la diferencia)
+ * @param {number} currentDeliveryCost - Costo de envío actual (para calcular la diferencia)
+ */
+export async function updateOrderDeliveryCost(orderId, newCost, currentTotal, currentDeliveryCost) {
+  const orderRef = doc(db, COLLECTIONS.ORDERS, orderId)
+  const diff = newCost - (currentDeliveryCost || 0)
+  await updateDoc(orderRef, {
+    costoEnvio: newCost,
+    total: Math.max(0, (currentTotal || 0) + diff),
+    updatedAt: serverTimestamp()
+  })
+}
+
+/**
+ * Se suscribe a un pedido específico por su trackingToken en tiempo real.
+ * @param {string} token - Token de seguimiento del pedido
+ * @param {function} onUpdate - Callback con el pedido actualizado
+ * @param {function} onError - Callback de error
+ * @returns {function} Función para cancelar la suscripción
+ */
+export function subscribeToOrderByToken(token, onUpdate, onError) {
+  const q = query(ordersRef, where('trackingToken', '==', token), limit(1))
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) {
+      onUpdate(null)
+    } else {
+      onUpdate({ id: snap.docs[0].id, ...snap.docs[0].data() })
+    }
+  }, onError)
 }

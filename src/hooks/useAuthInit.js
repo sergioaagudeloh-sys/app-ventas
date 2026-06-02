@@ -20,24 +20,36 @@ export default function useAuthInit() {
       setLoading(false)
     }
 
-    // 2. Escuchamos cambios en Firebase Auth (para el Administrador)
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // Hay un administrador autenticado en Firebase
-        setAdmin(firebaseUser) // setAdmin pone isLoading en false automáticamente
-      } else {
-        // Firebase dice que no hay nadie autenticado.
-        // Si nuestro rol era ADMIN, cerramos su sesión local.
-        const currentRole = useAuthStore.getState().role
-        if (currentRole === ROLES.ADMIN) {
-          logout()
+    // 2. Escuchamos cambios en Firebase Auth (para el Administrador) - De forma asíncrona
+    // Diferimos la inicialización para no bloquear la pintura de la UI del Critical Path.
+    const deferTimer = setTimeout(() => {
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          // Hay un administrador autenticado en Firebase
+          setAdmin(firebaseUser) // setAdmin pone isLoading en false automáticamente
+        } else {
+          // Firebase dice que no hay nadie autenticado.
+          // Si nuestro rol era ADMIN, cerramos su sesión local.
+          const currentRole = useAuthStore.getState().role
+          if (currentRole === ROLES.ADMIN) {
+            logout()
+          }
+          // En cualquier caso, si no hay firebaseUser, apagamos el spinner
+          // para que la app fluya (redirija al login o deje pasar al cliente).
+          useAuthStore.getState().setLoading(false)
         }
-        // En cualquier caso, si no hay firebaseUser, apagamos el spinner
-        // para que la app fluya (redirija al login o deje pasar al cliente).
-        useAuthStore.getState().setLoading(false)
-      }
-    })
+      })
 
-    return () => unsubscribe()
+      // Adjuntamos la función de desuscripción al store o un objeto global si fuera necesario,
+      // pero el cleanup del useEffect principal cancelará la desuscripción.
+      window.__firebase_unsubscribe = unsubscribe
+    }, 200)
+
+    return () => {
+      clearTimeout(deferTimer)
+      if (typeof window.__firebase_unsubscribe === 'function') {
+        window.__firebase_unsubscribe()
+      }
+    }
   }, []) // Solo se ejecuta una vez al montar la App
 }
