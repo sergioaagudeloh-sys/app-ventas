@@ -520,6 +520,10 @@ export default function ClientOrders() {
                   <span className="text-xs font-bold px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md">
                     🛵 Domicilio{order.costoEnvio > 0 ? ` · +${formatCurrency(order.costoEnvio)}` : ''}
                   </span>
+                ) : order.tipoEntrega === 'mesa' ? (
+                  <span className="text-xs font-bold px-2 py-0.5 bg-purple-500/10 text-purple-600 border border-purple-500/20 rounded-md">
+                    🛎️ En Mesa: {order.tableName || 'Salón'}
+                  </span>
                 ) : (
                   <span className="text-xs text-muted px-2 py-0.5 bg-surface-2 rounded-md border border-app">
                     🏪 Retiro en tienda
@@ -564,8 +568,8 @@ export default function ClientOrders() {
                 {/* Detalle de Entrega */}
                 <div className="mb-5 p-4 bg-surface rounded-2xl border border-app">
                   <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    {order.tipoEntrega === 'domicilio' ? '🛵' : '🏪'}
-                    {order.tipoEntrega === 'domicilio' ? 'Entrega a Domicilio' : 'Retiro en Tienda'}
+                    {order.tipoEntrega === 'domicilio' ? '🛵' : order.tipoEntrega === 'mesa' ? '🛎️' : '🏪'}
+                    {order.tipoEntrega === 'domicilio' ? 'Entrega a Domicilio' : order.tipoEntrega === 'mesa' ? `Consumo en Salón — ${order.tableName || 'Mesa'}` : 'Retiro en Tienda'}
                   </h4>
                   {order.tipoEntrega === 'domicilio' ? (
                     <div className="space-y-0.5">
@@ -581,6 +585,8 @@ export default function ClientOrders() {
                         <p className="text-xs text-muted italic mt-1">El costo de envío será acordado con el negocio.</p>
                       )}
                     </div>
+                  ) : order.tipoEntrega === 'mesa' ? (
+                    <p className="text-sm text-muted">Tu pedido será entregado directamente en tu **{order.tableName || 'Mesa'}**.</p>
                   ) : (
                     <p className="text-sm text-muted">Recoge tu pedido directamente en nuestra tienda.</p>
                   )}

@@ -307,9 +307,12 @@ export default function AdminOrders() {
               <p><strong>Celular:</strong> ${order.cliente?.celular || 'N/A'}</p>
             </div>
             <div class="info-box">
-              <h3>Datos de Envío</h3>
-              <p><strong>Dirección:</strong> ${order.cliente?.direccion || 'Recogida en Tienda'}</p>
-              <p><strong>Ciudad/Barrio:</strong> ${order.cliente?.ciudad || ''} - ${order.cliente?.barrio || ''}</p>
+              <h3>Datos de Entrega / Mesa</h3>
+              ${order.tipoEntrega === 'mesa'
+                ? `<p><strong>Tipo:</strong> Consumo en Salón</p><p><strong>Mesa:</strong> ${order.tableName || 'N/A'}</p>`
+                : `<p><strong>Dirección:</strong> ${order.cliente?.direccion || 'Recogida en Tienda'}</p>
+                   <p><strong>Ciudad/Barrio:</strong> ${order.cliente?.ciudad || ''} - ${order.cliente?.barrio || ''}</p>`
+              }
             </div>
           </div>
 
@@ -413,9 +416,11 @@ export default function AdminOrders() {
                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
                     : order.tipoEntrega === 'digital'
                       ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      : order.tipoEntrega === 'mesa'
+                        ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                 }`}>
-                  {order.tipoEntrega === 'domicilio' ? '🛵 Domicilio' : order.tipoEntrega === 'digital' ? '📱 Digital' : '🏪 Retiro'}
+                  {order.tipoEntrega === 'domicilio' ? '🛵 Domicilio' : order.tipoEntrega === 'digital' ? '📱 Digital' : order.tipoEntrega === 'mesa' ? `🛎️ Mesa: ${order.tableName || 'Salón'}` : '🏪 Retiro'}
                 </span>
                 {order.archivado && (
                   <span className="text-[10px] font-bold text-muted bg-surface-2 border border-app px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -466,8 +471,12 @@ export default function AdminOrders() {
                 <div className="space-y-6">
                   <div>
                     <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5"><MapPin size={14}/> Envío y Fecha</h4>
-                    <p className="text-sm text-app font-medium">{order.cliente?.direccion || 'Recogida en tienda'}</p>
-                    {order.cliente?.barrio && <p className="text-sm text-muted">{order.cliente?.barrio}, {order.cliente?.ciudad}</p>}
+                    <p className="text-sm text-app font-medium">
+                      {order.tipoEntrega === 'mesa'
+                        ? `🛎️ Consumo en Salón — ${order.tableName || 'Mesa'}`
+                        : order.cliente?.direccion || 'Recogida en tienda'}
+                    </p>
+                    {order.tipoEntrega !== 'mesa' && order.cliente?.barrio && <p className="text-sm text-muted">{order.cliente?.barrio}, {order.cliente?.ciudad}</p>}
                     
                     {/* Leaflet Map Visualizer for Admin */}
                     {order.tipoEntrega === 'domicilio' && order.cliente?.coords && (
