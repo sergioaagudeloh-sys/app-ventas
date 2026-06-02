@@ -4,10 +4,44 @@ import { formatCurrency, truncate } from '../../../utils/formatters'
 import useFavoritesStore from '../../../store/favoritesStore'
 import useAuthStore from '../../../store/authStore'
 import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
+import useAppConfigStore from '../../../store/appConfigStore'
+
+const COLOR_MAP = {
+  'rojo': '#EF4444',
+  'azul': '#3B82F6',
+  'verde': '#10B981',
+  'amarillo': '#EAB308',
+  'naranja': '#F97316',
+  'morado': '#8B5CF6',
+  'rosa': '#EC4899',
+  'negro': '#171717',
+  'blanco': '#FFFFFF',
+  'gris': '#6B7280',
+  'cafe': '#78350F',
+  'café': '#78350F',
+  'beige': '#F5F5DC',
+  'celeste': '#38BDF8',
+  'vino': '#7F1D1D',
+  'dorado': '#D4AF37',
+  'plateado': '#C0C0C0',
+}
+
+function getCssColor(colorName) {
+  if (!colorName) return '#ccc'
+  const normalized = colorName.toLowerCase().trim()
+  if (COLOR_MAP[normalized]) return COLOR_MAP[normalized]
+  let hash = 0
+  for (let i = 0; i < normalized.length; i++) {
+    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return '#' + (hash & 0x00FFFFFF).toString(16).toUpperCase().padStart(6, '0')
+}
 
 export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const { commercialOptimization } = useAppConfigStore()
   
   const userId = user?.celular || user?.uid
   const { favoriteIds, toggleFavorite } = useFavoritesStore()
@@ -16,6 +50,79 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
 
   // Verificar si el producto está completamente agotado (todas las variantes en 0)
   const isOutOfStock = product.variantes?.length > 0 && product.variantes.every(v => v.stock <= 0)
+
+  // Optimización Comercial
+  const optEnabled = commercialOptimization?.enabled === true
+  const smartTagsEnabled = optEnabled && commercialOptimization?.tools?.smartTags?.enabled !== false
+  const smartTags = commercialOptimization?.tools?.smartTags || {}
+  
+  // Calcular stock consolidado
+  const stockConsolidado = product.variantes?.reduce((sum, v) => sum + (v.stock || 0), 0) || 0
+  
+  // Calcular si es nuevo (creado en los últimos N días)
+  const isNewProduct = useMemo(() => {
+    if (!product.createdAt) return false
+    const createdDate = typeof product.createdAt.toMillis === 'function' 
+      ? product.createdAt.toMillis() 
+      : (product.createdAt instanceof Date ? product.createdAt.getTime() : new Date(product.createdAt).getTime())
+    const limitDays = smartTags.newProduct?.daysLimit || 7
+    const diffTime = Math.abs(Date.now() - createdDate)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= limitDays
+  }, [product.createdAt, smartTags.newProduct?.daysLimit])
+
+  // Obtener etiqueta activa de mayor prioridad
+  const activeSmartTag = useMemo(() => {
+    if (!smartTagsEnabled) return null
+
+    // 1. Última Unidad (Prioridad Alta)
+    if (smartTags.lastUnit?.enabled !== false && stockConsolidado > 0 && stockConsolidado <= (smartTags.lastUnit?.threshold || 3)) {
+      return {
+        text: smartTags.lastUnit?.text || 'Última Unidad',
+        bg: smartTags.lastUnit?.bg || '#3b82f6',
+        textCol: smartTags.lastUnit?.textCol || '#ffffff'
+      }
+    }
+
+    // 2. Oferta Imperdible (Si tiene descuento o es combo)
+    const hasPromo = product.tienePromocion || product.discountActive
+    if (smartTags.unmissableOffer?.enabled !== false && hasPromo) {
+      return {
+        text: smartTags.unmissableOffer?.text || 'Oferta Imperdible',
+        bg: smartTags.unmissableOffer?.bg || '#f59e0b',
+        textCol: smartTags.unmissableOffer?.textCol || '#ffffff'
+      }
+    }
+
+    // 3. Más Vendido (Basado en salesCount real)
+    const salesVal = product.salesCount || 0
+    if (smartTags.bestSeller?.enabled !== false && salesVal >= (smartTags.bestSeller?.minSales || 5)) {
+      return {
+        text: smartTags.bestSeller?.text || 'Más Vendido',
+        bg: smartTags.bestSeller?.bg || '#ef4444',
+        textCol: smartTags.bestSeller?.textCol || '#ffffff'
+      }
+    }
+
+    // 4. Nuevo
+    if (smartTags.newProduct?.enabled !== false && isNewProduct) {
+      return {
+        text: smartTags.newProduct?.text || 'Nuevo',
+        bg: smartTags.newProduct?.bg || '#10b981',
+        textCol: smartTags.newProduct?.textCol || '#ffffff'
+      }
+    }
+
+    return null
+  }, [smartTagsEnabled, smartTags, stockConsolidado, product.tienePromocion, product.discountActive, product.salesCount, isNewProduct])
+
+  // Indicador de variantes
+  const variationIndicatorsEnabled = optEnabled && commercialOptimization?.tools?.variationIndicators?.enabled !== false
+  const uniqueColors = useMemo(() => {
+    if (!product.variantes) return []
+    const colors = new Set(product.variantes.map(v => v.color).filter(Boolean))
+    return Array.from(colors).slice(0, 5)
+  }, [product.variantes])
 
   const handleFavoriteClick = (e) => {
     e.stopPropagation()
@@ -74,6 +181,17 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           >
             AGOTADO
           </span>
+        ) : activeSmartTag ? (
+          <span 
+            className="absolute top-3 left-3 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase shadow-md z-10 border border-black/10 text-center flex items-center justify-center shrink-0"
+            style={{ 
+              borderRadius: 'var(--radius-base)',
+              backgroundColor: activeSmartTag.bg,
+              color: activeSmartTag.textCol
+            }}
+          >
+            {activeSmartTag.text}
+          </span>
         ) : product.tienePromocion ? (
           <span 
             className="absolute top-3 left-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-primary text-white shadow-md z-10 border border-primary-soft"
@@ -108,6 +226,21 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
             <Heart size={18} fill={isFav ? 'currentColor' : 'none'} />
           </motion.div>
         </motion.button>
+
+        {/* Floating Quick Buy button matching screenshots */}
+        {!isOutOfStock && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenDetail(product)
+            }}
+            className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white text-primary flex items-center justify-center border border-black/10 shadow-md active:scale-90 transition-all z-10 hover:bg-slate-50"
+            aria-label="Ver opciones"
+          >
+            <Plus size={18} className="text-primary font-bold" />
+          </button>
+        )}
       </div>
 
       {/* Info */}
@@ -116,7 +249,29 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           <h3 className="font-bold text-app text-sm leading-tight mb-1 truncate" title={product.nombre}>
             {layout === 'list' ? product.nombre : truncate(product.nombre, 40)}
           </h3>
-          <p className="text-xs text-muted mb-2">{product.categoria}</p>
+          <p className="text-xs text-muted mb-1">{product.categoria}</p>
+
+          {/* Indicador de Variantes en Tarjeta */}
+          {variationIndicatorsEnabled && uniqueColors.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-1 pb-1 flex-wrap">
+              {uniqueColors.map((color, idx) => {
+                const hex = getCssColor(color)
+                return (
+                  <span 
+                    key={idx}
+                    title={color}
+                    className="w-3.5 h-3.5 rounded-full border border-black/15 dark:border-white/15 shadow-inner shrink-0"
+                    style={{ backgroundColor: hex }}
+                  />
+                )
+              })}
+              {product.variantes?.length > uniqueColors.length && (
+                <span className="text-[10px] text-muted font-black font-mono">
+                  +{product.variantes.length - uniqueColors.length}
+                </span>
+              )}
+            </div>
+          )}
           
           {layout === 'list' && (
             <p className="text-xs text-muted line-clamp-2 mt-1 mb-2">
@@ -125,32 +280,41 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           )}
         </div>
         
-        <div className="flex items-center justify-between mt-auto pt-2 gap-2">
-          <div>
-            {product.tienePromocion && product.precioPromo < product.precioBase ? (
-              <>
-                <p className="text-xs text-muted line-through font-semibold leading-none mb-1">
+        <div className="flex flex-col gap-1 mt-auto pt-2">
+          {product.tienePromocion && product.precioPromo < product.precioBase ? (
+            <div>
+              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                <span className="text-[9px] font-black text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-md">
+                  {product.promocion?.discountType === 'percentage'
+                    ? `${product.promocion.discountValue}% OFF`
+                    : 'OFERTA'}
+                </span>
+                <span className="text-xs text-muted line-through font-semibold leading-none">
                   {formatCurrency(product.precioBase)}
-                </p>
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2 flex-wrap">
                 <p className="font-bold text-primary text-base leading-none">
                   {formatCurrency(product.precioPromo)}
                 </p>
-              </>
-            ) : (
+                {product.salesCount && product.salesCount > 0 && (
+                  <span className="text-[10px] text-muted font-medium">
+                    +{product.salesCount} vendidos
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-2 flex-wrap">
               <p className={`font-bold text-base leading-none ${isOutOfStock ? 'text-muted' : 'text-primary'}`}>
                 {formatCurrency(product.precioBase)}
               </p>
-            )}
-          </div>
-
-          {/* Botón + solo si hay stock */}
-          {!isOutOfStock && (
-            <button
-              className="w-8 h-8 rounded-full bg-action text-white flex items-center justify-center shadow-md shadow-action active:scale-90 transition-transform shrink-0"
-              aria-label="Ver opciones"
-            >
-              <Plus size={18} />
-            </button>
+              {product.salesCount && product.salesCount > 0 && (
+                <span className="text-[10px] text-muted font-medium">
+                  +{product.salesCount} vendidos
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

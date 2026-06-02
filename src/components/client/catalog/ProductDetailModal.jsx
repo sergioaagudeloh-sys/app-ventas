@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShoppingBag, Image as ImageIcon } from 'lucide-react'
+import { ShoppingBag, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import useAppConfigStore from '../../../store/appConfigStore'
 import { formatCurrency } from '../../../utils/formatters'
 import useCartStore from '../../../store/cartStore'
 import useGuidedStore from '../../../store/guidedStore'
@@ -46,12 +47,32 @@ function getCssColor(colorName) {
 export default function ProductDetailModal({ product, isOpen, onClose }) {
   const { addItem } = useCartStore()
   const { markStepCompleted } = useGuidedStore()
+  const { commercialOptimization } = useAppConfigStore()
+
+  const optEnabled = commercialOptimization?.enabled === true
+  const advancedGalleryEnabled = optEnabled && commercialOptimization?.tools?.advancedGallery?.enabled !== false
+  const visualVariationsEnabled = optEnabled && commercialOptimization?.tools?.visualVariations?.enabled !== false
+
+  const isNewProduct = useMemo(() => {
+    if (!product?.createdAt) return false
+    const createdDate = typeof product.createdAt.toMillis === 'function' 
+      ? product.createdAt.toMillis() 
+      : (product.createdAt instanceof Date ? product.createdAt.getTime() : new Date(product.createdAt).getTime())
+    const limitDays = commercialOptimization?.tools?.smartTags?.newProduct?.daysLimit || 7
+    const diffTime = Math.abs(Date.now() - createdDate)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= limitDays
+  }, [product?.createdAt, commercialOptimization])
   
   const [selectedTalla, setSelectedTalla] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
   const [cantidad, setCantidad] = useState(1)
   const [error, setError] = useState('')
   const [showToast, setShowToast] = useState(false)
+
+  // Estados de galería avanzada
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
+  const [variantOverrideImage, setVariantOverrideImage] = useState(null)
 
   const availableVariants = useMemo(() => {
     if (!product) return []
@@ -78,6 +99,8 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       setSelectedColor(null)
       setCantidad(1)
       setError('')
+      setActiveImageIndex(0)
+      setVariantOverrideImage(null)
       
       const vars = product.variantes.filter(v => v.stock > 0)
       const t = Array.from(new Set(vars.map(v => v.talla).filter(Boolean)))
@@ -95,6 +118,47 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       (v.color === selectedColor || (!v.color && !selectedColor))
     )
   }, [availableVariants, selectedTalla, selectedColor, product])
+
+  // Sincronizar imagen de variante
+  useEffect(() => {
+    if (currentVariant?.imageUrl) {
+      setVariantOverrideImage(currentVariant.imageUrl)
+      setActiveImageIndex(0)
+    } else {
+      setVariantOverrideImage(null)
+    }
+  }, [currentVariant])
+
+  // Combinación de imágenes
+  const allImages = useMemo(() => {
+    const list = []
+    if (product?.imageUrl) list.push(product.imageUrl)
+    if (product?.galeria) {
+      product.galeria.forEach(url => {
+        if (url && !list.includes(url)) list.push(url)
+      })
+    }
+    return list
+  }, [product])
+
+  const activeImages = useMemo(() => {
+    const list = [...allImages]
+    if (variantOverrideImage && !list.includes(variantOverrideImage)) {
+      list.unshift(variantOverrideImage)
+    }
+    return list
+  }, [allImages, variantOverrideImage])
+
+  // Calcular precio actual
+  const actualPrice = useMemo(() => {
+    if (!product) return 0
+    if (currentVariant?.precio && Number(currentVariant.precio) > 0) {
+      return Number(currentVariant.precio)
+    }
+    return (product.tienePromocion && product.precioPromo < product.precioBase)
+      ? product.precioPromo
+      : product.precioBase
+  }, [currentVariant, product])
 
   const handleAddToCart = () => {
     setError('')
@@ -126,10 +190,6 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       return
     }
 
-    const actualPrice = (product.tienePromocion && product.precioPromo < product.precioBase)
-      ? product.precioPromo
-      : product.precioBase
-
     addItem({
       productId: product.id,
       variantId: currentVariant.id,
@@ -137,7 +197,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       precio: actualPrice,
       talla: selectedTalla,
       color: selectedColor,
-      imageUrl: product.imageUrl,
+      imageUrl: currentVariant?.imageUrl || product.imageUrl,
       maxStock: currentVariant.stock,
     }, cantidad)
 
@@ -189,7 +249,7 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
           ) : (
             <>
               <ShoppingBag size={20} />
-              Agregar {formatCurrency(((product.tienePromocion && product.precioPromo < product.precioBase) ? product.precioPromo : product.precioBase) * cantidad)}
+              Agregar {formatCurrency(actualPrice * cantidad)}
             </>
           )}
         </button>
@@ -207,14 +267,90 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
         icon={ShoppingBag}
         footerActions={footerActions}
       >
-        {/* Imagen del producto */}
-        <div className="relative w-full h-48 sm:h-64 bg-surface-2 rounded-2xl overflow-hidden shrink-0 border border-app">
-          {product.imageUrl ? (
-            <img
-              src={product.imageUrl}
-              alt={product.nombre}
-              className="w-full h-full object-cover"
-            />
+        {/* Metadatos Comerciales Superiores, matching Screenshot 1 */}
+        <div className="flex items-center gap-2 flex-wrap mb-3 text-xs text-muted font-medium">
+          {isNewProduct ? (
+            <span className="font-semibold text-green-600 dark:text-green-400">
+              Nuevo
+            </span>
+          ) : null}
+          {isNewProduct && product.salesCount > 0 && (
+            <span>|</span>
+          )}
+          {product.salesCount && product.salesCount > 0 ? (
+            <span className="font-semibold">
+              +{product.salesCount} vendidos
+            </span>
+          ) : null}
+          
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            <span className="font-bold text-app">4.8</span>
+            <span className="text-yellow-500 text-[10px]">★★★★★</span>
+            <span className="text-[10px] text-muted">(12)</span>
+          </div>
+        </div>
+
+        {/* Imagen del producto con Galería Avanzada */}
+        <div className="relative w-full h-64 sm:h-80 bg-surface-2 rounded-2xl overflow-hidden shrink-0 border border-app group">
+          {activeImages.length > 0 ? (
+            <>
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={activeImageIndex + '-' + activeImages[activeImageIndex]}
+                  src={activeImages[activeImageIndex]}
+                  alt={product.nombre}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-full h-full object-cover"
+                />
+              </AnimatePresence>
+
+              {/* Pill image index counter matching Screenshot 1 */}
+              {activeImages.length > 1 && (
+                <span className="absolute top-3.5 left-3.5 bg-white text-black/80 text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm z-10 border border-black/10">
+                  {activeImageIndex + 1} / {activeImages.length}
+                </span>
+              )}
+
+              {/* Botón Izquierda */}
+              {advancedGalleryEnabled && activeImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev === 0 ? activeImages.length - 1 : prev - 1))}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+              )}
+
+              {/* Botón Derecha */}
+              {advancedGalleryEnabled && activeImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev === activeImages.length - 1 ? 0 : prev + 1))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              )}
+
+              {/* Indicadores de Puntos */}
+              {advancedGalleryEnabled && activeImages.length > 1 && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/30 px-2 py-1 rounded-full backdrop-blur-sm">
+                  {activeImages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveImageIndex(idx)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        idx === activeImageIndex ? 'bg-white w-4' : 'bg-white/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-muted">
               <ImageIcon size={48} className="opacity-50 mb-2" />
@@ -222,24 +358,122 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
           )}
         </div>
 
-        {/* Precios */}
+        {/* Carrusel de Miniaturas de la Galería Avanzada */}
+        {advancedGalleryEnabled && activeImages.length > 1 && (
+          <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-thin">
+            {activeImages.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveImageIndex(idx)}
+                className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
+                  idx === activeImageIndex ? 'border-primary scale-95' : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img src={img} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Badge ¡ÚLTIMA UNIDAD! con llama, matching Screenshots 1 & 4 */}
+        {currentVariant && currentVariant.stock > 0 && currentVariant.stock <= (commercialOptimization?.tools?.smartTags?.lastUnit?.threshold || 3) && (
+          <div className="mt-4 flex">
+            <span className="inline-flex items-center gap-1.5 bg-[#ff5a00] text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-lg shadow-sm border border-black/10">
+              🔥 {commercialOptimization?.tools?.smartTags?.lastUnit?.text || '¡ÚLTIMA UNIDAD!'}
+            </span>
+          </div>
+        )}
+
+        {/* Precios con Descuento Inline, matching Screenshots 1 & 4 */}
         <div className="mt-4">
-          {product.tienePromocion && product.precioPromo < product.precioBase ? (
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-black text-primary">
-                {formatCurrency(product.precioPromo)}
+          <div className="space-y-0.5">
+            {product.tienePromocion && product.precioPromo < product.precioBase && (!currentVariant?.precio || Number(currentVariant.precio) === 0) ? (
+              <div>
+                <span className="text-xs text-muted line-through font-semibold block mb-0.5">
+                  {formatCurrency(product.precioBase)}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-3xl font-black text-primary">
+                    {formatCurrency(actualPrice)}
+                  </span>
+                  <span className="text-[10px] font-black text-green-600 dark:text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-md">
+                    {product.promocion?.discountType === 'percentage'
+                      ? `${product.promocion.discountValue}% OFF`
+                      : 'OFERTA'}
+                  </span>
+                </div>
+              </div>
+            ) : currentVariant?.precio && Number(currentVariant.precio) > 0 && Number(currentVariant.precio) !== product.precioBase ? (
+              <div>
+                <span className="text-xs text-muted line-through font-semibold block mb-0.5">
+                  {formatCurrency(product.precioBase)}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-3xl font-black text-primary">
+                    {formatCurrency(actualPrice)}
+                  </span>
+                  <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                    Precio Variante
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <span className="text-3xl font-black text-primary block">
+                {formatCurrency(actualPrice)}
               </span>
-              <span className="text-xs text-muted line-through font-semibold">
-                {formatCurrency(product.precioBase)}
-              </span>
+            )}
+          </div>
+
+          {/* Cuotas sin interés dinámicas, matching Screenshots 4 & 5 */}
+          {actualPrice > 0 && (
+            <div className="space-y-1.5 pt-1.5 pb-1">
+              <p className="text-xs text-[#00a650] font-bold flex items-center gap-1 leading-none">
+                en {actualPrice < 100000 ? 3 : 6} cuotas de {formatCurrency(Math.round(actualPrice / (actualPrice < 100000 ? 3 : 6)))} con 0% de interés
+              </p>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted">
+                <span className="hover:underline cursor-pointer text-primary font-semibold">Medios de pago</span>
+                <span className="text-muted/40">|</span>
+                <div className="flex items-center gap-1 opacity-75">
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">VISA</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">MC</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">AMEX</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">PSE</span>
+                </div>
+              </div>
             </div>
-          ) : (
-            <p className="text-2xl font-black text-primary">
-              {formatCurrency(product.precioBase)}
-            </p>
           )}
+
+          {/* Banner de beneficios premium / cuotas extras matching Screenshots 4 */}
+          <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-primary/10 border border-purple-500/20 flex items-center justify-between gap-3 shadow-inner mt-3">
+            <div className="space-y-0.5">
+              <p className="text-[9px] font-black text-app uppercase tracking-wider">CUOTAS EXTRA SIN INTERÉS</p>
+              <p className="text-[8px] text-muted leading-tight">Accede a 12 cuotas con 0% y envíos prioritarios gratis</p>
+            </div>
+            <div className="bg-primary text-white text-[8px] font-black px-2 py-0.5 rounded-lg shrink-0 uppercase cursor-pointer hover:opacity-90 active:scale-95 transition-all">
+              SUSCRIBIRME
+            </div>
+          </div>
+
+          {/* Detalles de Envío / Devolución, matching Screenshots 2, 4 & 5 */}
+          <div className="pt-3.5 space-y-2.5 border-t border-app mt-4">
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-[#00a650] shrink-0 mt-0.5">⚡</span>
+              <div>
+                <p className="text-xs font-bold text-[#00a650]">Llega gratis mañana</p>
+                <p className="text-[10px] text-muted font-normal">Envío rápido Full gratis para tu compra</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-xs text-primary shrink-0 mt-0.5">🔄</span>
+              <div>
+                <p className="text-xs font-bold text-primary">Devolución gratis</p>
+                <p className="text-[10px] text-muted font-normal">Tienes 30 días para cualquier cambio sin costo</p>
+              </div>
+            </div>
+          </div>
+
           {product.descripcion && (
-            <p className="text-sm text-muted mt-2 leading-relaxed">
+            <p className="text-sm text-muted mt-4 leading-relaxed font-medium">
               {product.descripcion}
             </p>
           )}
@@ -291,6 +525,10 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                 const isWhite = cssColor === '#FFFFFF' || cssColor.toLowerCase() === '#fff'
                 const isSelected = selectedColor === c
                 
+                // Buscar si la variante asociada a este color tiene su propia imagen
+                const variantForColor = availableVariants.find(v => v.color === c && (!selectedTalla || v.talla === selectedTalla))
+                const variantImg = variantForColor?.imageUrl
+
                 return (
                   <button
                     key={c}
@@ -303,10 +541,18 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
                       isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface' : 'ring-1 ring-app hover:ring-primary/50'
                     }`}
                   >
-                    <span 
-                      className={`w-10 h-10 rounded-full shadow-inner ${isWhite ? 'border border-app' : ''}`}
-                      style={{ backgroundColor: cssColor }}
-                    />
+                    {visualVariationsEnabled && variantImg ? (
+                      <img 
+                        src={variantImg} 
+                        alt={c}
+                        className="w-10 h-10 rounded-full object-cover shadow-inner border border-app animate-fade-in"
+                      />
+                    ) : (
+                      <span 
+                        className={`w-10 h-10 rounded-full shadow-inner ${isWhite ? 'border border-app' : ''}`}
+                        style={{ backgroundColor: cssColor }}
+                      />
+                    )}
                   </button>
                 )
               })}

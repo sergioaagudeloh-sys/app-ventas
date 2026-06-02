@@ -21,6 +21,10 @@ export const variantSchema = z.object({
   talla: z.string().optional().or(z.literal('')),
   color: z.string().optional().or(z.literal('')),
   stock: z.number().int().min(0, 'El stock no puede ser negativo').default(0),
+  sku: z.string().optional().or(z.literal('')),
+  nombre: z.string().optional().or(z.literal('')),
+  imageUrl: z.string().optional().or(z.literal('')),
+  precio: z.union([z.number(), z.string()]).optional().or(z.literal('')),
 })
 
 /**

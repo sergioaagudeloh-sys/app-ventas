@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Trash2, ShoppingBag, ArrowRight, Image as ImageIcon, Minus, Plus } from 'lucide-react'
@@ -7,12 +7,118 @@ import useCartStore from '../../../store/cartStore'
 import useGuidedStore from '../../../store/guidedStore'
 import CheckoutModal from '../checkout/CheckoutModal'
 import SmartHint from '../guided/SmartHint'
+import useAppConfigStore from '../../../store/appConfigStore'
+import useAuthStore from '../../../store/authStore'
+import ProductDetailModal from '../catalog/ProductDetailModal'
 
 export default function CartDrawer() {
   const { isOpen, closeCart, items, addItem, removeItem, deleteItem, getTotal } = useCartStore()
   const { hasCompletedStep, markStepCompleted } = useGuidedStore()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const navigate = useNavigate()
+
+  // Estados del recomendador comercial
+  const { commercialOptimization } = useAppConfigStore()
+  const { user, role } = useAuthStore()
+  const [recommendedProducts, setRecommendedProducts] = useState([])
+  const [loadingRecs, setLoadingRecs] = useState(false)
+  const [selectedProductDetail, setSelectedProductDetail] = useState(null)
+
+  const optEnabled = commercialOptimization?.enabled === true
+  const cartRecsEnabled = optEnabled && commercialOptimization?.tools?.cartRecommendations?.enabled !== false
+  const historyRecsEnabled = optEnabled && commercialOptimization?.tools?.historyRecommendations?.enabled !== false
+  const recsTitle = commercialOptimization?.tools?.cartRecommendations?.title || 'Recomendado para ti'
+  
+  const isClient = role === 'client'
+  const clientPhone = isClient && user?.celular
+
+  useEffect(() => {
+    if (!isOpen || (!cartRecsEnabled && !historyRecsEnabled)) return
+
+    let isMounted = true
+    const fetchRecs = async () => {
+      setLoadingRecs(true)
+      try {
+        const { getProducts } = await import('../../../services/inventoryService')
+        const allProducts = await getProducts(true)
+
+        if (!isMounted) return
+
+        const cartProductIds = items.map(item => item.productId)
+
+        let historyCategories = []
+        if (historyRecsEnabled && clientPhone) {
+          const { getClientOrders } = await import('../../../services/orderService')
+          const orders = await getClientOrders(clientPhone)
+          const categories = new Set()
+          orders.forEach(order => {
+            order.items?.forEach(item => {
+              const prod = allProducts.find(p => p.id === item.productId)
+              if (prod?.categoria) {
+                categories.add(prod.categoria)
+              }
+            })
+          })
+          historyCategories = Array.from(categories)
+        }
+
+        let candidates = allProducts.filter(p => {
+          if (cartProductIds.includes(p.id)) return false
+          const isOutOfStock = p.variantes?.length > 0 && p.variantes.every(v => v.stock <= 0)
+          if (isOutOfStock) return false
+          return true
+        })
+
+        const cartCategories = Array.from(new Set(
+          items.map(item => {
+            const prod = allProducts.find(p => p.id === item.productId)
+            return prod?.categoria
+          }).filter(Boolean)
+        ))
+
+        const scoredCandidates = candidates.map(p => {
+          let score = 0
+          
+          if (cartCategories.includes(p.categoria)) {
+            score += 100
+          }
+
+          if (historyCategories.includes(p.categoria)) {
+            score += 50
+          }
+
+          if (p.salesCount && p.salesCount > 0) {
+            score += Math.min(p.salesCount, 30)
+          }
+
+          if (p.tienePromocion && p.precioPromo < p.precioBase) {
+            score += 20
+          }
+
+          if (p.destacado === true) {
+            score += 10
+          }
+
+          return { product: p, score }
+        })
+
+        scoredCandidates.sort((a, b) => b.score - a.score)
+        const topRecs = scoredCandidates.slice(0, 6).map(sc => sc.product)
+
+        setRecommendedProducts(topRecs)
+      } catch (err) {
+        console.error('Error fetching recommendations:', err)
+      } finally {
+        if (isMounted) setLoadingRecs(false)
+      }
+    }
+
+    fetchRecs()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isOpen, cartRecsEnabled, historyRecsEnabled, clientPhone, items])
 
   const handleContinueShopping = () => {
     closeCart()
@@ -69,7 +175,7 @@ export default function CartDrawer() {
               {/* Contenido */}
               <div className="flex-1 overflow-y-auto p-6 bg-app">
                 {items.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="py-8 flex flex-col items-center justify-center text-center">
                     <div className="w-24 h-24 bg-surface rounded-full flex items-center justify-center mb-6 border border-app shadow-sm">
                       <ShoppingBag size={40} className="text-muted opacity-50" />
                     </div>
@@ -152,6 +258,63 @@ export default function CartDrawer() {
                     ))}
                   </div>
                 )}
+
+                {/* Recomendaciones en Carrito / Historial */}
+                {cartRecsEnabled && recommendedProducts.length > 0 && (
+                  <div className="mt-8 border-t border-app pt-6 shrink-0">
+                    <h3 className="text-sm font-extrabold text-app mb-4 flex items-center justify-between">
+                      <span>{recsTitle}</span>
+                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                        Ofertas para ti
+                      </span>
+                    </h3>
+                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x">
+                      {recommendedProducts.map((p) => {
+                        const pPrice = (p.tienePromocion && p.precioPromo < p.precioBase)
+                          ? p.precioPromo
+                          : p.precioBase
+
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => setSelectedProductDetail(p)}
+                            className="w-36 bg-surface border border-app rounded-2xl p-2.5 flex flex-col cursor-pointer shrink-0 snap-start hover:border-primary/40 hover:shadow-md transition-all duration-300 active:scale-95 group"
+                          >
+                            <div className="w-full h-24 bg-surface-2 rounded-xl overflow-hidden shrink-0 relative mb-2">
+                              {p.imageUrl ? (
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.nombre}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted">
+                                  <ImageIcon size={20} className="opacity-40" />
+                                </div>
+                              )}
+                              {p.tienePromocion && p.precioPromo < p.precioBase && (
+                                <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-sm">
+                                  PROMO
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-xs font-bold text-app line-clamp-2 leading-tight flex-1">
+                              {p.nombre}
+                            </h4>
+                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-app/50 shrink-0">
+                              <span className="text-xs font-extrabold text-primary">
+                                {formatCurrency(pPrice)}
+                              </span>
+                              <span className="text-[10px] text-primary bg-primary/5 group-hover:bg-primary group-hover:text-white px-2 py-0.5 rounded-lg transition-colors font-bold">
+                                Ver
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Fijo */}
@@ -195,6 +358,14 @@ export default function CartDrawer() {
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
       />
+
+      {selectedProductDetail && (
+        <ProductDetailModal
+          product={selectedProductDetail}
+          isOpen={!!selectedProductDetail}
+          onClose={() => setSelectedProductDetail(null)}
+        />
+      )}
     </>
   )
 }

@@ -122,7 +122,7 @@ function CustomSelect({ value, onChange, options, placeholder, emptyOption = "Ni
   )
 }
 
-const initialVariant = { id: '', talla: '', color: '', stock: 0 }
+const initialVariant = { id: '', talla: '', color: '', stock: 0, nombre: '', sku: '', imageUrl: '', precio: '' }
 const initialForm = {
   nombre: '',
   descripcion: '',
@@ -398,7 +398,8 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
     let finalVariantes = formData.variantes.map(v => ({
       ...v,
-      stock: v.stock === '' ? 0 : Number(v.stock)
+      stock: v.stock === '' ? 0 : Number(v.stock),
+      precio: (v.precio === '' || v.precio === undefined || v.precio === null) ? '' : Number(v.precio)
     }))
 
     if (!catalogFilters.sizes && !catalogFilters.colors) {
@@ -957,18 +958,61 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                           </div>
                         )}
 
-                        <div>
-                          <label className="text-[10px] font-bold text-app mb-1 block">Cantidad Disponible *</label>
-                          <NumberInput
-                            min={0}
-                            placeholder="Ej. 10"
-                            value={variant.stock}
-                            onChange={(val) => handleVariantChange(variant.id, 'stock', val)}
-                            className="w-full sm:w-1/2 h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                          />
-                          {errors[`variantes.${index}.stock`] && (
-                            <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.stock`]}</p>
-                          )}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1 block">Cantidad Disponible (Stock) *</label>
+                            <NumberInput
+                              min={0}
+                              placeholder="Ej. 10"
+                              value={variant.stock}
+                              onChange={(val) => handleVariantChange(variant.id, 'stock', val)}
+                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                            />
+                            {errors[`variantes.${index}.stock`] && (
+                              <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.stock`]}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1 block">Nombre de Variante</label>
+                            <input
+                              type="text"
+                              placeholder="Ej: Presentación familiar"
+                              value={variant.nombre || ''}
+                              onChange={e => handleVariantChange(variant.id, 'nombre', e.target.value)}
+                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1 block">Precio Propio (COP $)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Precio diferente"
+                              value={variant.precio || ''}
+                              onChange={e => handleVariantChange(variant.id, 'precio', e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-app mb-1 block">SKU de Variante</label>
+                            <input
+                              type="text"
+                              placeholder="SKU"
+                              value={variant.sku || ''}
+                              onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
+                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-app mb-1 block">URL Foto de Variante (Opcional)</label>
+                            <input
+                              type="url"
+                              placeholder="https://ejemplo.com/variante.jpg"
+                              value={variant.imageUrl || ''}
+                              onChange={e => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
+                              className="w-full h-10 px-3 text-xs rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1370,16 +1414,59 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                       </div>
                     )}
 
-                    <div>
-                      <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 15"
-                        value={variant.stock}
-                        onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
-                        className="w-full sm:w-1/2 h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 15"
+                          value={variant.stock}
+                          onChange={e => handleVariantChange(variant.id, 'stock', e.target.value)}
+                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">Nombre de Variante (Opcional)</label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Presentación familiar"
+                          value={variant.nombre || ''}
+                          onChange={e => handleVariantChange(variant.id, 'nombre', e.target.value)}
+                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">Precio Propio (COP $, Opcional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Precio diferente"
+                          value={variant.precio || ''}
+                          onChange={e => handleVariantChange(variant.id, 'precio', e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-app mb-2 block">SKU de Variante (Opcional)</label>
+                        <input
+                          type="text"
+                          placeholder="SKU"
+                          value={variant.sku || ''}
+                          onChange={e => handleVariantChange(variant.id, 'sku', e.target.value)}
+                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-semibold text-app mb-2 block">URL Foto de Variante (Opcional)</label>
+                        <input
+                          type="url"
+                          placeholder="https://ejemplo.com/variante.jpg"
+                          value={variant.imageUrl || ''}
+                          onChange={e => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
+                          className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

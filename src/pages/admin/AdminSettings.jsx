@@ -1440,6 +1440,23 @@ export default function AdminSettings() {
           androidUrl: '',
           iosUrl: '',
           promoImageUrl: ''
+        },
+        commercialOptimization: config.commercialOptimization || {
+          enabled: false,
+          tools: {
+            smartTags: {
+              enabled: true,
+              bestSeller: { enabled: true, text: 'Más Vendido', bg: '#ef4444', textCol: '#ffffff', style: 'pill', minSales: 5 },
+              unmissableOffer: { enabled: true, text: 'Oferta Imperdible', bg: '#f59e0b', textCol: '#ffffff', style: 'pill' },
+              lastUnit: { enabled: true, text: 'Última Unidad', bg: '#3b82f6', textCol: '#ffffff', style: 'pill', threshold: 3 },
+              newProduct: { enabled: true, text: 'Nuevo', bg: '#10b981', textCol: '#ffffff', style: 'pill', daysLimit: 7 }
+            },
+            advancedGallery: { enabled: true },
+            visualVariations: { enabled: true },
+            variationIndicators: { enabled: true },
+            cartRecommendations: { enabled: true, title: 'Recomendado para ti' },
+            historyRecommendations: { enabled: true }
+          }
         }
       })
     }
@@ -1477,7 +1494,8 @@ export default function AdminSettings() {
     config.creditsEnabled,
     config.couponsEnabled,
     config.trackingWaTemplate,
-    config.appPromo
+    config.appPromo,
+    config.commercialOptimization
   ])
 
   // Efecto para preview en tiempo real de la paleta
@@ -5171,6 +5189,14 @@ export default function AdminSettings() {
                       iconColor: 'text-indigo-500'
                     },
                     {
+                      id: 'dev-opt-comercial',
+                      label: 'Optimización Comercial',
+                      description: 'Aumenta la conversión, valor promedio y deseo de compra con herramientas inteligentes',
+                      icon: TrendingUp,
+                      iconBg: 'bg-amber-500/10 hover:bg-amber-500/15',
+                      iconColor: 'text-amber-500'
+                    },
+                    {
                       id: 'dev-facturacion',
                       label: 'Facturación',
                       description: 'Comisiones y métricas de ventas en tiempo real',
@@ -5633,6 +5659,566 @@ export default function AdminSettings() {
                   <button onClick={handleSaveConfig} disabled={isSaving}
                     className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
                     <Save size={18} /> Guardar Contacto
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 5. Subsección: Optimización Comercial */}
+            {activeSubSection === 'dev-opt-comercial' && (
+              <div className="space-y-6">
+                {/* Interruptor General del Módulo */}
+                <div className="bg-surface rounded-3xl shadow-sm border border-app overflow-hidden">
+                  <div className="p-5 sm:p-6 flex items-center justify-between bg-surface-2 border-b border-app">
+                    <div>
+                      <h3 className="text-base font-extrabold text-app flex items-center gap-2">
+                        <Sparkles size={18} className="text-amber-500" />
+                        Capa de Optimización Comercial
+                      </h3>
+                      <p className="text-xs text-muted mt-1 leading-relaxed">
+                        Habilita una capa visual inteligente sobre el catálogo y el carrito para aumentar conversión y promedio de compra.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={formData.commercialOptimization?.enabled || false}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            commercialOptimization: {
+                              ...formData.commercialOptimization,
+                              enabled: e.target.checked
+                            }
+                          })
+                        }}
+                      />
+                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                    </label>
+                  </div>
+                </div>
+
+                {formData.commercialOptimization?.enabled && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-6"
+                  >
+                    {/* HERRAMIENTA 1: Etiquetas Inteligentes */}
+                    <div className="bg-surface rounded-3xl shadow-sm border border-app overflow-hidden p-5 sm:p-6 space-y-6">
+                      <div className="flex items-center justify-between border-b border-app pb-4">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-app flex items-center gap-2">
+                            <Tag size={16} className="text-primary" />
+                            1. Etiquetas Inteligentes de Conversión
+                          </h4>
+                          <p className="text-xs text-muted mt-0.5">Indicadores visuales para generar urgencia y deseo de compra.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.commercialOptimization.tools?.smartTags?.enabled ?? true}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                commercialOptimization: {
+                                  ...formData.commercialOptimization,
+                                  tools: {
+                                    ...formData.commercialOptimization.tools,
+                                    smartTags: {
+                                      ...formData.commercialOptimization.tools.smartTags,
+                                      enabled: e.target.checked
+                                    }
+                                  }
+                                }
+                              })
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+
+                      {formData.commercialOptimization.tools?.smartTags?.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 animate-in fade-in">
+                          {/* Más Vendido */}
+                          <div className="bg-surface-2 p-4 rounded-2xl border border-app space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-app">Etiqueta: Más Vendido</span>
+                              <input
+                                type="checkbox"
+                                checked={formData.commercialOptimization.tools.smartTags.bestSeller?.enabled ?? true}
+                                onChange={(e) => {
+                                  const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                  tags.bestSeller.enabled = e.target.checked
+                                  setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.bestSeller?.text || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.bestSeller.text = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Ventas Mínimas</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={formData.commercialOptimization.tools.smartTags.bestSeller?.minSales ?? 5}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.bestSeller.minSales = Number(e.target.value)
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Fondo (HEX/HSL)</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.bestSeller?.bg || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.bestSeller.bg = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto Color</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.bestSeller?.textCol || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.bestSeller.textCol = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Oferta Imperdible */}
+                          <div className="bg-surface-2 p-4 rounded-2xl border border-app space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-app">Etiqueta: Oferta Imperdible</span>
+                              <input
+                                type="checkbox"
+                                checked={formData.commercialOptimization.tools.smartTags.unmissableOffer?.enabled ?? true}
+                                onChange={(e) => {
+                                  const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                  tags.unmissableOffer.enabled = e.target.checked
+                                  setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.unmissableOffer?.text || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.unmissableOffer.text = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div />
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Fondo</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.unmissableOffer?.bg || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.unmissableOffer.bg = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto Color</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.unmissableOffer?.textCol || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.unmissableOffer.textCol = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Última Unidad */}
+                          <div className="bg-surface-2 p-4 rounded-2xl border border-app space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-app">Etiqueta: Última Unidad</span>
+                              <input
+                                type="checkbox"
+                                checked={formData.commercialOptimization.tools.smartTags.lastUnit?.enabled ?? true}
+                                onChange={(e) => {
+                                  const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                  tags.lastUnit.enabled = e.target.checked
+                                  setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.lastUnit?.text || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.lastUnit.text = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Umbral Stock</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={formData.commercialOptimization.tools.smartTags.lastUnit?.threshold ?? 3}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.lastUnit.threshold = Number(e.target.value)
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Fondo</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.lastUnit?.bg || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.lastUnit.bg = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto Color</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.lastUnit?.textCol || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.lastUnit.textCol = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Nuevo */}
+                          <div className="bg-surface-2 p-4 rounded-2xl border border-app space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-app">Etiqueta: Nuevo</span>
+                              <input
+                                type="checkbox"
+                                checked={formData.commercialOptimization.tools.smartTags.newProduct?.enabled ?? true}
+                                onChange={(e) => {
+                                  const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                  tags.newProduct.enabled = e.target.checked
+                                  setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                }}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.newProduct?.text || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.newProduct.text = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Días Límite</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={formData.commercialOptimization.tools.smartTags.newProduct?.daysLimit ?? 7}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.newProduct.daysLimit = Number(e.target.value)
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Fondo</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.newProduct?.bg || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.newProduct.bg = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted block mb-1">Texto Color</label>
+                                <input
+                                  type="text"
+                                  value={formData.commercialOptimization.tools.smartTags.newProduct?.textCol || ''}
+                                  onChange={(e) => {
+                                    const tags = { ...formData.commercialOptimization.tools.smartTags }
+                                    tags.newProduct.textCol = e.target.value
+                                    setFormData({ ...formData, commercialOptimization: { ...formData.commercialOptimization, tools: { ...formData.commercialOptimization.tools, smartTags: tags } } })
+                                  }}
+                                  className="w-full h-9 px-2 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* HERRAMIENTAS 2, 3, 4: Galerías y Variaciones */}
+                    <div className="bg-surface rounded-3xl shadow-sm border border-app overflow-hidden p-5 sm:p-6 space-y-4">
+                      <h4 className="text-sm font-extrabold text-app flex items-center gap-2 border-b border-app pb-3">
+                        <Building2 size={16} className="text-primary" />
+                        2, 3 & 4. Experiencia de Galería y Variaciones Visuales
+                      </h4>
+
+                      {/* H2: Galería Avanzada */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-app bg-surface-2 text-xs">
+                        <div className="flex-1 pr-4">
+                          <span className="font-bold text-app block">2. Galería Avanzada de Imágenes</span>
+                          <span className="text-[11px] text-muted leading-relaxed mt-0.5 block">
+                            Habilita un carrusel táctil interactivo en la ficha detallada si existen imágenes secundarias en el inventario.
+                          </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.commercialOptimization.tools?.advancedGallery?.enabled ?? true}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                commercialOptimization: {
+                                  ...formData.commercialOptimization,
+                                  tools: {
+                                    ...formData.commercialOptimization.tools,
+                                    advancedGallery: { enabled: e.target.checked }
+                                  }
+                                }
+                              })
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+
+                      {/* H3: Variaciones Visuales */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-app bg-surface-2 text-xs">
+                        <div className="flex-1 pr-4">
+                          <span className="font-bold text-app block">3. Variaciones Visuales de Producto</span>
+                          <span className="text-[11px] text-muted leading-relaxed mt-0.5 block">
+                            Muestra miniaturas de imágenes en el selector de variantes. Al hacer clic, cambia dinámicamente la foto del producto y actualiza los precios.
+                          </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.commercialOptimization.tools?.visualVariations?.enabled ?? true}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                commercialOptimization: {
+                                  ...formData.commercialOptimization,
+                                  tools: {
+                                    ...formData.commercialOptimization.tools,
+                                    visualVariations: { enabled: e.target.checked }
+                                  }
+                                }
+                              })
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+
+                      {/* H4: Indicadores en Tarjeta */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-app bg-surface-2 text-xs">
+                        <div className="flex-1 pr-4">
+                          <span className="font-bold text-app block">4. Indicadores de Variaciones en Tarjetas</span>
+                          <span className="text-[11px] text-muted leading-relaxed mt-0.5 block">
+                            Muestra círculos de colores o contadores de variantes en las tarjetas de producto del catálogo para incitar la compra antes de abrirlo.
+                          </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.commercialOptimization.tools?.variationIndicators?.enabled ?? true}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                commercialOptimization: {
+                                  ...formData.commercialOptimization,
+                                  tools: {
+                                    ...formData.commercialOptimization.tools,
+                                    variationIndicators: { enabled: e.target.checked }
+                                  }
+                                }
+                              })
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* HERRAMIENTAS 5 & 6: Recomendaciones */}
+                    <div className="bg-surface rounded-3xl shadow-sm border border-app overflow-hidden p-5 sm:p-6 space-y-4">
+                      <h4 className="text-sm font-extrabold text-app flex items-center gap-2 border-b border-app pb-3">
+                        <ShoppingBag size={16} className="text-primary" />
+                        5 & 6. Recomendaciones Cruzadas de Alto Impacto (Cross-Selling)
+                      </h4>
+
+                      {/* H5: Recomendaciones en Carrito */}
+                      <div className="p-4 rounded-xl border border-app bg-surface-2 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 pr-4 text-xs">
+                            <span className="font-bold text-app block">5. Recomendaciones Inteligentes en Carrito</span>
+                            <span className="text-[11px] text-muted leading-relaxed mt-0.5 block">
+                              Muestra sugerencias de compra complementarias (relacionados, más vendidos, ofertas) directamente dentro del carrito del cliente.
+                            </span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={formData.commercialOptimization.tools?.cartRecommendations?.enabled ?? true}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  commercialOptimization: {
+                                    ...formData.commercialOptimization,
+                                    tools: {
+                                      ...formData.commercialOptimization.tools,
+                                      cartRecommendations: {
+                                        ...formData.commercialOptimization.tools.cartRecommendations,
+                                        enabled: e.target.checked
+                                      }
+                                    }
+                                  }
+                                })
+                              }}
+                            />
+                            <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                          </label>
+                        </div>
+                        {formData.commercialOptimization.tools?.cartRecommendations?.enabled && (
+                          <div className="text-xs">
+                            <label className="text-[10px] text-muted block mb-1">Título del Módulo Recomendador</label>
+                            <input
+                              type="text"
+                              value={formData.commercialOptimization.tools.cartRecommendations.title || ''}
+                              onChange={(e) => {
+                                setFormData({
+                                  ...formData,
+                                  commercialOptimization: {
+                                    ...formData.commercialOptimization,
+                                    tools: {
+                                      ...formData.commercialOptimization.tools,
+                                      cartRecommendations: {
+                                        ...formData.commercialOptimization.tools.cartRecommendations,
+                                        title: e.target.value
+                                      }
+                                    }
+                                  }
+                                })
+                              }}
+                              className="w-full sm:w-1/2 h-10 px-3 rounded-lg bg-surface border border-app text-app focus:outline-none text-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* H6: Recomendaciones por Historial */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-app bg-surface-2 text-xs">
+                        <div className="flex-1 pr-4">
+                          <span className="font-bold text-app block">6. Sugerencias Basadas en Historial del Cliente</span>
+                          <span className="text-[11px] text-muted leading-relaxed mt-0.5 block">
+                            Si el cliente tiene compras previas, recomienda categorías vinculadas a sus preferencias históricas. Si no, aplica el fallback de más vendidos.
+                          </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={formData.commercialOptimization.tools?.historyRecommendations?.enabled ?? true}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                commercialOptimization: {
+                                  ...formData.commercialOptimization,
+                                  tools: {
+                                    ...formData.commercialOptimization.tools,
+                                    historyRecommendations: { enabled: e.target.checked }
+                                  }
+                                }
+                              })
+                            }}
+                          />
+                          <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                        </label>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Botón de Guardado */}
+                <div className="p-5 border-t border-app bg-surface rounded-3xl shadow-sm border">
+                  <button onClick={handleSaveConfig} disabled={isSaving}
+                    className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+                    <Save size={18} /> Guardar Configuración Comercial
                   </button>
                 </div>
               </div>

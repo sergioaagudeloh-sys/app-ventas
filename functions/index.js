@@ -1,4 +1,4 @@
-const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const functions = require("firebase-functions");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
@@ -10,14 +10,16 @@ const db = getFirestore();
 /**
  * Cloud Function reactiva que detecta cuando se sube una imagen temporal de producto
  * al Storage, la procesa mediante Gemini 1.5 Flash y almacena el resultado en Firestore.
+ * Usa firebase-functions v1 (onFinalize) para compatibilidad con plan Spark/sin billing.
  */
-exports.processProductImage = onObjectFinalized({ maxInstances: 10 }, async (event) => {
-  const fileBucket = event.data.bucket; // Bucket de Storage.
-  const filePath = event.data.name; // Ruta del archivo.
-  const contentType = event.data.contentType; // Tipo de contenido.
+exports.processProductImage = functions.runWith({ maxInstances: 10 }).storage.object().onFinalize(async (object) => {
+  const fileBucket = object.bucket;
+  const filePath = object.name;
+  const contentType = object.contentType;
 
-  // Solo procesar archivos subidos en la ruta temporal 'artifacts/temp_uploads/'
-  if (!filePath.startsWith("artifacts/temp_uploads/")) {
+
+  // Solo procesar archivos subidos en la ruta temporal 'products_drafts/'
+  if (!filePath.startsWith("products_drafts/")) {
     return null;
   }
 
@@ -28,10 +30,18 @@ exports.processProductImage = onObjectFinalized({ maxInstances: 10 }, async (eve
 
   console.log(`[Smart Fix IA] Procesando nueva imagen: ${filePath}`);
 
-  // Extraer el draftId de la ruta (artifacts/temp_uploads/draftId.jpg)
+  // Extraer el draftId de la ruta: products_drafts/draft_<UUID>_<nombre_original>.<ext>
+  // El frontend genera el ID con crypto.randomUUID() que produce el patrón estándar:
+  // draft_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  // Se usa regex para capturar este patrón exacto, ignorando el nombre original del archivo.
   const parts = filePath.split("/");
   const fileName = parts[parts.length - 1];
-  const draftId = fileName.split(".")[0];
+  const draftIdMatch = fileName.match(/^(draft_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (!draftIdMatch) {
+    console.warn(`[Smart Fix IA] No se pudo extraer draftId del archivo: ${fileName}`);
+    return null;
+  }
+  const draftId = draftIdMatch[1];
 
   try {
     const bucket = getStorage().bucket(fileBucket);
@@ -95,14 +105,17 @@ Debes devolver exclusivamente un objeto JSON válido con la siguiente estructura
     const result = JSON.parse(responseText);
 
     // Guardar los datos autogenerados en el borrador de Firestore
+    // Los campos se anidan bajo 'suggestions' para que el frontend los lea con onSnapshot
     const draftRef = db.collection("draft_products").doc(draftId);
     await draftRef.set({
-      nombre_sugerido: result.nombre_sugerido || "",
-      descripcion_comercial: result.descripcion_comercial || "",
+      suggestions: {
+        nombre: result.nombre_sugerido || "",
+        descripcion: result.descripcion_comercial || "",
+      },
       imageUrl: `https://firebasestorage.googleapis.com/v0/b/${fileBucket}/o/${encodeURIComponent(filePath)}?alt=media`,
       filePath: filePath,
       updatedAt: new Date()
-    });
+    }, { merge: true });
 
     console.log(`[Smart Fix IA] Borrador ${draftId} guardado con éxito en Firestore.`);
 

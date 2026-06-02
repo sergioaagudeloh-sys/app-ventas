@@ -110,6 +110,34 @@ const useAppConfigStore = create(
         discountType: 'percentage', // 'percentage' | 'fixed'
         discountValue: 15
       },
+      commercialOptimization: {
+        enabled: false,
+        tools: {
+          smartTags: {
+            enabled: true,
+            bestSeller: { enabled: true, text: 'Más Vendido', bg: '#ef4444', textCol: '#ffffff', style: 'pill', minSales: 5 },
+            unmissableOffer: { enabled: true, text: 'Oferta Imperdible', bg: '#f59e0b', textCol: '#ffffff', style: 'pill' },
+            lastUnit: { enabled: true, text: 'Última Unidad', bg: '#3b82f6', textCol: '#ffffff', style: 'pill', threshold: 3 },
+            newProduct: { enabled: true, text: 'Nuevo', bg: '#10b981', textCol: '#ffffff', style: 'pill', daysLimit: 7 }
+          },
+          advancedGallery: {
+            enabled: true
+          },
+          visualVariations: {
+            enabled: true
+          },
+          variationIndicators: {
+            enabled: true
+          },
+          cartRecommendations: {
+            enabled: true,
+            title: 'Recomendado para ti'
+          },
+          historyRecommendations: {
+            enabled: true
+          }
+        }
+      },
       isLoaded: false,
 
       // ─── Acciones ─────────────────────────────────────────────────────────
@@ -168,6 +196,7 @@ const useAppConfigStore = create(
         creditsEnabled: state.creditsEnabled,
         couponsEnabled: state.couponsEnabled,
         rolesOperativosEnabled: state.rolesOperativosEnabled,
+        commercialOptimization: state.commercialOptimization,
       }),
     }
   )

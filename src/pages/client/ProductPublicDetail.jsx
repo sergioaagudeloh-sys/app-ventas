@@ -2,13 +2,15 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  ChevronLeft, ShoppingBag, QrCode, Share2, Copy, Check, MessageSquare, Phone, 
-  MapPin, Clock, ArrowRight, Star, AlertTriangle, EyeOff, Info, RefreshCw, Sparkles 
+  ChevronLeft, ChevronRight, ShoppingBag, QrCode, Share2, Copy, Check, MessageSquare, Phone, 
+  MapPin, Clock, ArrowRight, Star, AlertTriangle, EyeOff, Info, RefreshCw, Sparkles,
+  Heart
 } from 'lucide-react'
 import { useProduct, useCategories, useProducts } from '../../hooks/useInventory'
 import useCartStore from '../../store/cartStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
+import useFavoritesStore from '../../store/favoritesStore'
 import { formatCurrency } from '../../utils/formatters'
 import { openWhatsAppChat } from '../../services/whatsappService'
 import { trackQREvent } from '../../services/qrAnalyticsService'
@@ -60,7 +62,28 @@ export default function ProductPublicDetail() {
   
   const { user } = useAuthStore()
   const { addItem, openCart } = useCartStore()
+  const { favoriteIds, toggleFavorite } = useFavoritesStore()
   const config = useAppConfigStore()
+
+  const isFav = useMemo(() => {
+    return product ? favoriteIds.includes(product.id) : false
+  }, [product, favoriteIds])
+  const userId = user?.celular || user?.uid
+
+  const handleFavoriteClick = (e) => {
+    e.stopPropagation()
+    if (!userId) {
+      navigate('/login')
+      return
+    }
+    toggleFavorite(userId, product.id)
+  }
+
+  // Módulos comerciales premium
+  const commercialOptimization = config.commercialOptimization
+  const optEnabled = commercialOptimization?.enabled === true
+  const advancedGalleryEnabled = optEnabled && commercialOptimization?.tools?.advancedGallery?.enabled !== false
+  const visualVariationsEnabled = optEnabled && commercialOptimization?.tools?.visualVariations?.enabled !== false
   
   const [selectedTalla, setSelectedTalla] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
@@ -173,6 +196,27 @@ export default function ProductPublicDetail() {
     )
   }, [availableVariants, selectedTalla, selectedColor, product])
 
+  const isNewProduct = useMemo(() => {
+    if (!product?.createdAt) return false
+    const createdDate = typeof product.createdAt.toMillis === 'function' 
+      ? product.createdAt.toMillis() 
+      : (product.createdAt instanceof Date ? product.createdAt.getTime() : new Date(product.createdAt).getTime())
+    const limitDays = commercialOptimization?.tools?.smartTags?.newProduct?.daysLimit || 7
+    const diffTime = Math.abs(Date.now() - createdDate)
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= limitDays
+  }, [product?.createdAt, commercialOptimization])
+
+  const actualPrice = useMemo(() => {
+    if (!product) return 0
+    if (currentVariant?.precio && Number(currentVariant.precio) > 0) {
+      return Number(currentVariant.precio)
+    }
+    return (product.tienePromocion && product.precioPromo < product.precioBase)
+      ? product.precioPromo
+      : product.precioBase
+  }, [currentVariant, product])
+
   // Productos relacionados / complementarios
   const relatedProducts = useMemo(() => {
     if (!product) return []
@@ -280,10 +324,6 @@ export default function ProductPublicDetail() {
       return
     }
 
-    const actualPrice = product.tienePromocion && product.precioPromo < product.precioBase
-      ? product.precioPromo
-      : product.precioBase
-
     addItem({
       productId: product.id,
       variantId: currentVariant.id,
@@ -291,7 +331,7 @@ export default function ProductPublicDetail() {
       precio: actualPrice,
       talla: selectedTalla,
       color: selectedColor,
-      imageUrl: product.imageUrl,
+      imageUrl: currentVariant?.imageUrl || product.imageUrl,
       maxStock: currentVariant.stock
     }, cantidad)
 
@@ -417,16 +457,140 @@ export default function ProductPublicDetail() {
         </button>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-md mx-auto pt-20 px-4 space-y-6">
-        {/* Carrusel / Galería de Imágenes */}
-        <div className="relative w-full aspect-square bg-surface border border-app rounded-3xl overflow-hidden shadow-md">
+      {/* Sub-Header de Ubicación/Entrega, matching Screenshots 1 & 4 */}
+      <div className="fixed top-16 inset-x-0 bg-[#fff159] text-black/85 px-4 py-2 text-[11px] flex items-center gap-1.5 font-semibold z-30 shadow-xs border-b border-yellow-400/40">
+        <MapPin size={13} className="text-black/60 shrink-0" />
+        <span>Enviar a Calle 17 #11-51</span>
+        <span className="text-[10px] text-black/40 font-bold ml-auto font-mono">›</span>
+      </div>
+
+      {/* Main Container, adjusted top padding for the fixed sub-header */}
+      <main className="max-w-md mx-auto pt-28 px-4 space-y-5">
+        
+        {/* Ficha técnica y comercial SUPERIOR - arriba de la foto, matching Screenshots 1 & 4 */}
+        <div className="space-y-2">
+          {/* Metadatos Comerciales Superiores */}
+          <div className="flex items-center gap-2 flex-wrap text-xs text-muted font-medium">
+            {isNewProduct ? (
+              <span className="font-semibold text-[#333] dark:text-[#ccc]">
+                Nuevo
+              </span>
+            ) : null}
+            {isNewProduct && product.salesCount > 0 && (
+              <span className="text-muted/30">|</span>
+            )}
+            {product.salesCount && product.salesCount > 0 ? (
+              <span className="font-semibold">
+                +{product.salesCount} vendidos
+              </span>
+            ) : null}
+            
+            <div className="flex items-center gap-0.5 ml-auto shrink-0 font-semibold">
+              <span className="text-app">4.8</span>
+              <span className="text-yellow-500 text-[10px]">★★★★★</span>
+              <span className="text-[10px] text-muted font-normal">(12)</span>
+            </div>
+          </div>
+
+          <h1 className="text-xl font-bold text-app leading-tight tracking-tight">{product.nombre}</h1>
+
+          {/* Smart Badges Row matching Screenshot 1 */}
+          {optEnabled && (
+            <div className="flex items-center gap-2 pt-0.5 flex-wrap text-xs font-semibold">
+              {product.salesCount && product.salesCount >= 5 ? (
+                <span className="bg-[#ff5a00] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-sm">
+                  MÁS VENDIDO
+                </span>
+              ) : product.tienePromocion ? (
+                <span className="bg-[#2968c8] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-sm">
+                  OFERTA IMPERDIBLE
+                </span>
+              ) : isNewProduct ? (
+                <span className="bg-[#00a650] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-sm">
+                  NUEVO
+                </span>
+              ) : null}
+              
+              <span className="text-primary hover:underline cursor-pointer text-xs">
+                1º en {matchedCatName}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Carrusel / Galería de Imágenes con Botones Flotantes matching Screenshots 1 & 4 */}
+        <div className="relative w-full aspect-square bg-surface border border-app rounded-3xl overflow-hidden shadow-sm">
           {imageGallery.length > 0 ? (
-            <img 
-              src={imageGallery[activeImageIndex]} 
-              alt={product.nombre} 
-              className={`w-full h-full object-cover transition-all duration-300 ${resolvedState === 'agotado' ? 'opacity-40 grayscale' : ''}`}
-            />
+            <>
+              <img 
+                src={imageGallery[activeImageIndex]} 
+                alt={product.nombre} 
+                className={`w-full h-full object-cover transition-all duration-300 ${resolvedState === 'agotado' ? 'opacity-40 grayscale' : ''}`}
+              />
+
+              {/* Pill image index counter matching Screenshot 1 (white bg pill) */}
+              {imageGallery.length > 1 && (
+                <span className="absolute top-3.5 left-3.5 bg-white text-black/80 text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-sm z-10 border border-black/10">
+                  {activeImageIndex + 1} / {imageGallery.length}
+                </span>
+              )}
+
+              {/* Botón Izquierda de Galería */}
+              {advancedGalleryEnabled && imageGallery.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex(prev => (prev === 0 ? imageGallery.length - 1 : prev - 1))}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-xs z-10"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+              )}
+
+              {/* Botón Derecha de Galería */}
+              {advancedGalleryEnabled && imageGallery.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex(prev => (prev === imageGallery.length - 1 ? 0 : prev + 1))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center backdrop-blur-xs z-10"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              )}
+
+              {/* Floating Action Buttons on the Right, matching Screenshot 1 */}
+              <div className="absolute right-3.5 top-3.5 flex flex-col gap-2 z-10">
+                {/* Botón Favorito */}
+                <button
+                  onClick={handleFavoriteClick}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center border border-black/10 shadow-md transition-all ${
+                    isFav 
+                      ? 'bg-white text-red-500' 
+                      : 'bg-white text-black/60 hover:text-black'
+                  }`}
+                  title={isFav ? "Quitar de favoritos" : "Guardar en favoritos"}
+                >
+                  <Heart size={16} fill={isFav ? 'currentColor' : 'none'} className="stroke-[2.5]" />
+                </button>
+
+                {/* Botón Compartir */}
+                <button
+                  onClick={handleShare}
+                  className="w-9 h-9 rounded-full bg-white text-black/60 hover:text-black flex items-center justify-center border border-black/10 shadow-md transition-all"
+                  title="Compartir"
+                >
+                  {copiedLink ? <Check size={16} className="text-success" /> : <Share2 size={16} className="stroke-[2.5]" />}
+                </button>
+
+                {/* Botón WhatsApp */}
+                <button
+                  onClick={() => openWhatsAppChat({ message: `Hola, me interesa comprar *${product.nombre}*` })}
+                  className="w-9 h-9 rounded-full bg-white text-green-600 hover:text-green-700 flex items-center justify-center border border-black/10 shadow-md transition-all"
+                  title="Preguntar por WhatsApp"
+                >
+                  <MessageSquare size={16} className="stroke-[2.5]" />
+                </button>
+              </div>
+            </>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-muted">
               <ShoppingBag size={48} className="opacity-30 mb-2" />
@@ -442,64 +606,37 @@ export default function ProductPublicDetail() {
               </div>
             </div>
           )}
-
-          {/* Miniaturas en carrusel inferior */}
-          {imageGallery.length > 1 && (
-            <div className="absolute bottom-4 inset-x-0 flex justify-center gap-2 px-4 overflow-x-auto no-scrollbar">
-              {imageGallery.map((url, idx) => (
-                <button
-                  key={url}
-                  onClick={() => setActiveImageIndex(idx)}
-                  className={`w-12 h-12 rounded-xl overflow-hidden bg-white border-2 transition-all ${
-                    idx === activeImageIndex ? 'border-primary scale-105' : 'border-transparent opacity-80'
-                  }`}
-                >
-                  <img src={url} alt="Miniatura" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Ficha técnica y comercial */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-md uppercase tracking-wider">
-              {matchedCatName}
-            </span>
-            {product.tienePromocion && (
-              <span className="text-[10px] font-black text-white bg-red-500 px-2.5 py-1 rounded-md uppercase tracking-wider flex items-center gap-1">
-                <Sparkles size={10} /> Oferta Especial
-              </span>
-            )}
+        {/* Miniaturas en carrusel inferior (si aplica galería) */}
+        {imageGallery.length > 1 && (
+          <div className="flex justify-start gap-2 overflow-x-auto no-scrollbar pb-1 pt-1 shrink-0">
+            {imageGallery.map((url, idx) => (
+              <button
+                key={url}
+                onClick={() => setActiveImageIndex(idx)}
+                className={`w-12 h-12 rounded-xl overflow-hidden bg-white border-2 shrink-0 transition-all ${
+                  idx === activeImageIndex ? 'border-primary scale-105 shadow-sm' : 'border-app opacity-80'
+                }`}
+              >
+                <img src={url} alt="Miniatura" className="w-full h-full object-cover" />
+              </button>
+            ))}
           </div>
+        )}
 
-          <h1 className="text-2xl font-black text-app leading-tight tracking-tight">{product.nombre}</h1>
-          
-          {/* Precios */}
-          <div className="flex items-baseline gap-2.5">
-            {product.tienePromocion && product.precioPromo < product.precioBase ? (
-              <>
-                <span className="text-3xl font-black text-primary">{formatCurrency(product.precioPromo)}</span>
-                <span className="text-sm text-muted line-through font-semibold">{formatCurrency(product.precioBase)}</span>
-              </>
-            ) : (
-              <span className="text-3xl font-black text-primary">{formatCurrency(product.precioBase)}</span>
-            )}
-          </div>
-
-          {product.descripcion && (
-            <p className="text-sm text-muted leading-relaxed font-medium pt-1">{product.descripcion}</p>
-          )}
-        </div>
-
-        {/* Variantes y Opciones */}
+        {/* Variantes y Opciones - Color e imágenes reales, matching Screenshots 1 & 4 */}
         {resolvedState === 'activo' && (
-          <div className="space-y-5 border-t border-app pt-6">
+          <div className="space-y-4 pt-1">
             {/* Tallas */}
             {tallas.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-app uppercase tracking-wider">Selecciona Talla:</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-app uppercase tracking-wider">Talla:</span>
+                  <span className="text-muted">
+                    {selectedTalla ? `Seleccionado: ${selectedTalla}` : 'Selecciona una opción'}
+                  </span>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {tallas.map(t => (
                     <button
@@ -523,12 +660,25 @@ export default function ProductPublicDetail() {
 
             {/* Colores */}
             {colores.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="text-xs font-bold text-app uppercase tracking-wider">Selecciona Color:</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-app uppercase tracking-wider">Color:</span>
+                  <span className="font-black text-app">
+                    {selectedColor ? selectedColor.toUpperCase() : 'Selecciona una opción'}
+                  </span>
+                </div>
+                
+                {/* Variant Selector Grid matching Screenshots 1 & 4 */}
                 <div className="flex flex-wrap gap-3">
                   {colores.map(c => {
                     const cssColor = getCssColor(c)
+                    const isWhite = cssColor === '#FFFFFF' || cssColor.toLowerCase() === '#fff'
                     const isSelected = selectedColor === c
+
+                    // Buscar si la variante asociada a este color tiene su propia imagen
+                    const variantForColor = availableVariants.find(v => v.color === c && (!selectedTalla || v.talla === selectedTalla))
+                    const variantImg = variantForColor?.imageUrl
+
                     return (
                       <button
                         key={c}
@@ -536,33 +686,156 @@ export default function ProductPublicDetail() {
                           setSelectedColor(c)
                           setErrorMsg('')
                         }}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-                          isSelected ? 'ring-2 ring-primary ring-offset-2' : 'ring-1 ring-app'
-                        }`}
+                        className={`rounded-xl overflow-hidden transition-all active:scale-95 shrink-0 cursor-pointer ${
+                          isSelected 
+                            ? 'border-2 border-primary ring-2 ring-primary/20 scale-95 shadow-md' 
+                            : 'border border-app opacity-85 hover:opacity-100 hover:border-primary/50'
+                        } ${visualVariationsEnabled && variantImg ? 'w-14 h-16' : 'w-12 h-12 flex items-center justify-center bg-surface-2'}`}
                         title={c}
                       >
-                        <span className="w-10 h-10 rounded-full border border-app shadow-inner" style={{ backgroundColor: cssColor }} />
+                        {visualVariationsEnabled && variantImg ? (
+                          <img 
+                            src={variantImg} 
+                            alt={c}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span 
+                            className={`w-9 h-9 rounded-full shadow-inner ${isWhite ? 'border border-app' : ''}`}
+                            style={{ backgroundColor: cssColor }}
+                          />
+                        )}
                       </button>
                     )
                   })}
                 </div>
               </div>
             )}
+
+            {/* Badge de stock ¡ÚLTIMA UNIDAD!, matching Screenshots 1 & 4 */}
+            {currentVariant && currentVariant.stock > 0 && currentVariant.stock <= (commercialOptimization?.tools?.smartTags?.lastUnit?.threshold || 3) && (
+              <div className="flex pt-1 animate-pulse">
+                <span className="inline-flex items-center gap-1.5 bg-[#ff5a00] text-white text-[10px] font-black uppercase px-2.5 py-1 rounded-lg shadow-sm border border-black/10">
+                  🔥 {commercialOptimization?.tools?.smartTags?.lastUnit?.text || '¡ÚLTIMA UNIDAD!'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Detalles comerciales enriquecidos */}
+        {/* Ficha de Precios, Cuotas y Envíos, matching Screenshots 4 & 5 */}
+        <div className="space-y-3.5 border-t border-app pt-5">
+          <div className="space-y-0.5">
+            {product.tienePromocion && product.precioPromo < product.precioBase && (!currentVariant?.precio || Number(currentVariant.precio) === 0) ? (
+              <div>
+                <span className="text-xs text-muted line-through font-semibold block mb-0.5">
+                  {formatCurrency(product.precioBase)}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-3xl font-black text-app">
+                    {formatCurrency(actualPrice)}
+                  </span>
+                  <span className="text-xs font-black text-[#00a650]">
+                    {product.promocion?.discountType === 'percentage'
+                      ? `${product.promocion.discountValue}% OFF`
+                      : 'OFERTA'}
+                  </span>
+                </div>
+              </div>
+            ) : currentVariant?.precio && Number(currentVariant.precio) > 0 && Number(currentVariant.precio) !== product.precioBase ? (
+              <div>
+                <span className="text-xs text-muted line-through font-semibold block mb-0.5">
+                  {formatCurrency(product.precioBase)}
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-3xl font-black text-app">
+                    {formatCurrency(actualPrice)}
+                  </span>
+                  <span className="text-xs font-black text-[#00a650]">
+                    {Math.round((1 - (Number(currentVariant.precio) / product.precioBase)) * 100)}% OFF
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <span className="text-3xl font-black text-app block">
+                {formatCurrency(actualPrice)}
+              </span>
+            )}
+          </div>
+
+          {/* Cuotas sin interés dinámicas, matching Screenshots 4 & 5 */}
+          {actualPrice > 0 && (
+            <div className="space-y-1.5 pt-0.5">
+              <p className="text-xs text-[#00a650] font-bold flex items-center gap-1 leading-none">
+                en {actualPrice < 100000 ? 3 : 6} cuotas de {formatCurrency(Math.round(actualPrice / (actualPrice < 100000 ? 3 : 6)))} con 0% de interés
+              </p>
+              <div className="flex items-center gap-1.5 text-[10px] text-muted">
+                <span className="hover:underline cursor-pointer text-primary font-semibold">Medios de pago</span>
+                <span className="text-muted/40">|</span>
+                <div className="flex items-center gap-1 opacity-75">
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">VISA</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">MC</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">AMEX</span>
+                  <span className="bg-surface-2 px-1 rounded border border-app text-[8px] font-bold">PSE</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Banner de beneficios premium / cuotas extras matching Screenshots 4 */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-primary/10 border border-purple-500/20 flex items-center justify-between gap-3 shadow-inner">
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-black text-app uppercase tracking-wider">CUOTAS EXTRA SIN INTERÉS</p>
+              <p className="text-[9px] text-muted leading-tight">Accede a 12 cuotas con 0% y envíos prioritarios gratis</p>
+            </div>
+            <div className="bg-primary text-white text-[8px] font-black px-2 py-1 rounded-lg shrink-0 uppercase cursor-pointer hover:opacity-90 active:scale-95 transition-all">
+              SUSCRIBIRME
+            </div>
+          </div>
+
+          {/* Detalles de Envío / Devolución matching Screenshots 2, 4 & 5 */}
+          <div className="pt-3 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center text-[#00a650] shrink-0 mt-0.5 text-xs font-bold">
+                ⚡
+              </div>
+              <div>
+                <p className="text-xs font-bold text-[#00a650]">Llega gratis mañana</p>
+                <p className="text-[10px] text-muted">Beneficio de envío rápido Full para tu ubicación actual</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-2.5">
+              <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-primary shrink-0 mt-0.5 text-xs font-bold">
+                🔄
+              </div>
+              <div>
+                <p className="text-xs font-bold text-primary">Devolución gratis</p>
+                <p className="text-[10px] text-muted">Tienes 30 días desde que lo recibes para arrepentirte sin costos</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Descripción corta */}
+        {product.descripcion && (
+          <div className="border-t border-app pt-5">
+            <p className="text-sm text-muted leading-relaxed font-medium">{product.descripcion}</p>
+          </div>
+        )}
+
+        {/* Detalles comerciales enriquecidos / descripción larga */}
         {product.descripcionLarga && (
-          <div className="border-t border-app pt-6 space-y-3">
+          <div className="border-t border-app pt-5 space-y-2">
             <h3 className="text-xs font-bold text-app uppercase tracking-wider">Especificaciones del Producto</h3>
             <p className="text-sm text-muted leading-relaxed whitespace-pre-wrap">{product.descripcionLarga}</p>
           </div>
         )}
 
         {product.beneficios?.length > 0 && (
-          <div className="border-t border-app pt-6 space-y-3">
-            <h3 className="text-xs font-bold text-app uppercase tracking-wider">¿Por qué elegir este producto?</h3>
-            <ul className="space-y-2 text-sm text-muted">
+          <div className="border-t border-app pt-5 space-y-2">
+            <h3 className="text-xs font-bold text-app uppercase tracking-wider">Beneficios Destacados</h3>
+            <ul className="space-y-1.5 text-sm text-muted">
               {product.beneficios.map((b, i) => (
                 <li key={i} className="flex items-start gap-2">
                   <span className="text-primary font-bold">✓</span>
@@ -574,7 +847,7 @@ export default function ProductPublicDetail() {
         )}
 
         {product.garantiaInfo && (
-          <div className="border-t border-app pt-6 p-4 rounded-2xl bg-surface-2 border border-app flex gap-3">
+          <div className="border-t border-app pt-5 p-4 rounded-2xl bg-surface-2 border border-app flex gap-3">
             <Info size={20} className="text-primary shrink-0" />
             <div>
               <p className="text-xs font-bold text-app uppercase tracking-wider">Garantía Asegurada</p>

@@ -95,10 +95,14 @@ export async function createOrder(orderData) {
       }
     }
 
-    // 3. Escribir actualizaciones de stock
+    // 3. Escribir actualizaciones de stock e incrementar ventas comerciales (salesCount)
     Object.values(updatedProducts).forEach(productInfo => {
+      const productItems = items.filter(item => item.productId === productInfo.ref.id)
+      const totalQtySold = productItems.reduce((sum, item) => sum + item.cantidad, 0)
+
       transaction.update(productInfo.ref, {
         variantes: productInfo.data.variantes,
+        salesCount: (productInfo.data.salesCount || 0) + totalQtySold,
         updatedAt: serverTimestamp()
       })
     })
@@ -408,10 +412,14 @@ export async function createPhysicalOrder(orderData, adminId) {
       }
     }
 
-    // 3. Escribir productos actualizados
+    // 3. Escribir productos actualizados e incrementar ventas comerciales (salesCount)
     Object.values(updatedProducts).forEach(productInfo => {
+      const productItems = items.filter(item => item.productId === productInfo.ref.id)
+      const totalQtySold = productItems.reduce((sum, item) => sum + item.cantidad, 0)
+
       transaction.update(productInfo.ref, {
         variantes: productInfo.data.variantes,
+        salesCount: (productInfo.data.salesCount || 0) + totalQtySold,
         updatedAt: serverTimestamp()
       })
     })
