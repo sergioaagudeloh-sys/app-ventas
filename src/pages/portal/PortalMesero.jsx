@@ -118,7 +118,7 @@ export default function PortalMesero() {
                   <button
                     onClick={async () => {
                       try {
-                        await resolveTableRequest(req.id, portalEmployee?.id)
+                        await resolveTableRequest(req, portalEmployee?.id)
                       } catch (e) {
                         console.error(e)
                       }

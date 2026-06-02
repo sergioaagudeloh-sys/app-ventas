@@ -357,12 +357,9 @@ export default function OrderTracking() {
               </h4>
               <p className="font-bold text-app text-sm">{order.cliente?.nombre || 'Cliente'}</p>
               <p className="text-xs text-muted">
-                Celular: {order.cliente?.celular ? `*******${order.cliente.celular.slice(-4)}` : 'N/A'}
-              </p>
-              <p className="text-xs text-muted">
                 Entrega:{' '}
                 <span className="font-semibold text-app">
-                  {isDomicilio ? '🛵 Domicilio' : order.tipoEntrega === 'digital' ? '📱 Digital' : '🏪 Retiro en tienda'}
+                  {isDomicilio ? '🛵 Domicilio' : order.tipoEntrega === 'digital' ? '📱 Digital' : order.tipoEntrega === 'mesa' ? `🛎️ En Mesa (${order.tableName})` : '🏪 Retiro en tienda'}
                 </span>
               </p>
             </div>
@@ -403,8 +400,8 @@ export default function OrderTracking() {
             </div>
           </div>
 
-          {/* Detalle de domicilio */}
-          {isDomicilio && (
+          {/* Detalle de domicilio / mesa */}
+          {isDomicilio ? (
             <div className="bg-surface-2/40 border border-app p-4 rounded-2xl mb-5 space-y-1.5">
               <h4 className="text-[10px] font-black uppercase tracking-wider text-muted flex items-center gap-1.5 mb-2">
                 <MapPin className="w-3.5 h-3.5 text-primary" /> Dirección de Entrega
@@ -426,7 +423,15 @@ export default function OrderTracking() {
                 : <p className="text-xs text-muted italic">El costo de envío será acordado con el negocio.</p>
               }
             </div>
-          )}
+          ) : order.tipoEntrega === 'mesa' ? (
+            <div className="bg-surface-2/40 border border-app p-4 rounded-2xl mb-5 space-y-1.5">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-muted flex items-center gap-1.5 mb-2">
+                <Package className="w-3.5 h-3.5 text-primary" /> Entrega en Salón
+              </h4>
+              <p className="text-sm font-medium text-app">Consumo en Mesa: <span className="text-primary font-bold">{order.tableName || 'N/A'}</span></p>
+              <p className="text-xs text-muted">Tu pedido está siendo preparado y se servirá directamente a tu mesa.</p>
+            </div>
+          ) : null}
 
           {/* Notas */}
           {order.notas && (
