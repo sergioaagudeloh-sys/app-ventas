@@ -20,25 +20,13 @@ service cloud.firestore {
     }
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
-    // El userId es el número de celular. El doc tiene un campo "uid" con el Firebase Auth UID anónimo.
     match /users/{userId} {
-      // Admin: acceso total.
-      // Cliente anónimo: puede leer/escribir su propio documento si el campo uid coincide con su Auth UID.
-      allow read: if isAdmin() ||
-        (request.auth != null && resource.data.uid == request.auth.uid);
-      allow write: if isAdmin() ||
-        (request.auth != null && resource.data.uid == request.auth.uid);
-      // Crear nuevo doc: solo requiere estar autenticado (anónimamente) — es el primer login
-      allow create: if request.auth != null;
-      // Listar y borrar: solo admin
+      allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       allow list: if isAdmin();
       allow delete: if isAdmin();
-
+      
       match /favorites/{favoriteId} {
-        // Verifica que el uid del doc padre coincida con el uid del solicitante
-        allow read, write: if isAdmin() ||
-          (request.auth != null &&
-           get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid);
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       }
     }
 
