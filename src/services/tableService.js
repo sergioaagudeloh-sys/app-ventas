@@ -50,11 +50,27 @@ export async function openTable(tableId, meseroId) {
   })
 }
 
-export async function requestTableBill(tableId) {
+export async function requestService(tableId, tableName, type) {
+  const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
+  const { db } = await import('../config/firebaseConfig')
+  await addDoc(collection(db, 'tableRequests'), {
+    tableId,
+    tableName,
+    type, // 'llamado' | 'cuenta'
+    status: 'pendiente',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function requestTableBill(tableId, tableName) {
   await updateDoc(doc(db, COL, tableId), {
     estado: 'solicitando_cuenta',
     updatedAt: serverTimestamp(),
   })
+  if (tableName) {
+    await requestService(tableId, tableName, 'cuenta')
+  }
 }
 
 export async function closeTable(tableId) {
@@ -62,6 +78,31 @@ export async function closeTable(tableId) {
     estado: 'disponible',
     pedidoActivoId: null,
     meseroAsignadoId: null,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export function subscribeToTableRequests(callback) {
+  const q = query(
+    collection(db, 'tableRequests'),
+    where('status', '==', 'pendiente')
+  )
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    list.sort((a, b) => {
+      const tA = a.createdAt?.seconds || 0
+      const tB = b.createdAt?.seconds || 0
+      return tB - tA
+    })
+    callback(list)
+  })
+}
+
+export async function resolveTableRequest(requestId, meseroId) {
+  const ref = doc(db, 'tableRequests', requestId)
+  await updateDoc(ref, {
+    status: 'atendido',
+    meseroId: meseroId || null,
     updatedAt: serverTimestamp(),
   })
 }

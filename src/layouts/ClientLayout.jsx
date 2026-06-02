@@ -15,6 +15,7 @@ import useNotificationCenter from '../hooks/useNotificationCenter'
 import useFCMPermission from '../hooks/useFCMPermission'
 import NotificationHistoryTray from '../components/common/NotificationHistoryTray'
 import NCToastContainer from '../components/common/NCToastContainer'
+import TableMenuBar from '../components/client/table/TableMenuBar'
 
 const NAV_ITEMS_LEFT = [
   { path: '/tienda/catalogo', icon: ShoppingCart, label: 'Catálogo' },
@@ -35,7 +36,7 @@ const ALL_NAV_ITEMS = [
 ]
 
 export default function ClientLayout() {
-  const { appName, appIcon, creditsEnabled, couponsEnabled } = useAppConfigStore()
+  const { appName, appIcon, creditsEnabled, couponsEnabled, tablesEnabled } = useAppConfigStore()
   const { getCount, openCart, isOpen: isCartOpen } = useCartStore()
   const { user } = useAuthStore()
   const { subscribe, unsubscribe } = useFavoritesStore()
@@ -454,6 +455,9 @@ export default function ClientLayout() {
           onOpenCart={openCart}
         />
       )}
+
+      {/* Barra de menú para atención a la mesa y autoservicio QR */}
+      {tablesEnabled && <TableMenuBar />}
     </div>
   )
 }
