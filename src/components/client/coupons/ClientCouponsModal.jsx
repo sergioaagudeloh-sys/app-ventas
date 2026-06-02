@@ -53,60 +53,79 @@ export default function ClientCouponsModal({ isOpen, onClose }) {
               return (
                 <div
                   key={coupon.id}
-                  className="relative p-5 rounded-2xl border border-app bg-surface-2 overflow-hidden flex flex-col gap-3 group"
+                  className="relative p-5 rounded-2xl border border-app bg-surface-2 overflow-hidden flex flex-col gap-3 group shadow-sm hover:shadow-md transition-all duration-300"
                 >
-                  {/* Borde decorativo de cupón */}
-                  <div className="absolute top-0 bottom-0 left-0 w-2 bg-gradient-to-b from-primary to-primary-focus" />
+                  {/* Círculos calados para simular ticket rasgable */}
+                  <div className="absolute top-1/2 -left-3 -translate-y-1/2 w-6 h-6 rounded-full bg-surface border border-app z-10 shrink-0" />
+                  <div className="absolute top-1/2 -right-3 -translate-y-1/2 w-6 h-6 rounded-full bg-surface border border-app z-10 shrink-0" />
+                  
+                  {/* Borde decorativo superior estilo dash / troquelado */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-[radial-gradient(circle_at_bottom,_var(--color-primary)_4px,_transparent_5px)] bg-[size:12px_8px] opacity-80" />
+
+                  {/* Borde decorativo lateral izquierdo de marca */}
+                  <div className="absolute top-0 bottom-0 left-0 w-1.5 bg-primary" />
                   
                   <div className="flex justify-between items-start pl-2">
                     <div>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black bg-primary/10 text-primary uppercase">
-                        Descuento de {displayDiscount}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black bg-primary/10 text-primary uppercase tracking-wider">
+                        🎫 {isPercent ? 'Porcentaje' : 'Valor Fijo'} · {displayDiscount}
                       </span>
-                      <h3 className="font-mono text-base font-black text-app mt-2 uppercase select-all tracking-wider">
+                      <h3 className="font-mono text-lg font-black text-app mt-2 uppercase select-all tracking-widest bg-surface px-3 py-1.5 rounded-xl border border-app border-dashed w-fit shadow-xs">
                         {coupon.codigo}
                       </h3>
                     </div>
 
                     <button
                       onClick={() => handleCopy(coupon.codigo)}
-                      className={`p-2 rounded-xl border transition-all active:scale-95 flex items-center gap-1.5 text-xs font-semibold ${
+                      className={`p-2 h-9 rounded-xl border transition-all active:scale-95 flex items-center gap-1 text-[11px] font-extrabold cursor-pointer shrink-0 ${
                         copiedCode === coupon.codigo
-                          ? 'bg-success/10 border-success text-success'
-                          : 'bg-surface border-app text-muted hover:text-app'
+                          ? 'bg-success/15 border-success text-success'
+                          : 'bg-surface border-app text-muted hover:text-app hover:border-primary/50'
                       }`}
                     >
                       {copiedCode === coupon.codigo ? (
                         <>
-                          <Check size={14} /> Copiado
+                          <Check size={13} className="shrink-0" /> Copiado
                         </>
                       ) : (
                         <>
-                          <Copy size={14} /> Copiar
+                          <Copy size={13} className="shrink-0" /> Copiar
                         </>
                       )}
                     </button>
                   </div>
 
                   {/* Detalles del Cupón */}
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-app pl-2 text-xs text-muted">
-                    <div className="flex items-center gap-1.5">
-                      <ShoppingBag size={12} className="text-primary" />
-                      <span>Mínimo: {formatCurrency(coupon.minimoCompra || 0)}</span>
+                  <div className="grid grid-cols-2 gap-2.5 pt-3.5 border-t border-app border-dashed pl-2 text-xs text-muted">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <ShoppingBag size={13} className="text-primary shrink-0" />
+                      <span className="truncate">Compra Mín: {formatCurrency(coupon.minimoCompra || 0)}</span>
                     </div>
                     {coupon.fechaExpiracion && (
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={12} className="text-primary" />
-                        <span>Vence: {new Date(coupon.fechaExpiracion).toLocaleDateString()}</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Calendar size={13} className="text-primary shrink-0" />
+                        <span className="truncate">Vence: {new Date(coupon.fechaExpiracion).toLocaleDateString()}</span>
                       </div>
                     )}
-                     {coupon.metodosPago && coupon.metodosPago.length > 0 && (
-                      <div className="flex items-center gap-1.5 col-span-2 mt-1">
-                        <CreditCard size={12} className="text-primary" />
-                        <span>Solo para: {coupon.metodosPago.map(m => m === 'efectivo' ? 'Efectivo' : m === 'transferencia' ? 'Transferencia' : 'Crédito').join(', ')}</span>
+                    {coupon.metodosPago && coupon.metodosPago.length > 0 && (
+                      <div className="flex items-center gap-1.5 col-span-2 mt-0.5">
+                        <CreditCard size={13} className="text-primary shrink-0" />
+                        <span className="truncate">Pagos: {coupon.metodosPago.map(m => m === 'efectivo' ? 'Efectivo' : m === 'transferencia' ? 'Transferencia' : 'Crédito').join(', ')}</span>
                       </div>
                     )}
                   </div>
+
+                  {/* Botón para aplicar en próxima compra */}
+                  <button
+                    onClick={() => {
+                      handleCopy(coupon.codigo)
+                      alert(`¡Código "${coupon.codigo}" copiado con éxito! Puedes aplicarlo directamente ingresándolo en el checkout de tu pedido.`)
+                      onClose()
+                    }}
+                    className="mt-2 w-full h-10 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-xl font-bold text-xs transition-all active:scale-[0.98] border border-primary/20 hover:border-primary cursor-pointer flex items-center justify-center gap-1.5 pl-2"
+                  >
+                    🚀 Aplicar en Próxima Compra
+                  </button>
                 </div>
               )
             })}

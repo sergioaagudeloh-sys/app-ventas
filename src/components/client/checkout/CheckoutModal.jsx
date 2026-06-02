@@ -999,6 +999,117 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                   <p className="text-sm text-error font-medium mt-2 text-center">{errors.metodoPago}</p>
                 )}
 
+                {/* ── SECCIÓN DE CUPONES DE DESCUENTO PREMIUM ── */}
+                <div className="mt-4 p-4 bg-surface rounded-2xl border border-app shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Tag size={16} className="text-primary" />
+                      <span className="text-xs font-bold text-app uppercase tracking-wider">Cupón de Descuento</span>
+                    </div>
+                    {activeCoupons.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCouponSelector(!showCouponSelector)}
+                        className="text-xs font-bold text-primary hover:underline cursor-pointer"
+                      >
+                        {showCouponSelector ? 'Ocultar disponibles' : `Ver disponibles (${activeCoupons.length})`}
+                      </button>
+                    )}
+                  </div>
+
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between p-3 bg-success/10 border border-success/30 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🎫</span>
+                        <div>
+                          <p className="text-xs font-black text-success uppercase leading-none">
+                            {appliedCoupon.codigo} aplicado
+                          </p>
+                          <p className="text-[10px] text-success/80 font-semibold mt-1">
+                            Ahorras {appliedCoupon.tipoDescuento === 'porcentaje' ? `${appliedCoupon.valorDescuento}%` : formatCurrency(appliedCoupon.valorDescuento)}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setAppliedCoupon(null)}
+                        className="text-xs text-red-500 font-bold hover:underline cursor-pointer"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Ej: BIENVENIDA10"
+                        value={couponCodeInput}
+                        onChange={e => setCouponCodeInput(e.target.value)}
+                        className="flex-1 px-3 h-11 bg-surface-2 border border-app rounded-xl text-sm font-mono font-bold uppercase tracking-wider text-app focus:outline-none focus:border-primary transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCoupon()}
+                        className="px-4 h-11 bg-primary text-white rounded-xl text-xs font-bold transition-all active:scale-95 hover:opacity-90 cursor-pointer"
+                      >
+                        Aplicar
+                      </button>
+                    </div>
+                  )}
+
+                  {couponError && (
+                    <p className="text-xs font-semibold text-error mt-1 flex items-center gap-1">
+                      ⚠️ {couponError}
+                    </p>
+                  )}
+
+                  {/* Selector rápido de cupones elegibles */}
+                  <AnimatePresence>
+                    {showCouponSelector && !appliedCoupon && activeCoupons.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden space-y-2 pt-2 border-t border-app border-dashed"
+                      >
+                        <p className="text-[10px] text-muted font-bold uppercase tracking-wider mb-1">Elige un cupón elegible:</p>
+                        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                          {activeCoupons.map((coupon) => {
+                            const isPercent = coupon.tipoDescuento === 'porcentaje'
+                            const discountLabel = isPercent ? `${coupon.valorDescuento}%` : formatCurrency(coupon.valorDescuento)
+                            
+                            return (
+                              <button
+                                key={coupon.id}
+                                type="button"
+                                onClick={() => handleApplyCoupon(coupon.codigo)}
+                                className="w-full p-2.5 bg-surface-2 hover:bg-primary/5 border border-app rounded-xl text-left transition-all active:scale-[0.99] flex items-center justify-between group cursor-pointer"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-xs font-black text-app uppercase tracking-wide bg-surface px-2 py-0.5 rounded border border-app">
+                                      {coupon.codigo}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-primary">
+                                      -{discountLabel}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-muted mt-1">
+                                    Compra Mín: {formatCurrency(coupon.minimoCompra || 0)}
+                                  </p>
+                                </div>
+                                <span className="text-[10px] font-black text-primary group-hover:underline">
+                                  Aplicar
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <div className="mt-8 pt-6 border-t border-app space-y-3">
                   <div className="flex justify-between items-center text-sm text-muted">
                     <span>Subtotal:</span>

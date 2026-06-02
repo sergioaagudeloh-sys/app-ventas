@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, SlidersHorizontal, PackageX, Sparkles, X, Tag } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import ProductCard from '../../components/client/catalog/ProductCard'
 import WholesaleRequestModal from '../../components/client/catalog/WholesaleRequestModal'
 import ClientFilterModal from '../../components/client/catalog/ClientFilterModal'
 import CatalogBanner from '../../components/client/catalog/CatalogBanner'
+import Pagination from '../../components/ui/Pagination'
 import { SUPPORT_WHATSAPP } from '../../constants'
 import { fuzzyMatch } from '../../utils/search'
 
@@ -61,12 +62,19 @@ export default function ClientCatalog() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState('all')
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 10
   
   // Modales
   const [wholesaleRequest, setWholesaleRequest] = useState(null) // { product, type: 'mayorista' | 'encargo' }
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
   const [promoModalAd, setPromoModalAd] = useState(null)
+
+  // Resetear paginación al cambiar filtros, búsqueda o categorías
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, selectedCategoryId, activeFilters])
 
 
 
@@ -412,37 +420,49 @@ export default function ClientCatalog() {
             </p>
           </div>
         ) : (
-          <div className={
-            catalogLayout === 'list' 
-              ? "flex flex-col gap-3 md:gap-4" 
-              : catalogLayout === 'grid3' 
-                ? "grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4" 
-                : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"
-          }>
-            {filteredProducts.map(product => (
-              <div
-                key={product.id}
-                className="flex flex-col animate-fade-in"
-              >
-                <ProductCard 
-                  product={product} 
-                  onOpenDetail={(prod) => {
-                    if (prod.isTemporal) {
-                      setPromoModalAd(prod.promocion)
-                    } else {
-                      navigate('/producto/' + prod.id)
-                    }
-                  }} 
-                  layout={catalogLayout}
-                />
-                <WholesaleButton
-                  product={product}
-                  wholesaleSettings={wholesaleSettings}
-                  onRequest={setWholesaleRequest}
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className={
+              catalogLayout === 'list' 
+                ? "flex flex-col gap-3 md:gap-4" 
+                : catalogLayout === 'grid3' 
+                  ? "grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4" 
+                  : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"
+            }>
+              {filteredProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(product => (
+                <div
+                  key={product.id}
+                  className="flex flex-col animate-fade-in"
+                >
+                  <ProductCard 
+                    product={product} 
+                    onOpenDetail={(prod) => {
+                      if (prod.isTemporal) {
+                        setPromoModalAd(prod.promocion)
+                      } else {
+                        navigate('/producto/' + prod.id)
+                      }
+                    }} 
+                    layout={catalogLayout}
+                  />
+                  <WholesaleButton
+                    product={product}
+                    wholesaleSettings={wholesaleSettings}
+                    onRequest={setWholesaleRequest}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Paginación Estandarizada */}
+            {filteredProducts.length > ITEMS_PER_PAGE && (
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredProducts.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={setCurrentPage}
+              />
+            )}
+          </>
         )}
       </div>
 
