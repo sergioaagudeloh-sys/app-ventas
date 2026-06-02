@@ -53,7 +53,12 @@ function ThemeApplier() {
   useEffect(() => {
     const root = document.documentElement
     
-    // Aplicar clase dark para utilidades Tailwind
+    // Aplicar atributo data-theme y clase dark para utilidades Tailwind
+    if (typeof theme === 'string') {
+      root.setAttribute('data-theme', theme)
+    } else if (theme && theme.id) {
+      root.setAttribute('data-theme', theme.id)
+    }
     if (isDarkMode) {
       root.classList.add('dark')
     } else {
@@ -129,7 +134,18 @@ export default function App() {
   // Sincronización global Firestore <-> Zustand en tiempo real
   useAppConfigSync()
 
-  const { appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode, animationsEnabled } = useAppConfigStore()
+  const { isLoaded, appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode, animationsEnabled } = useAppConfigStore()
+
+  // Activar transiciones de fondo únicamente después de la hidratación y pintado inicial (evita FOUC cromático)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      document.documentElement.classList.add('with-transitions')
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Determinar si es la primera carga absoluta (sin caché local) y aún no se ha descargado de Firestore
+  const isFirstLoad = !isLoaded && !localStorage.getItem('app-config-storage')
 
   // Actualizar el manifest PWA y el favicon en tiempo real cuando cambie el nombre o logo
   useEffect(() => {
@@ -154,6 +170,31 @@ export default function App() {
       }
     }
   }, [appName, appIcon, pwaAppName, pwaAppIcon, pwaUseBrandIcon, theme, activeSeasonalEvent, isDarkMode])
+
+  if (isFirstLoad) {
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#fdfbfb]"
+        style={{
+          background: 'linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)',
+          fontFamily: 'system-ui, -apple-system, sans-serif'
+        }}
+      >
+        <div className="relative w-20 h-20 flex items-center justify-center mb-6">
+          <div className="absolute inset-0 rounded-full border-4 border-gray-200 border-t-gray-600 animate-spin" />
+          <span className="text-3xl animate-pulse" role="img" aria-label="Cargando">🛍️</span>
+        </div>
+        <div className="space-y-1 text-center animate-pulse">
+          <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">
+            Preparando Tienda
+          </h2>
+          <p className="text-xs text-gray-400 font-semibold">
+            Sincronizando diseño y catálogo...
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <ErrorBoundary FallbackComponent={AppErrorFallback}>

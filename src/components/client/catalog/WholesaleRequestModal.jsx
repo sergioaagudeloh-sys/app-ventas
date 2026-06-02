@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, PackagePlus, Send } from 'lucide-react'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '../../../config/firebaseConfig'
 import { COLLECTIONS, WHOLESALE_STATES, SUPPORT_WHATSAPP } from '../../../constants'
 import useAuthStore from '../../../store/authStore'
 import useAppConfigStore from '../../../store/appConfigStore'
 import { openWhatsAppChat } from '../../../services/whatsappService'
+import { createWholesaleOrder } from '../../../services/wholesaleService'
 
 
 export default function WholesaleRequestModal({ product, type, isOpen, onClose }) {
@@ -41,7 +40,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
 
     setIsSubmitting(true)
     try {
-      await addDoc(collection(db, COLLECTIONS.WHOLESALE_ORDERS), {
+      await createWholesaleOrder({
         productoId: product.id,
         productoNombre: product.nombre,
         precioBase: product.precioBase,
@@ -52,7 +51,6 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
         clienteCelular: user?.celular || 'Desconocido',
         estado: WHOLESALE_STATES.PENDING,
         tipo: type || 'mayorista',
-        createdAt: serverTimestamp(),
       })
       setSuccess(true)
 

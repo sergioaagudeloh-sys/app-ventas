@@ -7,8 +7,7 @@ import useGuidedStore from '../../store/guidedStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import usePWAInstall from '../../hooks/usePWAInstall'
 import { CLIENT_LOGIN_TRUST_MESSAGE, COLLECTIONS } from '../../constants'
-import { db } from '../../config/firebaseConfig'
-import { doc, updateDoc } from 'firebase/firestore'
+import { updateClientProfile } from '../../services/userService'
 
 const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', '🍕', '🎉', '👑', '🏀', '⚽', '🎨', '🎸', '🎮']
 
@@ -27,8 +26,7 @@ export default function ClientProfile() {
     // Persistencia en Firestore
     if (user?.celular) {
       try {
-        const userRef = doc(db, COLLECTIONS.USERS, user.celular)
-        await updateDoc(userRef, { emoji: newEmoji })
+        await updateClientProfile(user.celular, { emoji: newEmoji })
       } catch (error) {
         console.error("Error al guardar el emoji en Firestore:", error)
       }

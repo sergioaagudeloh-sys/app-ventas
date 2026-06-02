@@ -180,6 +180,7 @@
 html {
   scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
+  background-color: var(--color-bg);
 }
 
 body {
@@ -189,10 +190,14 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  transition: background-color 0.3s ease, color 0.3s ease;
   /* Soporte para pantallas de alta frecuencia (120Hz/144Hz) */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Habilitar transiciones de color de tema únicamente después del montado inicial */
+.with-transitions body {
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ─── Scrollbar personalizado ────────────────────────────────────────────── */

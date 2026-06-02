@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper para verificar si la petición viene de un Administrador Autenticado en Firebase Auth
+    // Helper para verificar si la petición viene de un Administrador autenticado en Firebase Auth
     function isAdmin() {
       return request.auth != null;
     }
@@ -21,12 +21,11 @@ service cloud.firestore {
 
     // Perfiles de clientes y sus subcolecciones (como favoritos)
     match /users/{userId} {
-      allow read, write: if isAdmin() || request.auth == null; 
-      allow list: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, create, update: if true;
+      allow list, delete: if isAdmin();
       
       match /favorites/{favoriteId} {
-        allow read, write: if isAdmin() || true;
+        allow read, write: if true;
       }
     }
 
@@ -67,7 +66,8 @@ service cloud.firestore {
 
     // Créditos / Fiados
     match /credits/{document} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (resource.data.cliente.celular != null);
+      allow write: if isAdmin();
     }
 
     // Publicidad y Promociones
@@ -111,8 +111,8 @@ service cloud.firestore {
 
     // Configuración y PINs de empleados (Altamente sensible)
     match /employees/{employeeId} {
-      allow get: if true;
-      allow list, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     // Mesas de servicio en salón
@@ -124,19 +124,19 @@ service cloud.firestore {
     // Órdenes en cola de producción
     match /production/{prodId} {
       allow read: if true;
-      allow write: if isAdmin() || true;
+      allow write: if isAdmin();
     }
 
     // Entregas y despachos
     match /deliveries/{deliveryId} {
       allow read: if true;
-      allow write: if isAdmin() || true;
+      allow write: if isAdmin();
     }
 
     // Kardex y Movimientos de Stock
     match /stockMovements/{movementId} {
       allow read: if isAdmin();
-      allow create: if isAdmin() || true;
+      allow create: if isAdmin();
       allow update, delete: if isAdmin();
     }
 

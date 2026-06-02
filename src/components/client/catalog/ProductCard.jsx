@@ -7,36 +7,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
 import useAppConfigStore from '../../../store/appConfigStore'
 
-const COLOR_MAP = {
-  'rojo': '#EF4444',
-  'azul': '#3B82F6',
-  'verde': '#10B981',
-  'amarillo': '#EAB308',
-  'naranja': '#F97316',
-  'morado': '#8B5CF6',
-  'rosa': '#EC4899',
-  'negro': '#171717',
-  'blanco': '#FFFFFF',
-  'gris': '#6B7280',
-  'cafe': '#78350F',
-  'café': '#78350F',
-  'beige': '#F5F5DC',
-  'celeste': '#38BDF8',
-  'vino': '#7F1D1D',
-  'dorado': '#D4AF37',
-  'plateado': '#C0C0C0',
-}
-
-function getCssColor(colorName) {
-  if (!colorName) return '#ccc'
-  const normalized = colorName.toLowerCase().trim()
-  if (COLOR_MAP[normalized]) return COLOR_MAP[normalized]
-  let hash = 0
-  for (let i = 0; i < normalized.length; i++) {
-    hash = normalized.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return '#' + (hash & 0x00FFFFFF).toString(16).toUpperCase().padStart(6, '0')
-}
+import { getCssColor } from '../../../utils/colors'
 
 export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) {
   const { user } = useAuthStore()
@@ -170,7 +141,8 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
           <img
             src={product.imageUrl}
             alt={product.nombre}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isOutOfStock ? 'grayscale' : ''}`}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             style={{ viewTransitionName: 'product-image' }}
           />
         ) : (
@@ -217,7 +189,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
               ? 'bg-white/90 text-red-500 shadow-md'
               : 'bg-black/20 text-white hover:bg-black/40'
           }`}
-          aria-label={isFav ? "Quitar de favoritos" : "Agregar a favoritos"}
+          aria-label={isFav ? `Quitar ${product.nombre} de favoritos` : `Agregar ${product.nombre} a favoritos`}
         >
           <motion.div
             initial={false}
@@ -275,17 +247,17 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
                 <p className="text-lg font-bold text-primary leading-none">
                   {formatCurrency(product.precioPromo)}
                 </p>
-                <span className="text-xs text-gray-400 line-through leading-none">
+                <span className="text-xs text-gray-600 line-through leading-none">
                   {formatCurrency(product.precioBase)}
                 </span>
-                <span className="text-[9px] font-black text-green-600 bg-green-500/10 px-1 py-0.5 rounded">
+                <span className="text-[9px] font-black text-green-700 bg-green-600/10 px-1.5 py-0.5 rounded">
                   {product.promocion?.discountType === 'percentage'
                     ? `${product.promocion.discountValue}%`
                     : 'OFERTA'}
                 </span>
               </div>
             ) : (
-              <p className={`text-lg font-bold leading-none ${isOutOfStock ? 'text-gray-400 line-through' : 'text-primary'}`}>
+              <p className={`text-lg font-bold leading-none ${isOutOfStock ? 'text-gray-500 line-through' : 'text-primary'}`}>
                 {formatCurrency(product.precioBase)}
               </p>
             )}
@@ -303,7 +275,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
                 }
               }}
               className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20 hover:shadow-lg hover:scale-110 active:scale-90 transition-all duration-200 shrink-0"
-              aria-label="Ver opciones"
+              aria-label={`Ver opciones de ${product.nombre}`}
             >
               <Plus size={16} strokeWidth={3} />
             </button>

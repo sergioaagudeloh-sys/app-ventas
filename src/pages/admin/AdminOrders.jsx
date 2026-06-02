@@ -11,12 +11,11 @@ import { formatCurrency } from '../../utils/formatters'
 import useAppConfigStore from '../../store/appConfigStore'
 import usePortalStore from '../../store/portalStore'
 import * as orderService from '../../services/orderService'
+import { DatePickerPortal as CustomDatePickerPortal } from '../../components/ui/DatePicker'
 import * as wholesaleService from '../../services/wholesaleService'
 import { fuzzyMatch } from '../../utils/search'
 import { subscribeToClaims } from '../../services/claimsService'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
-import { db } from '../../config/firebaseConfig'
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import OrderShareModal from '../../components/admin/orders/OrderShareModal'
 import OrderDeliveryPanel from '../../components/admin/orders/OrderDeliveryPanel'
 import NumberInput from '../../components/ui/NumberInput'
@@ -28,179 +27,7 @@ const STATE_ICONS = {
   [ORDER_STATES.CREDIT_APPROVED]: CreditCard,
 }
 
-// ─── HELPER DEL DATE PICKER PREMIUM ──────────────────────────────────────────
-const DAYS_ES = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa']
-const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-function CustomDatePickerPortal({ value, onChange, open, setOpen, triggerRef }) {
-  const today = new Date()
-  const selected = value ? new Date(value + 'T12:00:00') : null
-
-  const [viewYear, setViewYear] = useState(selected ? selected.getFullYear() : today.getFullYear())
-  const [viewMonth, setViewMonth] = useState(selected ? selected.getMonth() : today.getMonth())
-
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay()
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-  const cells = []
-  for (let i = 0; i < firstDay; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-
-  const selectDay = (d) => {
-    const mm = String(viewMonth + 1).padStart(2, '0')
-    const dd = String(d).padStart(2, '0')
-    onChange(`${viewYear}-${mm}-${dd}`)
-    setOpen(false)
-  }
-
-  const prevMonth = () => {
-    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
-    else setViewMonth(m => m - 1)
-  }
-  const nextMonth = () => {
-    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
-    else setViewMonth(m => m + 1)
-  }
-
-  const isSelected = (d) => selected &&
-    selected.getDate() === d && selected.getMonth() === viewMonth && selected.getFullYear() === viewYear
-  const isToday = (d) =>
-    today.getDate() === d && today.getMonth() === viewMonth && today.getFullYear() === viewYear
-
-  if (!open) return null
-
-  const calendar = (
-    <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.1 }}
-        onClick={() => setOpen(false)}
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.3)',
-          zIndex: 9998,
-        }}
-      />
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          pointerEvents: 'none',
-        }}
-      >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.96 }}
-          transition={{ duration: 0.12, ease: 'easeOut' }}
-          style={{
-            pointerEvents: 'auto',
-            width: 'min(320px, calc(100vw - 32px))',
-            background: 'var(--color-surface)',
-            borderRadius: '1.25rem',
-            border: '1px solid var(--color-border)',
-            boxShadow: '0 24px 80px -10px rgba(0,0,0,0.35)',
-            padding: '1.25rem',
-          }}
-        >
-          <div className="text-center mb-1">
-            <p className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2">Seleccionar fecha</p>
-          </div>
-
-          <div className="flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={prevMonth}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
-              style={{ background: 'var(--color-surface-2)' }}
-            >
-              <ChevronDown size={18} className="rotate-90" />
-            </button>
-            <span className="text-sm font-bold text-app">
-              {MONTHS_ES[viewMonth]} {viewYear}
-            </span>
-            <button
-              type="button"
-              onClick={nextMonth}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-muted transition-all active:scale-90"
-              style={{ background: 'var(--color-surface-2)' }}
-            >
-              <ChevronDown size={18} className="-rotate-90" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 mb-2">
-            {DAYS_ES.map(d => (
-              <div key={d} className="text-center text-[11px] font-bold text-muted py-1">{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-y-1">
-            {cells.map((d, i) => (
-              <div key={i} className="flex items-center justify-center">
-                {d ? (
-                  <button
-                    type="button"
-                    onClick={() => selectDay(d)}
-                    className={`w-9 h-9 rounded-xl text-xs font-semibold transition-all active:scale-90
-                      ${isSelected(d)
-                        ? 'text-white shadow-md font-bold'
-                        : isToday(d)
-                        ? 'font-bold ring-2'
-                        : 'text-app hover:opacity-80'
-                      }
-                    `}
-                    style={
-                      isSelected(d)
-                        ? { background: 'var(--color-primary)' }
-                        : isToday(d)
-                        ? { ringColor: 'var(--color-primary)', color: 'var(--color-primary)', background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)' }
-                        : { background: 'transparent' }
-                    }
-                  >
-                    {d}
-                  </button>
-                ) : <div />}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-between items-center mt-4 pt-3 border-t border-app">
-            <button
-              type="button"
-              onClick={() => { onChange(''); setOpen(false) }}
-              className="text-xs text-muted font-medium px-3 py-1.5 rounded-lg transition-colors active:scale-95"
-              style={{ background: 'var(--color-surface-2)' }}
-            >
-              Borrar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const t = new Date()
-                const mm = String(t.getMonth()+1).padStart(2,'0')
-                const dd = String(t.getDate()).padStart(2,'0')
-                onChange(`${t.getFullYear()}-${mm}-${dd}`)
-                setOpen(false)
-              }}
-              className="text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-all active:scale-95"
-              style={{ background: 'var(--color-primary)' }}
-            >
-              Hoy
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    </>
-  )
-
-  return ReactDOM.createPortal(calendar, document.body)
-}
 
 const STATE_COLORS = {
   [ORDER_STATES.PENDING]: 'text-warning bg-warning/10 border-warning/20',
@@ -219,7 +46,7 @@ const NEXT_STATES = {
 export default function AdminOrders() {
   const { data: orders = [], isLoading } = useOrders()
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
-  const { appName, appIcon, whatsappAdmin, deliverySettings } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, deliverySettings, claimsEnabled } = useAppConfigStore()
   const { data: credits = [] } = useCredits('activo')
   const { data: wholesaleRequests = [] } = useWholesaleRequests()
   const { mutate: updateWholesaleStatus } = useUpdateWholesaleStatus()
@@ -684,13 +511,12 @@ export default function AdminOrders() {
                             onClick={async () => {
                               const newCost = parseFloat(tempDeliveryCosts[order.id]) || 0
                               try {
-                                const orderRef = doc(db, 'orders', order.id)
-                                const diff = newCost - (order.costoEnvio || 0)
-                                await updateDoc(orderRef, {
-                                  costoEnvio: newCost,
-                                  total: Math.max(0, (order.total || 0) + diff),
-                                  updatedAt: serverTimestamp()
-                                })
+                                await orderService.updateOrderDeliveryCost(
+                                  order.id,
+                                  newCost,
+                                  order.total,
+                                  order.costoEnvio
+                                )
                                 // Mostrar el modal deslizable de confirmación
                                 setSavedPriceModal({
                                   isOpen: true,
@@ -896,18 +722,20 @@ export default function AdminOrders() {
           </div>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
-          <button
-            onClick={() => navigate('/admin/reclamos')}
-            className="relative flex-1 sm:flex-initial flex items-center justify-center gap-2 h-[50px] px-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 min-w-0"
-          >
-            <ShieldAlert size={16} className="shrink-0" />
-            <span className="truncate">Garantías y Reclamos</span>
-            {pendingClaimsCount > 0 && (
-              <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
-                {pendingClaimsCount}
-              </span>
-            )}
-          </button>
+          {claimsEnabled && (
+            <button
+              onClick={() => navigate('/admin/reclamos')}
+              className="relative flex-1 sm:flex-initial flex items-center justify-center gap-2 h-[50px] px-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 min-w-0"
+            >
+              <ShieldAlert size={16} className="shrink-0" />
+              <span className="truncate">Garantías y Reclamos</span>
+              {pendingClaimsCount > 0 && (
+                <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-orange-600 text-white text-[10px] font-black absolute -top-2 -right-2 ring-2 ring-surface animate-pulse">
+                  {pendingClaimsCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={() => setShowWholesaleModal(true)}
             className="relative flex-1 sm:flex-initial flex items-center justify-center gap-2 h-[50px] px-4 rounded-xl bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition-all font-bold text-xs sm:text-sm cursor-pointer select-none active:scale-95 min-w-0"

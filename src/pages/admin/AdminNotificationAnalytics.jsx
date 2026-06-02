@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { db } from '../../config/firebaseConfig'
 import { Bell, Smartphone, ShieldCheck, Mail, Send, Eye } from 'lucide-react'
+import { getNotificationAnalytics } from '../../services/notificationService'
 
 export default function AdminNotificationAnalytics() {
   const [stats, setStats] = useState({
@@ -16,28 +15,9 @@ export default function AdminNotificationAnalytics() {
   useEffect(() => {
     async function loadData() {
       try {
-        const notifSnap = await getDocs(collection(db, 'notifications'))
-        const tokenSnap = await getDocs(collection(db, 'fcmTokens'))
-
-        let read = 0
-        let unread = 0
-        notifSnap.docs.forEach(doc => {
-          const data = doc.data()
-          if (data.status === 'read') read++
-          if (data.status === 'unread') unread++
-        })
-
-        setStats({
-          total: notifSnap.size,
-          read,
-          unread,
-          fcmTokens: tokenSnap.size
-        })
-
-        // Obtener recientes
-        const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'), limit(10))
-        const qSnap = await getDocs(q)
-        setRecentNotifications(qSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+        const { stats, recentNotifications } = await getNotificationAnalytics(10)
+        setStats(stats)
+        setRecentNotifications(recentNotifications)
       } catch (err) {
         console.error('[Analytics] Error cargando estadísticas:', err)
       } finally {
