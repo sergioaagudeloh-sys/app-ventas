@@ -5576,12 +5576,8 @@ export default function AdminSettings() {
                           className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
                           style={{ background: 'var(--color-primary)', color: 'white' }}
                         >
-                          {billingIsSaving ? (
-                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Save size={16} />
-                          )}
-                          Guardar
+                          <Save size={16} className={billingIsSaving ? 'animate-spin opacity-40' : ''} />
+                          {billingIsSaving ? 'Guardando...' : 'Guardar'}
                         </button>
                       </div>
                     </div>
@@ -6648,12 +6644,8 @@ export default function AdminSettings() {
                     className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
                     style={{ background: 'var(--color-primary)', color: 'white' }}
                   >
-                    {billingIsSaving ? (
-                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                    Guardar
+                    <Save size={16} className={billingIsSaving ? 'animate-spin opacity-40' : ''} />
+                    {billingIsSaving ? 'Guardando...' : 'Guardar'}
                   </button>
                 </div>
               </div>
