@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Reglas para reportes de facturación comisional
+    match /reportesBilling/{reportId} {
+      // Permitir la creación si el token enviado coincide con el cliente y está activo en la colección /tokens
+      allow create: if exists(/databases/$(database)/documents/tokens/$(request.resource.data.token))
+                    && get(/databases/$(database)/documents/tokens/$(request.resource.data.token)).data.clientId == request.resource.data.clientId
+                    && get(/databases/$(database)/documents/tokens/$(request.resource.data.token)).data.active == true;
+      
+      // Permitir actualizar el estado de pago únicamente si es el desarrollador (usuario autenticado)
+      allow update: if request.auth != null;
+      
+      // Solo el desarrollador autenticado puede leer y eliminar reportes
+      allow read, delete: if request.auth != null;
+    }
+    
+    // Reglas para tokens de autenticación de clientes
+    match /tokens/{tokenId} {
+      // Solo el desarrollador (acceso por consola de Firebase) puede gestionar tokens
+      allow read, write: if false;
+    }
+  }
+}
