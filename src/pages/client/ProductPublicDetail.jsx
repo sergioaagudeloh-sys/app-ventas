@@ -264,7 +264,6 @@ export default function ProductPublicDetail() {
       const c = Array.from(new Set(vars.map(v => v.color).filter(Boolean)))
       
       if (t.length > 0) setSelectedTalla(t[0])
-      if (c.length > 0) setSelectedColor(c[0])
 
       // Pre-cargar la imagen principal del producto
       if (product.imageUrl) {
