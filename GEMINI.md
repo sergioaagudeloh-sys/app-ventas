@@ -36,3 +36,7 @@
 - **BIBLIOTECA DE COMPONENTES REUTILIZABLES:**
   * Al crear un nuevo componente genérico y estable en el código, documéntalo obligatoriamente en `D:\Aplicaciones\Documentacion Proyecto\06_Biblioteca_Componentes\` bajo su subcarpeta correspondiente.
   * ESTRUCTURA Y NOMENCLATURA EN ESPAÑOL: Queda estrictamente prohibido crear archivos "regados" o sueltos dentro de las subcarpetas del catálogo. Cada componente debe guardarse dentro de su propia subcarpeta nombrada de forma descriptiva en español.
+
+- **DESARROLLO DE DASHBOARD DEV (CONSOLA CENTRAL SAAS):**
+  * Queda estrictamente prohibido realizar modificaciones directas al código de `/dev-dashboard/` desde el hilo principal del chat.
+  * Para cualquier cambio, adición o corrección sobre el Dashboard de Desarrollador, la IA debe inicializar y delegar obligatoriamente la tarea a un subagente especializado (`dashboard-designer`), actuando como orquestador del progreso del mismo.
