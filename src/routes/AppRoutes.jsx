@@ -26,6 +26,7 @@ const AdminPortalQR = lazy(() => import('../pages/admin/AdminPortalQR'))
 const AdminQRPerformance = lazy(() => import('../pages/admin/AdminQRPerformance'))
 const AdminDeliveryPerformance = lazy(() => import('../pages/admin/AdminDeliveryPerformance'))
 const AdminNotificationAnalytics = lazy(() => import('../pages/admin/AdminNotificationAnalytics'))
+const DashboardDev = lazy(() => import('../pages/admin/DashboardDev'))
 
 // Páginas Cliente
 const ClientCatalog = lazy(() => import('../pages/client/ClientCatalog'))
@@ -87,6 +88,7 @@ export default function AppRoutes() {
           <Route path="rendimiento-qr" element={<AdminQRPerformance />} />
           <Route path="rendimiento-entregas" element={<AdminDeliveryPerformance />} />
           <Route path="notificaciones" element={<AdminNotificationAnalytics />} />
+          <Route path="dashboard-dev" element={<DashboardDev />} />
         </Route>
 
         {/* ─── Rutas del Cliente ───────────────────────────────────────── */}
