@@ -2161,7 +2161,7 @@ export default function AdminSettings() {
               animate={{ opacity: 1, y: 0, x: '-50%', scale: 1 }}
               exit={{ opacity: 0, y: -20, x: '-50%', scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              className={`fixed top-4 left-1/2 z-[9999] px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 w-[calc(100%-2rem)] max-w-sm text-sm font-extrabold transition-colors duration-300 md:left-auto md:right-4 md:translate-x-0 md:initial-none`}
+              className={`fixed top-4 left-1/2 z-[9999] px-5 py-3.5 rounded-2xl shadow-2xl border border-app bg-surface/95 backdrop-blur-xl flex items-center gap-3.5 w-[calc(100%-2rem)] max-w-sm text-sm font-extrabold transition-colors duration-300 md:left-auto md:right-4 md:translate-x-0 md:initial-none`}
               style={{
                 // En desktop sobrescribimos el centrado en x de Tailwind usando variables responsivas
                 transform: window.innerWidth >= 768 ? 'none' : undefined,

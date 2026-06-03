@@ -25,6 +25,7 @@ export const COLOR_MAP = {
 export function getCssColor(colorName) {
   if (!colorName) return '#ccc'
   const normalized = colorName.toLowerCase().trim()
+  if (normalized.startsWith('#')) return colorName.trim()
   if (COLOR_MAP[normalized]) return COLOR_MAP[normalized]
   
   let hash = 0

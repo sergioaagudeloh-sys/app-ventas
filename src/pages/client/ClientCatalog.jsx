@@ -229,7 +229,7 @@ export default function ClientCatalog() {
           setPromoModalAd(prod.promocion)
         } else {
           console.log("[ClientCatalog] Navigating to normal product detail page:", prod.nombre)
-          navigate('/producto/' + prod.id)
+          navigate('/tienda/producto/' + prod.id)
         }
         return
       } else {
@@ -439,7 +439,7 @@ export default function ClientCatalog() {
                       if (prod.isTemporal) {
                         setPromoModalAd(prod.promocion)
                       } else {
-                        navigate('/producto/' + prod.id)
+                        navigate('/tienda/producto/' + prod.id)
                       }
                     }} 
                     layout={catalogLayout}

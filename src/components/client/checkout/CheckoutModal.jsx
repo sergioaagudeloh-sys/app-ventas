@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, MapPin, CreditCard, CheckCircle2, ChevronRight, Store, Truck, User, Phone, Tag, Check, AlertCircle, Copy } from 'lucide-react'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS, PAYMENT_METHOD_MESSAGES, SUPPORT_WHATSAPP } from '../../../constants'
@@ -80,6 +80,14 @@ export default function CheckoutModal({ isOpen, onClose }) {
   const { completedSteps, markStepCompleted } = useGuidedStore()
   const { data: coupons = [] } = useCoupons()
 
+  const currentSettings = useMemo(() => {
+    return deliverySettings || {
+      pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
+      shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
+      digital: { enabled: false, instructions: '' }
+    }
+  }, [deliverySettings])
+
   // Construcción dinámica de métodos de entrega
   const activeDeliveryOptions = []
   
@@ -93,11 +101,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       badgeColor: 'bg-emerald-500/10 text-emerald-500',
     })
   } else {
-    const currentSettings = deliverySettings || {
-      pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
-      shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
-      digital: { enabled: false, instructions: '' }
-    }
+
 
     if (currentSettings.pickup?.enabled !== false) {
       activeDeliveryOptions.push({
@@ -154,7 +158,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   // Lookup de cliente por celular
   const [phoneLookup, setPhoneLookup] = useState('idle') // 'idle' | 'loading' | 'found' | 'new'
-  const [showNameField, setShowNameField] = useState(false)
+  const [showNameField, setShowNameField] = useState(true)
 
   // Cupones state
   const [couponCodeInput, setCouponCodeInput] = useState('')
@@ -208,11 +212,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       if (activeTable && tablesEnabled) {
         options.push('mesa')
       } else {
-        const currentSettings = deliverySettings || {
-          pickup: { enabled: true, address: '', instructions: 'Recoge tu pedido directamente en nuestro local.' },
-          shipping: { enabled: true, cost: 0, estimatedTime: '30 a 60 min', instructions: 'Recibe tu pedido en la comodidad de tu casa.' },
-          digital: { enabled: false, instructions: '' }
-        }
+
         if (currentSettings.pickup?.enabled !== false) options.push('retiro')
         if (currentSettings.shipping?.enabled !== false) options.push('domicilio')
         if (currentSettings.digital?.enabled === true) options.push('digital')
@@ -247,7 +247,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
         setShowNameField(true)
       } else {
         setPhoneLookup('idle')
-        setShowNameField(false)
+        setShowNameField(true)
       }
     }
   }, [isOpen, user, deliverySettings])
@@ -274,14 +274,11 @@ export default function CheckoutModal({ isOpen, onClose }) {
         if (client?.nombre) {
           setFormData(prev => ({ ...prev, nombre: client.nombre }))
           setPhoneLookup('found')
-          setShowNameField(true)
         } else {
           setPhoneLookup('new')
-          setShowNameField(true)
         }
       } catch {
         setPhoneLookup('new')
-        setShowNameField(true)
       }
     }, 600)
 
@@ -294,8 +291,20 @@ export default function CheckoutModal({ isOpen, onClose }) {
     const isDomicilio = formData.tipoEntrega === 'domicilio'
     const missing = []
 
-    if (!formData.nombre) missing.push('nombre')
-    if (!formData.celular) missing.push('celular')
+    if (!formData.nombre) {
+      missing.push('nombre')
+    } else if (formData.nombre.trim().length < 3) {
+      setErrors({ global: 'El nombre debe tener al menos 3 caracteres.' })
+      return
+    }
+
+    if (!formData.celular) {
+      missing.push('celular')
+    } else if (formData.celular.replace(/\D/g, '').length < 7) {
+      setErrors({ global: 'Ingresa un número de celular válido (mínimo 7 dígitos).' })
+      return
+    }
+
     if (isDomicilio) {
       if (!formData.ciudad) missing.push('ciudad')
       if (!formData.barrio) missing.push('barrio')
@@ -402,10 +411,12 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
     if (!result.success) {
       const fieldErrors = {}
+      let firstMessage = ''
       result.error.issues.forEach(issue => {
         fieldErrors[issue.path[0]] = issue.message
+        if (!firstMessage) firstMessage = issue.message
       })
-      setErrors(fieldErrors)
+      setErrors({ ...fieldErrors, global: firstMessage || 'Por favor verifica los datos ingresados.' })
       isSubmittingRef.current = false
       return
     }
@@ -563,7 +574,6 @@ ${e.tarjeta} *Método de pago:* ${metodosLabel[snap?.metodoPago] || snap?.metodo
 ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
 
     openWhatsAppChat({ message: text })
-    onClose()
   }
 
   if (!isOpen) return null
@@ -684,8 +694,7 @@ ${e.dinero} *Total:* ${formatCurrency(snap?.total || 0)}${notasLine}`
                       onChange={e => {
                         // Resetear lookup al cambiar el número
                         setPhoneLookup('idle')
-                        setShowNameField(false)
-                        setFormData(prev => ({ ...prev, nombre: '', celular: e.target.value }))
+                        setFormData(prev => ({ ...prev, celular: e.target.value }))
                       }}
                       className={`w-full h-12 px-4 rounded-xl bg-surface-2 border text-app focus:outline-none transition-colors ${
                         phoneLookup === 'found' ? 'border-success focus:border-success' : 'border-app focus:border-primary'

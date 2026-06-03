@@ -104,16 +104,8 @@ export default function AppRoutes() {
           <Route path="pedidos" element={<ClientOrders />} />
           <Route path="creditos" element={<ClientCredits />} />
           <Route path="perfil" element={<ClientProfile />} />
+          <Route path="producto/:id" element={<ProductDetailPage />} />
         </Route>
-
-        <Route
-          path="/producto/:id"
-          element={
-            <RequireAuth allowedRole={ROLES.CLIENT}>
-              <ProductDetailPage />
-            </RequireAuth>
-          }
-        />
 
         {/* ─── Portal Operativo: Autenticación por PIN ─────────────────── */}
         <Route path="/portal/auth" element={<PortalAuth />} />

@@ -216,7 +216,14 @@ export default function AdminInventory() {
                           </td>
 
                           <td className="p-4 text-sm text-app">{category?.nombre || '—'}</td>
-                          <td className="p-4 text-sm font-semibold text-app">{formatCurrency(product.precioBase)}</td>
+                          <td className="p-4 text-sm font-semibold text-app">
+                            <div>{formatCurrency(product.precioBase)}</div>
+                            {product.precioCosto !== undefined && product.precioCosto !== null && product.precioCosto !== '' && (
+                              <div className="text-[10px] text-muted font-normal mt-0.5">
+                                Costo: {formatCurrency(product.precioCosto)}
+                              </div>
+                            )}
+                          </td>
                           
                           <td className="p-4">
                             <div className="flex items-center gap-2">
@@ -323,6 +330,11 @@ export default function AdminInventory() {
                             <h3 className="font-bold text-sm text-app line-clamp-2 leading-tight mb-1">{product.nombre}</h3>
                             <p className="text-[11px] text-muted uppercase tracking-wider">{category?.nombre || 'Sin Categoría'}</p>
                             <p className="text-base font-black text-primary mt-0.5">{formatCurrency(product.precioBase)}</p>
+                            {product.precioCosto !== undefined && product.precioCosto !== null && product.precioCosto !== '' && (
+                              <p className="text-[10px] text-muted mt-0.5">
+                                Costo: {formatCurrency(product.precioCosto)}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -376,25 +388,21 @@ export default function AdminInventory() {
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: 50, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 20, x: '-50%' }}
-            className={`fixed bottom-6 left-1/2 px-5 py-3.5 rounded-2xl shadow-2xl border backdrop-blur-xl flex items-center gap-3.5 z-[100] text-sm font-extrabold transition-all duration-300 w-[90%] max-w-sm ${
-              toastMessage.type === 'success' 
-                ? 'bg-surface/85 border-primary/20 text-app shadow-primary/10' 
-                : 'bg-surface/85 border-red-500/20 text-app shadow-red-500/10'
-            }`}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 px-4 py-3.5 rounded-2xl shadow-2xl border border-app bg-surface flex items-center gap-3 z-[10000] w-[90%] max-w-sm"
           >
             {toastMessage.type === 'success' ? (
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <Check size={14} className="stroke-[3]" />
+              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Check size={16} className="stroke-[3]" />
               </div>
             ) : (
-              <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
-                <AlertCircle size={14} className="stroke-[3]" />
+              <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                <AlertCircle size={16} className="stroke-[3]" />
               </div>
             )}
-            <span className="text-app mt-0.5">{toastMessage.msg}</span>
+            <span className="text-xs font-bold text-app mt-0.5">{toastMessage.msg}</span>
           </motion.div>
         )}
       </AnimatePresence>

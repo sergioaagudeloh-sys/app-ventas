@@ -92,7 +92,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
   const uniqueColors = useMemo(() => {
     if (!product.variantes) return []
     const colors = new Set(product.variantes.map(v => v.color).filter(Boolean))
-    return Array.from(colors).slice(0, 5)
+    return Array.from(colors)
   }, [product.variantes])
 
   const handleFavoriteClick = (e) => {
@@ -129,7 +129,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
         if (product.isTemporal) {
           onOpenDetail(product)
         } else {
-          navigate('/producto/' + product.id)
+          navigate('/tienda/producto/' + product.id)
         }
       }}
     >
@@ -213,23 +213,21 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
 
           {/* Indicador de Variantes en Tarjeta */}
           {variationIndicatorsEnabled && uniqueColors.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-1.5 pb-1 flex-wrap">
+            <div 
+              className="flex items-center gap-1.5 mt-1.5 pb-1 overflow-x-auto scrollbar-none w-full shrink-0 snap-x"
+              onClick={(e) => e.stopPropagation()}
+            >
               {uniqueColors.map((color, idx) => {
                 const hex = getCssColor(color)
                 return (
                   <span 
                     key={idx}
                     title={color}
-                    className="w-3.5 h-3.5 rounded-full border border-black/15 dark:border-white/15 shadow-inner shrink-0"
+                    className="w-3.5 h-3.5 rounded-full border border-black/15 dark:border-white/15 shadow-inner shrink-0 snap-center"
                     style={{ backgroundColor: hex }}
                   />
                 )
               })}
-              {product.variantes?.length > uniqueColors.length && (
-                <span className="text-[10px] text-muted font-black font-mono">
-                  +{product.variantes.length - uniqueColors.length}
-                </span>
-              )}
             </div>
           )}
           
@@ -271,7 +269,7 @@ export default function ProductCard({ product, onOpenDetail, layout = 'grid' }) 
                 if (product.isTemporal) {
                   onOpenDetail(product)
                 } else {
-                  navigate('/producto/' + product.id)
+                  navigate('/tienda/producto/' + product.id)
                 }
               }}
               className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shadow-md shadow-primary/20 hover:shadow-lg hover:scale-110 active:scale-90 transition-all duration-200 shrink-0"
