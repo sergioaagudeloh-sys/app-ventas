@@ -516,15 +516,15 @@ export default function ProductDetailModal({ product, isOpen, onClose }) {
       <AnimatePresence>
         {showToast && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-24 left-4 right-4 bg-success text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 z-[100] border border-success/80"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-surface border border-app shadow-2xl rounded-2xl p-4 flex items-center gap-3 z-[10000]"
           >
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center animate-bounce">
-              <ShoppingBag size={18} className="text-white" />
+            <div className="w-8 h-8 rounded-xl bg-success/10 border border-success/20 flex items-center justify-center shrink-0 text-success">
+              <ShoppingBag size={18} />
             </div>
-            <p className="font-bold text-sm">Agregado al carrito exitosamente.</p>
+            <p className="font-bold text-xs text-app mt-0.5">Agregado al carrito exitosamente.</p>
           </motion.div>
         )}
       </AnimatePresence>

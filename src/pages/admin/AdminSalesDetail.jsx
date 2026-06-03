@@ -39,7 +39,7 @@ export default function AdminSalesDetail() {
 
   // ─── EXPORTACIÓN PDF DE VENTAS Y CAJA ──────────────────────────────────────
   const handleExportSalesReportPDF = () => {
-    exportSalesReportPDF({ dateFrom, dateTo, orders })
+    exportSalesReportPDF({ dateFrom, dateTo, orders, products })
   }
 
   // ─── EXPORTACIÓN PDF DE ROTACIÓN E INVENTARIO ──────────────────────────────

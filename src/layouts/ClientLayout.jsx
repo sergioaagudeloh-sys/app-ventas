@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ShoppingCart, Heart, Package, CreditCard, User, Tag, X, Bell } from 'lucide-react'
 import useAppConfigStore from '../store/appConfigStore'
@@ -36,6 +36,8 @@ const ALL_NAV_ITEMS = [
 ]
 
 export default function ClientLayout() {
+  const location = useLocation()
+  const isProductDetail = location.pathname.includes('/producto/')
   const { appName, appIcon, creditsEnabled, couponsEnabled, tablesEnabled } = useAppConfigStore()
   const { getCount, openCart, isOpen: isCartOpen } = useCartStore()
   const { user } = useAuthStore()
@@ -169,16 +171,16 @@ export default function ClientLayout() {
           </div>
 
           {/* Carrito y Campana de notificaciones (Desktop Sidebar) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Carrito de Compras Permanente */}
             <button
               onClick={openCart}
-              className="relative w-8 h-8 rounded-lg bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+              className="relative w-10 h-10 rounded-xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95 shadow-xs"
               aria-label="Carrito de compras"
             >
-              <ShoppingCart size={14} />
+              <ShoppingCart size={18} />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
+                <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-surface animate-bounce [animation-duration:3s]">
                   {cartCount}
                 </span>
               )}
@@ -188,22 +190,37 @@ export default function ClientLayout() {
             <div className="relative">
               <button
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                className="relative w-8 h-8 rounded-lg bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
+                className="relative w-10 h-10 rounded-xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95 shadow-xs"
                 aria-label="Notificaciones"
               >
                 <motion.div
                   animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
                   transition={{ duration: 0.6, ease: 'easeInOut' }}
                 >
-                  <Bell size={14} />
+                  <Bell size={18} />
                 </motion.div>
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-pulse">
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-surface animate-pulse">
                     {unreadCount}
                   </span>
                 )}
               </button>
             </div>
+
+            {/* Avatar de Perfil en Desktop Sidebar */}
+            <NavLink
+              to="/tienda/perfil"
+              className={({ isActive }) =>
+                `w-10 h-10 rounded-xl border flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs ${
+                  isActive 
+                    ? 'bg-primary text-white border-primary shadow-sm ring-1 ring-white/20 ring-inset' 
+                    : 'bg-surface border-app text-muted hover:bg-surface-2 hover:text-app'
+                }`
+              }
+              aria-label="Mi Perfil"
+            >
+              <User size={18} />
+            </NavLink>
           </div>
         </div>
 
@@ -275,74 +292,76 @@ export default function ClientLayout() {
       </AnimatePresence>
 
       {/* ─── CONTENIDO PRINCIPAL ────────────────────────────────────────── */}
-      <main className="flex-1 md:ml-64 pb-20 md:pb-0 min-h-screen w-full max-w-[100vw] md:max-w-none overflow-x-hidden relative flex flex-col">
+      <main className={`flex-1 md:ml-64 min-h-screen w-full max-w-[100vw] md:max-w-none overflow-x-hidden relative flex flex-col ${isProductDetail ? 'pb-0' : 'pb-20 md:pb-0'}`}>
         {/* Cabecera superior móvil premium */}
-        <header className="flex md:hidden items-center justify-between px-4 py-3 bg-white/90 backdrop-blur-md z-30 sticky top-0 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.05)] shrink-0">
-          <div className="flex items-center gap-2.5">
-            {appIcon ? (
-              <img
-                src={appIcon}
-                alt={`Logo ${appName}`}
-                className="w-9 h-9 rounded-xl object-cover"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-                <ShoppingCart size={18} className="text-white" />
-              </div>
-            )}
-            <span className="font-black text-sm text-app tracking-tight">{appName}</span>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            {/* Carrito de Compras Permanente en Header Móvil */}
-            <button
-              onClick={openCart}
-              className="relative w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
-              aria-label="Carrito de compras"
-            >
-              <ShoppingCart size={16} />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-primary text-white text-[9px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center border-2 border-white animate-bounce [animation-duration:3s]">
-                  {cartCount}
-                </span>
+        {!isProductDetail && (
+          <header className="flex md:hidden items-center justify-between px-4 py-3 bg-white/90 backdrop-blur-md z-30 sticky top-0 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.05)] shrink-0">
+            <div className="flex items-center gap-2.5">
+              {appIcon ? (
+                <img
+                  src={appIcon}
+                  alt={`Logo ${appName}`}
+                  className="w-9 h-9 rounded-xl object-cover"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+                  <ShoppingCart size={18} className="text-white" />
+                </div>
               )}
-            </button>
-
-            {/* Campana de Notificaciones en Header Móvil */}
-            <button
-              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-              className="relative w-9 h-9 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95"
-              aria-label="Campana de Notificaciones"
-            >
-              <motion.div
-                animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
-                transition={{ duration: 0.6, ease: 'easeInOut' }}
+              <span className="font-black text-sm text-app tracking-tight">{appName}</span>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Carrito de Compras Permanente en Header Móvil */}
+              <button
+                onClick={openCart}
+                className="relative w-10 h-10 rounded-xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95 shadow-xs"
+                aria-label="Carrito de compras"
               >
-                <Bell size={16} />
-              </motion.div>
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center border-2 border-white animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+                <ShoppingCart size={18} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-surface animate-bounce [animation-duration:3s]">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Avatar de Perfil en Header Móvil */}
-            <NavLink
-              to="/tienda/perfil"
-              className={({ isActive }) =>
-                `w-9 h-9 rounded-xl border flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
-                  isActive 
-                    ? 'bg-primary text-white border-primary shadow-sm ring-1 ring-white/20 ring-inset' 
-                    : 'bg-slate-50 border-slate-100 text-muted hover:text-app'
-                }`
-              }
-              aria-label="Mi Perfil"
-            >
-              <User size={16} />
-            </NavLink>
-          </div>
-        </header>
+              {/* Campana de Notificaciones en Header Móvil */}
+              <button
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="relative w-10 h-10 rounded-xl bg-surface hover:bg-surface-2 border border-app flex items-center justify-center text-muted hover:text-app transition-all hover:scale-105 active:scale-95 shadow-xs"
+                aria-label="Campana de Notificaciones"
+              >
+                <motion.div
+                  animate={isRinging ? { rotate: [0, -20, 18, -14, 10, -6, 4, 0] } : {}}
+                  transition={{ duration: 0.6, ease: 'easeInOut' }}
+                >
+                  <Bell size={18} />
+                </motion.div>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center border-2 border-surface animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Avatar de Perfil en Header Móvil */}
+              <NavLink
+                to="/tienda/perfil"
+                className={({ isActive }) =>
+                  `w-10 h-10 rounded-xl border flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-xs ${
+                    isActive 
+                      ? 'bg-primary text-white border-primary shadow-sm ring-1 ring-white/20 ring-inset' 
+                      : 'bg-surface border-app text-muted hover:bg-surface-2 hover:text-app'
+                  }`
+                }
+                aria-label="Mi Perfil"
+              >
+                <User size={18} />
+              </NavLink>
+            </div>
+          </header>
+        )}
 
         <div className="flex-1 w-full relative">
           <Outlet />
@@ -350,97 +369,99 @@ export default function ClientLayout() {
       </main>
 
       {/* ─── BARRA DE NAVEGACIÓN INFERIOR (MOBILE) ───────────────────────── */}
-      <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-2">
-        {NAV_ITEMS_LEFT.map(({ path, icon: Icon, label }) => (
-          <NavLink
-            key={path}
-            to={path}
-            className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
-                isActive ? 'text-primary' : 'text-muted hover:text-app'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {isActive && (
-                  <motion.div
-                    layoutId="client-nav-indicator"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
-                  />
-                )}
-                <Icon size={20} aria-hidden="true" />
-                <span className="text-[10px] font-medium">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+      {!isProductDetail && (
+        <nav className="flex md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface border-t border-app z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-2">
+          {NAV_ITEMS_LEFT.map(({ path, icon: Icon, label }) => (
+            <NavLink
+              key={path}
+              to={path}
+              className={({ isActive }) =>
+                `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
+                  isActive ? 'text-primary' : 'text-muted hover:text-app'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.div
+                      layoutId="client-nav-indicator"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                    />
+                  )}
+                  <Icon size={20} aria-hidden="true" />
+                  <span className="text-[10px] font-medium">{label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
 
-        {/* Botón Central Ofertas / Cupones Rediseñado */}
-        {couponsEnabled && (
-          <div className="flex-1 flex flex-col items-center justify-start relative">
-            <div className="flex flex-col items-center justify-center -translate-y-3">
-              <motion.button
-                onClick={() => setIsCouponsOpen(true)}
-                animate={{
-                  scale: [1, 1.04, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                whileTap={{ scale: 0.94 }}
-                className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center shadow-lg border-4 border-surface relative overflow-visible select-none shrink-0"
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-                aria-label="Ofertas y Cupones"
-              >
-                {/* Shimmer de brillo diagonal flotante infinito */}
-                <div className="absolute inset-0 w-full h-full rounded-full overflow-hidden pointer-events-none">
-                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-infinite pointer-events-none" />
-                </div>
+          {/* Botón Central Ofertas / Cupones Rediseñado */}
+          {couponsEnabled && (
+            <div className="flex-1 flex flex-col items-center justify-start relative">
+              <div className="flex flex-col items-center justify-center -translate-y-3">
+                <motion.button
+                  onClick={() => setIsCouponsOpen(true)}
+                  animate={{
+                    scale: [1, 1.04, 1],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  whileTap={{ scale: 0.94 }}
+                  className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center shadow-lg border-4 border-surface relative overflow-visible select-none shrink-0"
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  aria-label="Ofertas y Cupones"
+                >
+                  {/* Shimmer de brillo diagonal flotante infinito */}
+                  <div className="absolute inset-0 w-full h-full rounded-full overflow-hidden pointer-events-none">
+                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-infinite pointer-events-none" />
+                  </div>
 
-                {/* Icono de Tag a 28px con animación de wiggle infinito */}
-                <div className="animate-wiggle-infinite flex items-center justify-center pointer-events-none z-10">
-                  <Tag size={28} className="text-white" />
-                </div>
+                  {/* Icono de Tag a 28px con animación de wiggle infinito */}
+                  <div className="animate-wiggle-infinite flex items-center justify-center pointer-events-none z-10">
+                    <Tag size={28} className="text-white" />
+                  </div>
 
-                {/* Badge de contador duplicado (w-7 h-7) con fuente 14px posicionado en top-[-6px] y right-[-6px] */}
-                {activeCouponsCount > 0 && (
-                  <span className="absolute -top-[6px] -right-[6px] bg-red-500 text-white text-[14px] font-black rounded-full w-7 h-7 flex items-center justify-center border-2 border-surface animate-bounce shadow-md z-20">
-                    {activeCouponsCount}
-                  </span>
-                )}
-              </motion.button>
+                  {/* Badge de contador duplicado (w-7 h-7) con fuente 14px posicionado en top-[-6px] y right-[-6px] */}
+                  {activeCouponsCount > 0 && (
+                    <span className="absolute -top-[6px] -right-[6px] bg-red-500 text-white text-[14px] font-black rounded-full w-7 h-7 flex items-center justify-center border-2 border-surface animate-bounce shadow-md z-20">
+                      {activeCouponsCount}
+                    </span>
+                  )}
+                </motion.button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {navItemsRight.map(({ path, icon: Icon, label }) => (
-          <NavLink
-            key={path}
-            to={path}
-            className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
-                isActive ? 'text-primary' : 'text-muted hover:text-app'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {isActive && (
-                  <motion.div
-                    layoutId="client-nav-indicator"
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
-                  />
-                )}
-                <Icon size={20} aria-hidden="true" />
-                <span className="text-[10px] font-medium">{label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
+          {navItemsRight.map(({ path, icon: Icon, label }) => (
+            <NavLink
+              key={path}
+              to={path}
+              className={({ isActive }) =>
+                `flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-300 relative ${
+                  isActive ? 'text-primary' : 'text-muted hover:text-app'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.div
+                      layoutId="client-nav-indicator"
+                      className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-primary"
+                    />
+                  )}
+                  <Icon size={20} aria-hidden="true" />
+                  <span className="text-[10px] font-medium">{label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       {/* Modal de Cupones */}
       {couponsEnabled && (

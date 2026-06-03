@@ -20,11 +20,13 @@ export const variantSchema = z.object({
   id: z.string(), // ID local generado con crypto.randomUUID()
   talla: z.string().optional().or(z.literal('')),
   color: z.string().optional().or(z.literal('')),
+  genero: z.string().optional().or(z.literal('')),
   stock: z.number().int().min(0, 'El stock no puede ser negativo').default(0),
   sku: z.string().optional().or(z.literal('')),
   nombre: z.string().optional().or(z.literal('')),
   imageUrl: z.string().optional().or(z.literal('')),
   precio: z.union([z.number(), z.string()]).optional().or(z.literal('')),
+  precioCosto: z.union([z.number(), z.string()]).optional().or(z.literal('')),
 })
 
 /**
@@ -44,6 +46,9 @@ export const productSchema = z.object({
   precioMayorista: z.number({
     invalid_type_error: 'El precio mayorista debe ser un número',
   }).min(0, 'El precio mayorista no puede ser negativo').optional(),
+  precioCosto: z.number({
+    invalid_type_error: 'El precio de costo debe ser un número',
+  }).min(0, 'El precio de costo no puede ser negativo').optional(),
   categoriaId: z.string({
     required_error: 'Debe seleccionar una categoría',
     invalid_type_error: 'Debe seleccionar una categoría válida',
