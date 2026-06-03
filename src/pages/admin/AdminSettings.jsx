@@ -5630,14 +5630,6 @@ export default function AdminSettings() {
                             <Receipt size={16} />
                             Firmar y Exportar Recibo del Mes
                           </button>
-                          
-                          <button
-                            onClick={() => navigate('/admin/dashboard-dev')}
-                            className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary cursor-pointer shadow-sm"
-                          >
-                            <LayoutGrid size={16} />
-                            Consola SaaS Centralizada
-                          </button>
                         </div>
                       </div>
 
