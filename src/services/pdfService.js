@@ -14,7 +14,7 @@ function toLocalDate(ts) {
 /**
  * Generates and downloads the Financial Sales Report PDF.
  */
-export function exportSalesReportPDF({ dateFrom, dateTo, orders }) {
+export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }) {
   const from = new Date(dateFrom + 'T00:00:00')
   const to = new Date(dateTo + 'T23:59:59')
 
@@ -25,9 +25,57 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders }) {
     return fecha >= from && fecha <= to
   })
 
+  // Build product lookup map
+  const productMap = new Map()
+  products.forEach(p => {
+    productMap.set(p.id, p)
+  })
+
   let cashTotal = 0
   let transferTotal = 0
   let creditTotal = 0
+  let totalCost = 0
+
+  const orderCalculations = filtered.map(o => {
+    let orderCost = 0
+    if (o.items && Array.isArray(o.items)) {
+      o.items.forEach(item => {
+        let itemCost = 0
+        // Try finding by product ID first
+        let prod = item.productoId ? productMap.get(item.productoId) : null
+        // Fallback to name search
+        if (!prod && item.nombre) {
+          prod = products.find(p => p.nombre === item.nombre)
+        }
+
+        if (prod) {
+          // If variantId exists, try to find variant cost
+          let variant = null
+          if (item.varianteId && prod.variantes) {
+            variant = prod.variantes.find(v => v.id === item.varianteId)
+          }
+          
+          if (variant && variant.precioCosto !== undefined && variant.precioCosto !== null && variant.precioCosto !== '') {
+            itemCost = Number(variant.precioCosto) || 0
+          } else if (prod.precioCosto !== undefined && prod.precioCosto !== null && prod.precioCosto !== '') {
+            itemCost = Number(prod.precioCosto) || 0
+          } else {
+            // Default to base selling price * 0.6 if no cost configured, or just 0
+            itemCost = 0
+          }
+        }
+        orderCost += itemCost * (item.cantidad || 1)
+      })
+    }
+    totalCost += orderCost
+    const orderProfit = o.total - orderCost
+
+    return {
+      order: o,
+      cost: orderCost,
+      profit: orderProfit
+    }
+  })
 
   filtered.forEach(o => {
     if (o.metodoPago === PAYMENT_METHODS.CASH) {
@@ -40,6 +88,7 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders }) {
   })
 
   const totalVentas = cashTotal + transferTotal + creditTotal
+  const totalProfit = totalVentas - totalCost
   const averageTicket = filtered.length > 0 ? totalVentas / filtered.length : 0
 
   const doc = new jsPDF()
@@ -105,34 +154,54 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders }) {
   doc.text(`Efectivo: ${formatCurrency(cashTotal)}`, 115, 107)
   doc.text(`Transferencia: ${formatCurrency(transferTotal)}`, 115, 112)
   doc.text(`Credito: ${formatCurrency(creditTotal)}`, 115, 117)
+
+  // Row 3 (Cost & Profit)
+  doc.setFillColor(249, 250, 251)
+  doc.rect(15, 122, 85, 25, 'F')
+  doc.rect(110, 122, 85, 25, 'F')
+
+  doc.setFontSize(9)
+  doc.setTextColor(107, 114, 128)
+  doc.setFont('helvetica', 'normal')
+  doc.text('COSTO TOTAL DE VENTAS', 20, 128)
+  doc.text('GANANCIA NETA ESTIMADA', 115, 128)
+
+  doc.setFontSize(13)
+  doc.setTextColor(220, 38, 38) // Reddish for cost
+  doc.setFont('helvetica', 'bold')
+  doc.text(formatCurrency(totalCost), 20, 140)
+
+  doc.setTextColor(22, 163, 74) // Greenish for profit
+  doc.text(formatCurrency(totalProfit), 115, 140)
   
   // Table
   doc.setFontSize(14)
   doc.setTextColor(31, 41, 55)
   doc.setFont('helvetica', 'bold')
-  doc.text('Detalle de Ventas', 15, 132)
+  doc.text('Detalle de Ventas', 15, 160)
   
-  const tableHeaders = [['Fecha/Hora', 'Cliente', 'Celular', 'Metodo de Pago', 'Total']]
-  const tableData = filtered.map(o => {
+  const tableHeaders = [['Fecha/Hora', 'Cliente', 'Metodo de Pago', 'Venta', 'Ganancia']]
+  const tableData = orderCalculations.map(item => {
+    const o = item.order
     const fecha = toLocalDate(o.createdAt)?.toLocaleString('es-ES') || 'N/A'
     const cliente = o.cliente?.nombre || 'Cliente General'
-    const celular = o.cliente?.celular || 'N/A'
     const pago = o.metodoPago === PAYMENT_METHODS.CASH 
       ? 'Efectivo' 
       : o.metodoPago === PAYMENT_METHODS.TRANSFER 
       ? 'Transferencia' 
       : 'Credito'
-    return [fecha, cliente, celular, pago, formatCurrency(o.total)]
+    return [fecha, cliente, pago, formatCurrency(o.total), formatCurrency(item.profit)]
   })
   
   autoTable(doc, {
-    startY: 138,
+    startY: 166,
     head: tableHeaders,
     body: tableData,
     theme: 'striped',
     headStyles: { fillColor: primaryColor, halign: 'left' },
     styles: { fontSize: 8, cellPadding: 3 },
     columnStyles: {
+      3: { halign: 'right' },
       4: { halign: 'right' }
     }
   })

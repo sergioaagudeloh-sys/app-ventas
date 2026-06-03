@@ -1149,30 +1149,30 @@ export default function AdminOrders() {
       <AnimatePresence>
         {savedPriceModal.isOpen && (
           <motion.div
-            initial={{ y: 120, opacity: 0 }}
+            initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 120, opacity: 0 }}
+            exit={{ y: -50, opacity: 0 }}
             transition={{ type: 'spring', damping: 22, stiffness: 260 }}
             onAnimationComplete={() => {
               if (savedPriceModal.isOpen) {
                 setTimeout(() => setSavedPriceModal(prev => ({ ...prev, isOpen: false })), 2800)
               }
             }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-4"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] w-full max-w-sm px-4"
           >
-            <div className="flex items-center gap-3 bg-surface border border-app shadow-2xl rounded-2xl px-5 py-4">
-              <div className="w-10 h-10 rounded-xl bg-green-500/15 border border-green-500/25 flex items-center justify-center shrink-0">
-                <CheckCircle size={22} className="text-green-500" />
+            <div className="flex items-center gap-3 bg-surface border border-app shadow-2xl rounded-2xl p-4">
+              <div className="w-8 h-8 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500 shrink-0">
+                <CheckCircle size={18} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-app leading-tight">¡Domicilio guardado!</p>
-                <p className="text-xs text-muted mt-0.5 truncate">
+                <p className="text-xs font-bold text-app leading-tight">¡Domicilio guardado!</p>
+                <p className="text-[10px] text-muted mt-0.5 truncate">
                   Pedido {savedPriceModal.orderNumber} · Costo: {formatCurrency(savedPriceModal.value)}
                 </p>
               </div>
               <button
                 onClick={() => setSavedPriceModal(prev => ({ ...prev, isOpen: false }))}
-                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-2 transition-colors text-muted shrink-0 cursor-pointer"
+                className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-surface-2 transition-colors text-muted shrink-0 cursor-pointer"
               >
                 <X size={14} />
               </button>

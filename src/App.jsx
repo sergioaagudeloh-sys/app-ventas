@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { MotionConfig } from 'framer-motion'
 import AppRoutes from './routes/AppRoutes'
+import ScrollToTop from './components/common/ScrollToTop'
 import CartDrawer from './components/client/cart/CartDrawer'
 import GuidedToast from './components/ui/GuidedToast'
 import PWAInstallBanner from './components/ui/PWAInstallBanner'
@@ -248,6 +249,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <MotionConfig reducedMotion={animationsEnabled ? "user" : "always"}>
           <BrowserRouter>
+            <ScrollToTop />
             <ThemeApplier />
             <AppRoutes />
             <CartDrawer />

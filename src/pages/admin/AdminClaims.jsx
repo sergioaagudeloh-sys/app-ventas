@@ -145,21 +145,25 @@ export default function AdminClaims() {
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-semibold ${
-              toastMessage.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                : toastMessage.type === 'error'
-                ? 'bg-red-500/10 border-red-500/20 text-red-500'
-                : 'bg-blue-500/10 border-blue-500/20 text-blue-500'
-            }`}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[10000] px-4 py-3.5 rounded-2xl shadow-2xl border border-app bg-surface flex items-center gap-3 w-[90%] max-w-sm"
           >
-            {toastMessage.type === 'success' && <CheckCircle2 size={16} />}
-            {toastMessage.type === 'error' && <AlertTriangle size={16} />}
-            {toastMessage.type === 'info' && <Clock size={16} />}
-            <span>{toastMessage.text}</span>
+            {toastMessage.type === 'success' ? (
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+                <CheckCircle2 size={16} />
+              </div>
+            ) : toastMessage.type === 'error' ? (
+              <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 shrink-0">
+                <AlertTriangle size={16} />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
+                <Clock size={16} />
+              </div>
+            )}
+            <span className="text-xs font-bold text-app mt-0.5">{toastMessage.text}</span>
           </motion.div>
         )}
       </AnimatePresence>

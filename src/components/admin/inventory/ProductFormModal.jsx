@@ -13,12 +13,13 @@ import ModalTemplate from '../../common/ModalTemplate'
 import CustomSelect from '../../ui/CustomSelect'
 import { getCssColor } from '../../../utils/colors'
 
-const initialVariant = { id: '', talla: '', color: '', stock: 0, nombre: '', sku: '', imageUrl: '', precio: '' }
+const initialVariant = { id: '', talla: '', color: '', genero: '', stock: 0, nombre: '', sku: '', imageUrl: '', precio: '', precioCosto: '' }
 const initialForm = {
   nombre: '',
   descripcion: '',
   precioBase: '',
   precioMayorista: '',
+  precioCosto: '',
   categoriaId: '',
   imageUrl: '',
   umbralAlerta: 5,
@@ -41,11 +42,157 @@ const initialForm = {
   estado: null
 }
 
+const PRESET_COLORS = [
+  { name: 'Rojo', hex: '#EF4444' },
+  { name: 'Azul', hex: '#3B82F6' },
+  { name: 'Verde', hex: '#10B981' },
+  { name: 'Amarillo', hex: '#F59E0B' },
+  { name: 'Naranja', hex: '#F97316' },
+  { name: 'Morado', hex: '#8B5CF6' },
+  { name: 'Rosa', hex: '#EC4899' },
+  { name: 'Negro', hex: '#171717' },
+  { name: 'Blanco', hex: '#FFFFFF' },
+  { name: 'Gris', hex: '#6B7280' },
+  { name: 'Café', hex: '#78350F' },
+  { name: 'Beige', hex: '#F5F5DC' }
+]
+
+const EXTENDED_COLORS = [
+  { name: 'Rojo Pastel', hex: '#FCA5A5' },
+  { name: 'Rojo Coral', hex: '#F87171' },
+  { name: 'Rojo Fuerte', hex: '#EF4444' },
+  { name: 'Vino Tinto', hex: '#991B1B' },
+  { name: 'Naranja Suave', hex: '#FDBA74' },
+  { name: 'Naranja', hex: '#F97316' },
+  { name: 'Amarillo Pastel', hex: '#FDE047' },
+  { name: 'Amarillo Oro', hex: '#EAB308' },
+  { name: 'Verde Menta', hex: '#86EFAC' },
+  { name: 'Verde Esmeralda', hex: '#10B981' },
+  { name: 'Verde Bosque', hex: '#15803D' },
+  { name: 'Oliva', hex: '#84CC16' },
+  { name: 'Celeste', hex: '#7DD3FC' },
+  { name: 'Azul Turquesa', hex: '#06B6D4' },
+  { name: 'Azul Cielo', hex: '#3B82F6' },
+  { name: 'Azul Marino', hex: '#1E3A8A' },
+  { name: 'Lavanda', hex: '#C084FC' },
+  { name: 'Morado Real', hex: '#8B5CF6' },
+  { name: 'Rosa Pastel', hex: '#FBCFE8' },
+  { name: 'Rosa Chicle', hex: '#F472B6' },
+  { name: 'Fucsia', hex: '#D946EF' },
+  { name: 'Terracota', hex: '#C2410C' },
+  { name: 'Café Madera', hex: '#78350F' },
+  { name: 'Beige', hex: '#F5F5DC' },
+  { name: 'Blanco Puro', hex: '#FFFFFF' },
+  { name: 'Hueso', hex: '#F9FAFB' },
+  { name: 'Gris Claro', hex: '#E5E7EB' },
+  { name: 'Gris Medio', hex: '#9CA3AF' },
+  { name: 'Gris Oscuro', hex: '#4B5563' },
+  { name: 'Negro Mate', hex: '#171717' }
+]
+
+const SIZES_CATALOG = {
+  ropa: {
+    hombre: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+    mujer: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'],
+    infantil: ['2', '4', '6', '8', '10', '12', '14', '16']
+  },
+  calzado: {
+    mujer: ['35', '36', '37', '38', '39', '40', '41', '42'],
+    hombre: ['38', '39', '40', '41', '42', '43', '44', '45', '46'],
+    infantil: ['21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34']
+  }
+}
+
+const GENDERS = ['Hombre', 'Mujer', 'Unisex', 'Niño', 'Niña', 'Bebé', 'Mascota']
+
+function hexToHsl(hex) {
+  let c = hex.replace('#', '')
+  if (c.length === 3) {
+    c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  }
+  if (c.length !== 6) {
+    return { h: 0, s: 100, l: 50 }
+  }
+  const r = parseInt(c.substring(0, 2), 16) / 255
+  const g = parseInt(c.substring(2, 4), 16) / 255
+  const b = parseInt(c.substring(4, 6), 16) / 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h, s, l = (max + min) / 2
+
+  if (max === min) {
+    h = s = 0
+  } else {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break
+      case g: h = (b - r) / d + 2; break
+      case b: h = (r - g) / d + 4; break
+    }
+    h /= 6
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  }
+}
+
+function hslToHex(h, s, l) {
+  h /= 360
+  s /= 100
+  l /= 100
+  let r, g, b
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1
+      if (t > 1) t -= 1
+      if (t < 1/6) return p + (q - p) * 6 * t
+      if (t < 1/2) return q
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+      return p
+    }
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1/3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1/3)
+  }
+  const toHex = x => {
+    const hex = Math.round(x * 255).toString(16)
+    return hex.length === 1 ? '0' + hex : hex
+  }
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
+}
+
 export default function ProductFormModal({ isOpen, onClose, onSave, initialData = null }) {
   const { data: categories = [] } = useCategories()
   const { catalogFilters, commercialOptimization, claimsEnabled } = useAppConfigStore()
   const [formData, setFormData] = useState(initialForm)
   const [errors, setErrors] = useState({})
+  const [variantFilters, setVariantFilters] = useState({})
+  const [colorModalOpen, setColorModalOpen] = useState(false)
+  const [activeColorVariantId, setActiveColorVariantId] = useState(null)
+  const [customColorHex, setCustomColorHex] = useState('#FFFFFF')
+
+  const getVariantFilter = (variantId) => {
+    return variantFilters[variantId] || { category: 'ropa', group: 'hombre' }
+  }
+
+  const updateVariantFilter = (variantId, key, value) => {
+    setVariantFilters(prev => ({
+      ...prev,
+      [variantId]: {
+        ...getVariantFilter(variantId),
+        [key]: value
+      }
+    }))
+  }
 
   const [loadingIA, setLoadingIA] = useState(false)
   const [currentDraftId, setCurrentDraftId] = useState(null)
@@ -65,8 +212,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     commercialOptimization?.tools?.historyRecommendations?.enabled !== false
   )
   const seoEnabled = optEnabled
+  const hasActiveVariants = formData.variantes && (formData.variantes.length > 1 || (formData.variantes[0] && (formData.variantes[0].color || formData.variantes[0].talla)))
+  const showSecondaryGallery = advancedGalleryEnabled && !hasActiveVariants
   // El acordeón avanzado solo aparece si al menos uno de sus módulos está activo
-  const showAdvancedSection = advancedGalleryEnabled || seoEnabled || !!claimsEnabled || recommendationsEnabled
+  const showAdvancedSection = showSecondaryGallery || seoEnabled || !!claimsEnabled || recommendationsEnabled
 
   const steps = [
     { number: 1, title: 'Imagen' },
@@ -167,6 +316,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         ...initialData,
         precioBase: initialData.precioBase?.toString() || '',
         precioMayorista: initialData.precioMayorista?.toString() || '',
+        precioCosto: initialData.precioCosto?.toString() || '',
         umbralAlerta: initialData.umbralAlerta?.toString() || '5',
         atributos: initialData.atributos || {},
         discountActive: initialData.discountActive || false,
@@ -182,7 +332,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         productosComplementarios: initialData.productosComplementarios || [],
         seoTitle: initialData.seoTitle || '',
         seoDescription: initialData.seoDescription || '',
-        estado: initialData.estado || null
+        estado: initialData.estado || null,
+        variantes: (initialData.variantes && initialData.variantes.length > 0)
+          ? initialData.variantes
+          : [{ ...initialVariant, id: 'default', stock: initialData.stock || 0 }]
       })
       setCurrentStep(1)
     } else if (isOpen) {
@@ -213,6 +366,323 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         v.id === id ? { ...v, [field]: field === 'stock' ? (value === '' ? '' : Number(value)) : value } : v
       )
     }))
+
+    if (field === 'genero') {
+      let groupVal = 'hombre'
+      if (value === 'Hombre') groupVal = 'hombre'
+      else if (value === 'Mujer') groupVal = 'mujer'
+      else if (['Niño', 'Niña', 'Bebé', 'Mascota'].includes(value)) groupVal = 'infantil'
+      else if (value === 'Unisex') groupVal = 'hombre'
+
+      updateVariantFilter(id, 'group', groupVal)
+    }
+  }
+
+  const renderVariantsSection = () => {
+    const hasColorFilter = catalogFilters?.colors !== false
+    const hasSizeFilter = catalogFilters?.sizes !== false
+    const hasVariantsEnabled = hasColorFilter || hasSizeFilter
+
+    if (!hasVariantsEnabled) {
+      const handleStockChange = (val) => {
+        const cleanVal = val === '' ? 0 : Number(val)
+        setFormData(prev => {
+          const list = [...(prev.variantes || [])]
+          if (list[0]) {
+            list[0].stock = cleanVal
+            list[0].id = list[0].id || 'default'
+          } else {
+            list[0] = { ...initialVariant, id: 'default', stock: cleanVal }
+          }
+          return { ...prev, variantes: list }
+        })
+      }
+
+      const stockVal = formData.variantes?.[0]?.stock ?? 0
+
+      return (
+        <div className="bg-surface-2 p-5 rounded-3xl border border-app shadow-sm max-w-md mx-auto">
+          <div>
+            <label className="text-xs font-bold text-app mb-2 block">Cantidad Disponible en Stock *</label>
+            <input
+              type="number"
+              min={0}
+              placeholder="Ej. 10"
+              value={stockVal === 0 && formData.variantes?.[0]?.stock === undefined ? '' : stockVal}
+              onChange={(e) => handleStockChange(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full h-12 px-4 rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold text-base"
+            />
+            {errors[`variantes.0.stock`] && (
+              <p className="text-error text-xs mt-1.5">{errors[`variantes.0.stock`]}</p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-app uppercase tracking-wider">Variantes Disponibles</span>
+          <button
+            type="button"
+            onClick={handleAddVariant}
+            className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
+          >
+            <Plus size={14} /> Añadir Variante
+          </button>
+        </div>
+
+        {errors.variantes && typeof errors.variantes === 'string' && (
+          <p className="text-error text-xs">{errors.variantes}</p>
+        )}
+
+        <div className="space-y-3">
+          {formData.variantes?.map((variant, index) => (
+            <div key={variant.id || index} className="p-4 rounded-2xl border border-app bg-surface-2 space-y-3 relative group animate-in fade-in duration-200">
+              <div className="absolute right-3 top-3">
+                {formData.variantes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveVariant(variant.id)}
+                    className="p-1.5 text-muted hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {hasColorFilter && (
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-bold text-app mb-1 block uppercase">Color Referencial *</label>
+                    <div className="flex flex-wrap gap-2 items-center bg-surface p-3 rounded-xl border border-app">
+                      {PRESET_COLORS.map(c => {
+                        const isSelected = variant.color === c.hex || variant.color === c.name
+                        return (
+                          <button
+                            key={c.name}
+                            type="button"
+                            onClick={() => handleVariantChange(variant.id, 'color', c.hex)}
+                            className={`w-7 h-7 rounded-full border-2 transition-all relative flex-shrink-0 cursor-pointer ${
+                              isSelected ? 'border-primary scale-110 shadow-md' : 'border-app hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: c.hex }}
+                            title={c.name}
+                          >
+                            {isSelected && (
+                              <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-black drop-shadow">✓</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                      {/* Custom Color Selector Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveColorVariantId(variant.id)
+                          setCustomColorHex(variant.color && variant.color.startsWith('#') ? variant.color : '#FFFFFF')
+                          setColorModalOpen(true)
+                        }}
+                        className={`w-7 h-7 rounded-full border-2 transition-all relative flex-shrink-0 cursor-pointer flex items-center justify-center bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-600 hover:scale-105 active:scale-95 ${
+                          variant.color && !PRESET_COLORS.some(c => c.hex === variant.color) ? 'border-primary scale-110 shadow-md' : 'border-app'
+                        }`}
+                        title="Color personalizado"
+                      >
+                        <span className="text-[10px] text-white font-bold drop-shadow">+</span>
+                      </button>
+
+                      {variant.color && (
+                        <div className="ml-auto flex items-center gap-1.5 bg-surface-2 px-2.5 py-1 rounded-lg border border-app text-[10px] font-bold text-app">
+                          <span className="w-2.5 h-2.5 rounded-full border border-app flex-shrink-0" style={{ backgroundColor: variant.color }} />
+                          <span className="uppercase">{variant.color}</span>
+                        </div>
+                      )}
+                    </div>
+                    {errors[`variantes.${index}.color`] && (
+                      <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.color`]}</p>
+                    )}
+                  </div>
+                )}
+
+                {hasSizeFilter && (
+                  <div className="col-span-2 space-y-4 bg-surface p-4 rounded-2xl border border-app shadow-sm">
+                    {/* Fila 1: Género (Ocupa ancho completo) */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-app uppercase tracking-wider block">
+                        Género de la Variante *
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {GENDERS.map(g => {
+                          const isSelected = (variant.genero || 'Unisex') === g
+                          return (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => {
+                                handleVariantChange(variant.id, 'genero', g)
+                                if (g === 'Mascota') {
+                                  handleVariantChange(variant.id, 'talla', 'Talla Única')
+                                }
+                              }}
+                              className={`px-3 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-primary text-white border-primary shadow-sm'
+                                  : 'bg-surface-2 text-muted border-app hover:bg-surface-2 hover:text-app'
+                              }`}
+                            >
+                              {g}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {variant.genero !== 'Mascota' ? (
+                      <>
+                        {/* Fila 2: Categoría de Talla (Tipo de Producto) */}
+                        <div className="pt-2 border-t border-app/40 border-dashed">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-app uppercase tracking-wider block">
+                              Tipo de Producto
+                            </label>
+                            <div className="grid grid-cols-2 gap-1.5 bg-surface-2 p-1 rounded-xl border border-app max-w-xs">
+                              {[
+                                { value: 'ropa', label: 'Prenda de Ropa' },
+                                { value: 'calzado', label: 'Calzado' }
+                              ].map(t => {
+                                const isSelected = getVariantFilter(variant.id).category === t.value
+                                return (
+                                  <button
+                                    key={t.value}
+                                    type="button"
+                                    onClick={() => updateVariantFilter(variant.id, 'category', t.value)}
+                                    className={`py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer text-center ${
+                                      isSelected
+                                        ? 'bg-surface text-primary shadow-sm border border-app'
+                                        : 'text-muted hover:text-app'
+                                    }`}
+                                  >
+                                    {t.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Fila 3: Grid de Tallas */}
+                        <div className="space-y-2 pt-3 border-t border-app/40 border-dashed">
+                          <label className="text-[10px] font-bold text-app uppercase tracking-wider block">
+                            Selecciona la Talla *
+                          </label>
+                          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
+                            {(() => {
+                              const filter = getVariantFilter(variant.id)
+                              const g = variant.genero || 'Unisex'
+                              let derivedGroup = 'hombre'
+                              if (g === 'Hombre') derivedGroup = 'hombre'
+                              else if (g === 'Mujer') derivedGroup = 'mujer'
+                              else if (['Niño', 'Niña', 'Bebé'].includes(g)) derivedGroup = 'infantil'
+                              else if (g === 'Unisex') derivedGroup = 'hombre'
+
+                              const sizes = [...(SIZES_CATALOG[filter.category]?.[derivedGroup] || []), 'Talla Única']
+                              return sizes.map(size => {
+                                const isSelected = variant.talla === size
+                                return (
+                                  <button
+                                    key={size}
+                                    type="button"
+                                    onClick={() => handleVariantChange(variant.id, 'talla', size)}
+                                    className={`py-2 rounded-xl border text-[11px] font-black transition-all cursor-pointer text-center ${
+                                      isSelected
+                                        ? 'bg-primary text-white border-primary shadow-md scale-105'
+                                        : 'bg-surface-2 text-app border-app hover:bg-surface hover:text-primary'
+                                    }`}
+                                  >
+                                    {size}
+                                  </button>
+                                )
+                              })
+                            })()}
+                          </div>
+                          {variant.talla && (
+                            <div className="flex items-center gap-1.5 mt-2 bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg text-[10px] font-bold text-primary w-fit">
+                              <span>Talla Seleccionada: {variant.talla}</span>
+                            </div>
+                          )}
+                          {errors[`variantes.${index}.talla`] && (
+                            <p className="text-error text-[10px] mt-1">{errors[`variantes.${index}.talla`]}</p>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="pt-3 border-t border-app/40 border-dashed space-y-2 text-center py-4 bg-surface-2 rounded-xl">
+                        <span className="text-xs font-bold text-primary block">Mascota seleccionada</span>
+                        <p className="text-[10px] text-muted max-w-xs mx-auto">
+                          Se deshabilita el tipo de producto, grupo y selector de tallas. Se asigna por defecto Talla Única.
+                        </p>
+                        <div className="flex items-center justify-center gap-1.5 mt-2 bg-primary text-white px-3 py-1.5 rounded-xl text-xs font-black w-fit mx-auto shadow-sm">
+                          <span>Talla: Talla Única</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="col-span-2">
+                  <label className="text-[10px] font-bold text-app mb-1 block uppercase">Stock Disponible *</label>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="Ej. 10"
+                    value={variant.stock === '' ? '' : variant.stock}
+                    onChange={(e) => handleVariantChange(variant.id, 'stock', e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-app bg-surface text-xs focus:border-primary outline-none font-medium text-app"
+                  />
+                  {errors[`variantes.${index}.stock`] && (
+                    <p className="text-error text-[10px] mt-0.5">{errors[`variantes.${index}.stock`]}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-app/40 border-dashed">
+                <div>
+                  <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">SKU (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. SKU-ROJO-M"
+                    value={variant.sku || ''}
+                    onChange={(e) => handleVariantChange(variant.id, 'sku', e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">Precio Propio (Opcional)</label>
+                  <input
+                    type="number"
+                    placeholder="Usa precio base si vacío"
+                    value={variant.precio || ''}
+                    onChange={(e) => handleVariantChange(variant.id, 'precio', e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">URL Imagen Variante (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Link de la imagen"
+                    value={variant.imageUrl || ''}
+                    onChange={(e) => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
+                    className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   // Validaciones parciales por pasos para el Wizard
@@ -242,6 +712,9 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       if (formData.precioMayorista && Number(formData.precioMayorista) < 0) {
         stepErrors.precioMayorista = "El precio mayorista no puede ser negativo."
       }
+      if (formData.precioCosto && Number(formData.precioCosto) < 0) {
+        stepErrors.precioCosto = "El precio de costo no puede ser negativo."
+      }
       const umbral = Number(formData.umbralAlerta)
       if (isNaN(umbral) || umbral < 0) {
         stepErrors.umbralAlerta = "El stock mínimo de alerta no puede ser negativo."
@@ -261,11 +734,33 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     }
 
     if (step === 5) {
-      formData.variantes.forEach((v, index) => {
-        if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
-          stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
+      const hasColorFilter = catalogFilters?.colors !== false
+      const hasSizeFilter = catalogFilters?.sizes !== false
+      const hasVariantsEnabled = hasColorFilter || hasSizeFilter
+
+      if (hasVariantsEnabled) {
+        if (!formData.variantes || formData.variantes.length === 0) {
+          stepErrors.variantes = "Debes añadir al menos una variante."
+        } else {
+          formData.variantes.forEach((v, index) => {
+            if (hasColorFilter && (!v.color || !v.color.trim())) {
+              stepErrors[`variantes.${index}.color`] = `El color es obligatorio.`
+            }
+            if (hasSizeFilter && (!v.talla || !v.talla.trim())) {
+              stepErrors[`variantes.${index}.talla`] = `La talla es obligatoria.`
+            }
+            if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
+              stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
+            }
+          })
         }
-      })
+      } else {
+        formData.variantes.forEach((v, index) => {
+          if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
+            stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
+          }
+        })
+      }
     }
 
     setErrors(stepErrors)
@@ -300,15 +795,34 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       if (!allValid) return
     }
 
-    // Hacemos que siempre sea una única variante por defecto para simplificar y eliminar variantes
-    const mainStock = formData.variantes?.[0]?.stock ?? 0
-    let finalVariantes = [{
-      id: 'default',
-      talla: '',
-      color: '',
-      stock: mainStock === '' ? 0 : Number(mainStock),
-      precio: ''
-    }]
+    const hasColorFilter = catalogFilters?.colors !== false
+    const hasSizeFilter = catalogFilters?.sizes !== false
+    const hasVariantsEnabled = hasColorFilter || hasSizeFilter
+
+    let finalVariantes = []
+    if (hasVariantsEnabled) {
+      finalVariantes = formData.variantes.map(v => ({
+        id: v.id || crypto.randomUUID(),
+        talla: hasSizeFilter ? (v.talla || '') : '',
+        color: hasColorFilter ? (v.color || '') : '',
+        genero: v.genero || '',
+        stock: v.stock === '' ? 0 : Number(v.stock),
+        sku: v.sku || '',
+        nombre: v.nombre || '',
+        imageUrl: v.imageUrl || '',
+        precio: v.precio !== '' && v.precio !== undefined && v.precio !== null ? Number(v.precio) : '',
+        precioCosto: v.precioCosto !== '' && v.precioCosto !== undefined && v.precioCosto !== null ? Number(v.precioCosto) : ''
+      }))
+    } else {
+      const mainStock = formData.variantes?.[0]?.stock ?? 0
+      finalVariantes = [{
+        id: 'default',
+        talla: '',
+        color: '',
+        stock: mainStock === '' ? 0 : Number(mainStock),
+        precio: ''
+      }]
+    }
 
     // Resolver nombre de categoría a partir del ID seleccionado
     const selectedCategory = categories.find(c => c.id === formData.categoriaId)
@@ -320,6 +834,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       categoria: categoriaNombre,
       precioBase: Number(formData.precioBase),
       precioMayorista: formData.precioMayorista ? Number(formData.precioMayorista) : undefined,
+      precioCosto: formData.precioCosto ? Number(formData.precioCosto) : undefined,
       umbralAlerta: Number(formData.umbralAlerta),
       variantes: finalVariantes,
       discountActive: formData.discountActive,
@@ -518,7 +1033,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
               {errors.imageUrl && <p className="text-error text-xs">{errors.imageUrl}</p>}
 
               {/* Galería de imágenes secundarias (Carrusel) */}
-              {advancedGalleryEnabled && (
+              {showSecondaryGallery && (
                 <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -724,6 +1239,17 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-app mb-1">Precio de Costo (COP) (Opcional)</label>
+                <NumberInput
+                  value={formData.precioCosto}
+                  onChange={(val) => setFormData({...formData, precioCosto: val})}
+                  placeholder="Ej. 45000"
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none font-bold"
+                />
+                {errors.precioCosto && <p className="text-error text-xs mt-1">{errors.precioCosto}</p>}
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-app mb-1">Stock Mínimo (Alerta de Agotado) *</label>
                 <NumberInput
                   min={0}
@@ -826,49 +1352,207 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.2 }}
-            className="space-y-4"
+            className="space-y-4 animate-in fade-in duration-200"
           >
             <div className="text-center max-w-sm mx-auto mb-4">
               <h3 className="text-lg font-bold text-app">
                 Inventario de Tienda
               </h3>
               <p className="text-xs text-muted">
-                Indica las unidades disponibles en el stock general.
+                Indica las unidades disponibles en el stock general y gestiona sus variantes.
               </p>
             </div>
 
-            <div className="space-y-4 bg-surface-2 p-5 rounded-3xl border border-app shadow-sm max-w-md mx-auto">
-              <div>
-                <label className="text-xs font-bold text-app mb-2 block">Cantidad Disponible en Stock *</label>
-                <NumberInput
-                  min={0}
-                  placeholder="Ej. 10"
-                  value={formData.variantes?.[0]?.stock ?? 0}
-                  onChange={(val) => {
-                    const cleanVal = val === '' ? 0 : Number(val)
-                    setFormData(prev => {
-                      const list = [...prev.variantes]
-                      if (list[0]) {
-                        list[0].stock = cleanVal
-                      } else {
-                        list[0] = { ...initialVariant, id: crypto.randomUUID(), stock: cleanVal }
-                      }
-                      return { ...prev, variantes: list }
-                    })
-                  }}
-                  className="w-full h-12 px-4 rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold text-base"
-                />
-                {errors[`variantes.0.stock`] && (
-                  <p className="text-error text-xs mt-1.5">{errors[`variantes.0.stock`]}</p>
-                )}
-              </div>
-            </div>
+            {renderVariantsSection()}
           </motion.div>
         )
 
       default:
         return null
     }
+  }
+
+  const renderCustomColorModal = () => {
+    if (!colorModalOpen) return null
+
+    const hsl = hexToHsl(customColorHex)
+
+    const handleHueChange = (newHue) => {
+      setCustomColorHex(hslToHex(newHue, hsl.s, hsl.l))
+    }
+
+    const handleSatChange = (newSat) => {
+      setCustomColorHex(hslToHex(hsl.h, newSat, hsl.l))
+    }
+
+    const handleLightChange = (newLight) => {
+      setCustomColorHex(hslToHex(hsl.h, hsl.s, newLight))
+    }
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+        {/* Backdrop overlay */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setColorModalOpen(false)}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
+
+        {/* Modal content */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="relative w-full max-w-md bg-surface border border-app rounded-3xl p-6 shadow-2xl z-10 space-y-6"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-app">
+            <div>
+              <h3 className="text-base font-bold text-app">Color Personalizado</h3>
+              <p className="text-[11px] text-muted font-normal">Selecciona o introduce un código hexadecimal.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setColorModalOpen(false)}
+              className="p-1.5 rounded-lg hover:bg-surface-2 text-muted hover:text-app transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Grid of 30 aesthetic colors */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Gama de Tonos</span>
+            <div className="grid grid-cols-6 gap-2">
+              {EXTENDED_COLORS.map(c => {
+                const isSelected = customColorHex.toLowerCase() === c.hex.toLowerCase()
+                return (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => setCustomColorHex(c.hex)}
+                    className={`h-9 w-full rounded-xl border-2 transition-all relative flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 ${
+                      isSelected ? 'border-primary scale-110 shadow-lg' : 'border-app'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {isSelected && (
+                      <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-black drop-shadow">✓</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Custom HSL Sliders & Live Preview */}
+          <div className="space-y-4 pt-2 border-t border-app/40 border-dashed">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-wider block">Mezclador de Color (HSL)</span>
+            
+            {/* Live Preview & Hex Input Row */}
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-12 h-12 rounded-2xl border border-app shadow-inner flex-shrink-0 transition-colors duration-150"
+                style={{ backgroundColor: customColorHex }}
+              />
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={customColorHex}
+                  onChange={(e) => {
+                    let val = e.target.value
+                    if (!val.startsWith('#') && val.length > 0) {
+                      val = '#' + val
+                    }
+                    setCustomColorHex(val)
+                  }}
+                  placeholder="#FFFFFF"
+                  className="w-full h-11 px-4 rounded-xl border border-app bg-surface-2 text-xs font-mono uppercase tracking-widest text-app focus:border-primary outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Slider 1: Hue */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-bold text-muted">
+                <span>Tono (Hue)</span>
+                <span className="font-mono">{hsl.h}°</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                value={hsl.h}
+                onChange={(e) => handleHueChange(Number(e.target.value))}
+                className="w-full h-2.5 rounded-lg appearance-none cursor-pointer outline-none bg-gradient-to-r from-red-500 via-yellow-500 via-green-500 via-blue-500 via-purple-500 to-red-500"
+              />
+            </div>
+
+            {/* Slider 2: Saturation */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-bold text-muted">
+                <span>Saturación</span>
+                <span className="font-mono">{hsl.s}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={hsl.s}
+                onChange={(e) => handleSatChange(Number(e.target.value))}
+                className="w-full h-2.5 rounded-lg appearance-none cursor-pointer outline-none"
+                style={{
+                  background: `linear-gradient(to right, hsl(${hsl.h}, 0%, ${hsl.l}%), hsl(${hsl.h}, 100%, ${hsl.l}%))`
+                }}
+              />
+            </div>
+
+            {/* Slider 3: Lightness */}
+            <div className="space-y-1">
+              <div className="flex justify-between text-[10px] font-bold text-muted">
+                <span>Luminosidad</span>
+                <span className="font-mono">{hsl.l}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={hsl.l}
+                onChange={(e) => handleLightChange(Number(e.target.value))}
+                className="w-full h-2.5 rounded-lg appearance-none cursor-pointer outline-none"
+                style={{
+                  background: `linear-gradient(to right, #000000, hsl(${hsl.h}, ${hsl.s}%, 50%), #ffffff)`
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setColorModalOpen(false)}
+              className="flex-1 h-11 rounded-xl bg-surface-2 text-xs font-bold text-app hover:bg-surface border border-app transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                handleVariantChange(activeColorVariantId, 'color', customColorHex)
+                setColorModalOpen(false)
+              }}
+              className="flex-1 h-11 rounded-xl bg-primary text-xs font-bold text-white hover:bg-primary-hover shadow-sm transition-colors"
+            >
+              Guardar Color
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )
   }
 
   // RENDERIZADO DEL FORMULARIO CLÁSICO COMPLETO (MODO EDICIÓN)
@@ -1033,7 +1717,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             {errors.imageUrl && <p className="text-error text-xs mt-1">{errors.imageUrl}</p>}
             
             {/* Galería de imágenes secundarias (Carrusel del producto) */}
-            {advancedGalleryEnabled && (
+            {showSecondaryGallery && (
               <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1120,6 +1804,17 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-app mb-1">Precio de Costo (COP) (Opcional)</label>
+            <input
+              type="number"
+              value={formData.precioCosto}
+              onChange={e => setFormData({...formData, precioCosto: e.target.value})}
+              className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-app text-app focus:border-primary focus:outline-none"
+            />
+            {errors.precioCosto && <p className="text-error text-xs mt-1">{errors.precioCosto}</p>}
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-app mb-1">Stock Mínimo (Umbral de Alerta) *</label>
             <input
               type="number"
@@ -1200,33 +1895,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             </div>
           </div>
           
-          <div className="bg-surface-2 p-4 rounded-2xl border border-app shadow-sm">
-            <div>
-              <label className="text-xs font-semibold text-app mb-2 block">Cantidad Disponible (Stock) *</label>
-              <input
-                type="number"
-                min="0"
-                placeholder="Ej: 15"
-                value={formData.variantes?.[0]?.stock ?? 0}
-                onChange={e => {
-                  const val = e.target.value === '' ? 0 : Number(e.target.value)
-                  setFormData(prev => {
-                    const list = [...prev.variantes]
-                    if (list[0]) {
-                      list[0].stock = val
-                    } else {
-                      list[0] = { ...initialVariant, id: 'default', stock: val }
-                    }
-                    return { ...prev, variantes: list }
-                  })
-                }}
-                className="w-full h-11 px-4 text-sm rounded-xl border border-app bg-surface text-app focus:border-primary outline-none font-bold"
-              />
-              {errors[`variantes.0.stock`] && (
-                <p className="text-error text-xs mt-1">{errors[`variantes.0.stock`]}</p>
-              )}
-            </div>
-          </div>
+          {renderVariantsSection()}
         </div>
 
         {/* Sección de Configuración Comercial, QR y SEO — solo visible si hay algún módulo activo */}
@@ -1264,7 +1933,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                 </div>
 
                 {/* Galería de imágenes secundarias — requiere advancedGallery */}
-                {advancedGalleryEnabled && (
+                {showSecondaryGallery && (
                   <div>
                     <label className="block text-xs font-bold text-app mb-1.5 uppercase tracking-wider">Galería de Imágenes Secundarias (URLs separadas por comas)</label>
                     <textarea
@@ -1435,27 +2104,33 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   )
 
   return (
-    <ModalTemplate
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={initialData ? 'Editar Producto' : 'Crear Nuevo Producto'}
-      subtitle={initialData ? 'Administración de Catálogo' : 'Asistente de registro rápido'}
-      icon={Sparkles}
-      onBack={(!initialData && currentStep > 1) ? handlePrevStep : null}
-      footerActions={modalFooterActions}
-    >
-      {/* Barra de progreso si estamos en creación */}
-      {renderProgressBar()}
+    <>
+      <ModalTemplate
+        isOpen={isOpen}
+        onClose={handleClose}
+        title={initialData ? 'Editar Producto' : 'Crear Nuevo Producto'}
+        subtitle={initialData ? 'Administración de Catálogo' : 'Asistente de registro rápido'}
+        icon={Sparkles}
+        onBack={(!initialData && currentStep > 1) ? handlePrevStep : null}
+        footerActions={modalFooterActions}
+      >
+        {/* Barra de progreso si estamos en creación */}
+        {renderProgressBar()}
 
-      {/* Contenido del Formulario */}
-      <div className="mt-4">
-        {initialData ? renderClassicForm() : (
-          <AnimatePresence mode="wait">
-            {renderWizardStep()}
-          </AnimatePresence>
-        )}
-      </div>
+        {/* Contenido del Formulario */}
+        <div className="mt-4">
+          {initialData ? renderClassicForm() : (
+            <AnimatePresence mode="wait">
+              {renderWizardStep()}
+            </AnimatePresence>
+          )}
+        </div>
 
-    </ModalTemplate>
+      </ModalTemplate>
+
+      <AnimatePresence>
+        {renderCustomColorModal()}
+      </AnimatePresence>
+    </>
   )
 }
