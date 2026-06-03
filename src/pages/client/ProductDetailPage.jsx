@@ -194,7 +194,6 @@ export default function ProductDetailPage() {
       const c = showColors ? Array.from(new Set(vars.map(v => v.color).filter(Boolean))) : []
       
       if (t.length > 0) setSelectedTalla(t[0])
-      if (c.length > 0) setSelectedColor(c[0])
     }
   }, [product?.id, showColors, showSizes])
 

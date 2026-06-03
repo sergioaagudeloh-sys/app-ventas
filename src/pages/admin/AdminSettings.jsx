@@ -8,6 +8,7 @@ import { updateAppConfig, updateCatalogFilters, resetAppData } from '../../servi
 import { signOutAdmin, updateAdminCredentials } from '../../services/authService'
 import useAppConfigStore from '../../store/appConfigStore'
 import useAuthStore from '../../store/authStore'
+import { auth } from '../../config/firebaseConfig'
 import BackButton from '../../components/ui/BackButton'
 import { reportMonthlyBillingToDeveloper } from '../../services/telemetryService'
 

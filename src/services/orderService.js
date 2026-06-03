@@ -384,10 +384,13 @@ export async function updateOrderStatus(orderId, newStatus, currentOrder) {
       orderId,
       orderNumber: currentOrder.orderNumber || '—',
       cliente: currentOrder.cliente,
+      clienteNombre: currentOrder.cliente?.nombre || '',
+      clienteCelular: currentOrder.cliente?.celular || '',
       total: currentOrder.total,
+      montoTotal: currentOrder.total,
       saldoPendiente: currentOrder.total,
       abonos: [],
-      estado: 'PENDIENTE',
+      estado: 'activo',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
@@ -474,10 +477,13 @@ export async function createPhysicalOrder(orderData, adminId) {
       orderId: orderIdRef.id,
       orderNumber,
       cliente: orderData.cliente,
+      clienteNombre: orderData.cliente?.nombre || '',
+      clienteCelular: orderData.cliente?.celular || '',
       total: orderData.total,
+      montoTotal: orderData.total,
       saldoPendiente: orderData.total,
       abonos: [],
-      estado: 'PENDIENTE',
+      estado: 'activo',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
