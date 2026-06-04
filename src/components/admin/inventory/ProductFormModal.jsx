@@ -12,6 +12,8 @@ import useAppConfigStore from '../../../store/appConfigStore'
 import ModalTemplate from '../../common/ModalTemplate'
 import CustomSelect from '../../ui/CustomSelect'
 import { getCssColor } from '../../../utils/colors'
+import { uploadImage, deleteImage } from '../../../services/uploadService'
+import { Loader2 } from 'lucide-react'
 
 const initialVariant = { id: '', talla: '', color: '', genero: '', stock: 0, nombre: '', sku: '', imageUrl: '', precio: '', precioCosto: '' }
 const initialForm = {
@@ -179,6 +181,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   const [colorModalOpen, setColorModalOpen] = useState(false)
   const [activeColorVariantId, setActiveColorVariantId] = useState(null)
   const [customColorHex, setCustomColorHex] = useState('#FFFFFF')
+  const [loadingVariantImages, setLoadingVariantImages] = useState({})
+  const [variantUploadProgress, setVariantUploadProgress] = useState({})
+  const [loadingGalleryIndex, setLoadingGalleryIndex] = useState(null)
+  const [galleryProgress, setGalleryProgress] = useState(0)
 
   const getVariantFilter = (variantId) => {
     return variantFilters[variantId] || { category: 'ropa', group: 'hombre' }
@@ -230,8 +236,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     try {
       await deleteDoc(doc(db, "draft_products", id))
       if (filePath) {
-        const fileRef = ref(storage, filePath)
-        await deleteObject(fileRef)
+        await deleteImage(filePath)
       }
     } catch (e) {
       console.error("Error al limpiar borrador temporal:", e)
@@ -258,53 +263,95 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       }
 
       const draftId = `draft_${crypto.randomUUID()}`
-      const storageRef = ref(storage, `products_drafts/${draftId}_${file.name}`)
-      const uploadTask = uploadBytesResumable(storageRef, file)
+      
+      const downloadURL = await uploadImage(file, 'products_drafts', draftId, (progress) => {
+        setUploadProgress(progress)
+      })
 
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
-          setUploadProgress(progress)
-        },
-        (error) => {
-          console.error(error)
+      setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
+      setCurrentDraftId(draftId)
+      setCurrentDraftFilePath(downloadURL)
+      
+      await setDoc(doc(db, "draft_products", draftId), {
+        imageUrl: downloadURL,
+        filePath: downloadURL,
+        createdAt: new Date()
+      })
+
+      const docRef = doc(db, "draft_products", draftId)
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data().suggestions) {
+          const suggestions = docSnap.data().suggestions
+          setFormData(prev => ({
+            ...prev,
+            nombre: suggestions.nombre || prev.nombre,
+            descripcion: suggestions.descripcion || prev.descripcion,
+            precioBase: suggestions.precioBase?.toString() || prev.precioBase,
+            categoriaId: suggestions.categoriaId || prev.categoriaId,
+            seoTitle: suggestions.seoTitle || prev.seoTitle,
+            seoDescription: suggestions.seoDescription || prev.seoDescription,
+          }))
           setLoadingIA(false)
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref)
-          setFormData(prev => ({ ...prev, imageUrl: downloadURL }))
-          setCurrentDraftId(draftId)
-          setCurrentDraftFilePath(storageRef.fullPath)
-          
-          await setDoc(doc(db, "draft_products", draftId), {
-            imageUrl: downloadURL,
-            filePath: storageRef.fullPath,
-            createdAt: new Date()
-          })
-
-          const docRef = doc(db, "draft_products", draftId)
-          const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists() && docSnap.data().suggestions) {
-              const suggestions = docSnap.data().suggestions
-              setFormData(prev => ({
-                ...prev,
-                nombre: suggestions.nombre || prev.nombre,
-                descripcion: suggestions.descripcion || prev.descripcion,
-                precioBase: suggestions.precioBase?.toString() || prev.precioBase,
-                categoriaId: suggestions.categoriaId || prev.categoriaId,
-                seoTitle: suggestions.seoTitle || prev.seoTitle,
-                seoDescription: suggestions.seoDescription || prev.seoDescription,
-              }))
-              setLoadingIA(false)
-              unsubscribe()
-            }
-          })
+          unsubscribe()
         }
-      )
+      })
     } catch (err) {
       console.error(err)
       setLoadingIA(false)
+    }
+  }
+
+  const handleVariantImageUpload = async (variantId, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setLoadingVariantImages(prev => ({ ...prev, [variantId]: true }))
+    setVariantUploadProgress(prev => ({ ...prev, [variantId]: 0 }))
+
+    try {
+      const variant = formData.variantes.find(v => v.id === variantId)
+      if (variant && variant.imageUrl) {
+        await deleteImage(variant.imageUrl).catch(err => console.warn('Error al borrar anterior:', err))
+      }
+
+      const downloadURL = await uploadImage(file, 'products_variants', variantId, (progress) => {
+        setVariantUploadProgress(prev => ({ ...prev, [variantId]: progress }))
+      })
+
+      handleVariantChange(variantId, 'imageUrl', downloadURL)
+    } catch (err) {
+      console.error('[Variant Image Upload] Error:', err)
+      setErrors(prev => ({ ...prev, [`variant_img_${variantId}`]: 'Error al subir imagen de variante.' }))
+    } finally {
+      setLoadingVariantImages(prev => ({ ...prev, [variantId]: false }))
+    }
+  }
+
+  const handleGalleryImageUpload = async (index, e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setLoadingGalleryIndex(index)
+    setGalleryProgress(0)
+
+    try {
+      const currentUrl = formData.galeria[index]
+      if (currentUrl) {
+        await deleteImage(currentUrl).catch(err => console.warn('Error al borrar anterior:', err))
+      }
+
+      const downloadURL = await uploadImage(file, 'products_gallery', `gallery_${index}`, (progress) => {
+        setGalleryProgress(progress)
+      })
+
+      const newGal = [...formData.galeria]
+      newGal[index] = downloadURL
+      setFormData(prev => ({ ...prev, galeria: newGal }))
+    } catch (err) {
+      console.error('[Gallery Image Upload] Error:', err)
+      setErrors(prev => ({ ...prev, [`gallery_img_${index}`]: 'Error al subir imagen de galería.' }))
+    } finally {
+      setLoadingGalleryIndex(null)
     }
   }
 
@@ -667,15 +714,73 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                     className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">URL Imagen Variante (Opcional)</label>
-                  <input
-                    type="text"
-                    placeholder="Ej. Link de la imagen"
-                    value={variant.imageUrl || ''}
-                    onChange={(e) => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
-                  />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-muted block uppercase">Foto de Variante (Opcional)</label>
+                  <div className="flex items-center gap-2">
+                    {loadingVariantImages[variant.id] ? (
+                      <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-app bg-surface-2 w-full">
+                        <Loader2 size={14} className="animate-spin text-primary shrink-0" />
+                        <span className="text-[10px] font-bold text-primary animate-pulse">
+                          Subiendo... {variantUploadProgress[variant.id] || 0}%
+                        </span>
+                      </div>
+                    ) : variant.imageUrl ? (
+                      <div className="flex items-center gap-2 bg-surface p-1 pr-2.5 rounded-lg border border-app w-full justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <img 
+                            src={variant.imageUrl} 
+                            alt="Variante" 
+                            className="w-7 h-7 rounded object-cover border border-app shrink-0"
+                          />
+                          <span className="text-[9px] font-mono text-muted truncate max-w-[120px]">
+                            {variant.imageUrl}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await deleteImage(variant.imageUrl)
+                            } catch (err) {
+                              console.warn('Error al borrar imagen de Storage:', err)
+                            }
+                            handleVariantChange(variant.id, 'imageUrl', '')
+                          }}
+                          className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
+                          title="Eliminar foto"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 w-full">
+                        <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
+                          <UploadCloud size={13} className="text-muted group-hover:text-primary transition-colors" />
+                          <span>Galería</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => handleVariantImageUpload(variant.id, e)} 
+                            className="hidden" 
+                          />
+                        </label>
+                        <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
+                          <Camera size={13} className="text-muted group-hover:text-primary transition-colors" />
+                          <span>Cámara</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment" 
+                            onChange={(e) => handleVariantImageUpload(variant.id, e)} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  {errors[`variant_img_${variant.id}`] && (
+                    <p className="text-error text-[9px] font-bold mt-0.5">{errors[`variant_img_${variant.id}`]}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1032,7 +1137,6 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               {errors.imageUrl && <p className="text-error text-xs">{errors.imageUrl}</p>}
 
-              {/* Galería de imágenes secundarias (Carrusel) */}
               {showSecondaryGallery && (
                 <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -1040,52 +1144,89 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                       <span className="text-xs font-bold text-app uppercase tracking-wider block">Imágenes Secundarias</span>
                       <span className="text-[10px] text-muted block mt-0.5">Agrega otras fotos para el carrusel de detalle.</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          galeria: [...(prev.galeria || []), '']
-                        }))
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
-                    >
-                      <Plus size={14} /> Agregar
-                    </button>
+                    <div className="flex gap-1.5">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                        <UploadCloud size={14} className="text-primary shrink-0" />
+                        <span>Galería</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                          className="hidden" 
+                          disabled={loadingGalleryIndex !== null}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                        <Camera size={14} className="text-primary shrink-0" />
+                        <span>Cámara</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          capture="environment" 
+                          onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                          className="hidden" 
+                          disabled={loadingGalleryIndex !== null}
+                        />
+                      </label>
+                    </div>
                   </div>
+
+                  {loadingGalleryIndex === (formData.galeria?.length || 0) && (
+                    <div className="flex items-center justify-center gap-2 p-3 border border-app bg-surface rounded-xl animate-pulse">
+                      <Loader2 size={16} className="animate-spin text-primary shrink-0" />
+                      <span className="text-xs font-bold text-primary">Subiendo nueva imagen... {galleryProgress}%</span>
+                    </div>
+                  )}
 
                   {formData.galeria && formData.galeria.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2.5 max-h-48 overflow-y-auto no-scrollbar">
                       {formData.galeria.map((url, idx) => (
-                        <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app">
-                          <div className="w-10 h-10 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
-                            {url ? (
-                              <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
-                            ) : (
-                              <ImageIcon size={14} className="text-muted" />
-                            )}
+                        <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app justify-between">
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="w-10 h-10 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
+                              {url ? (
+                                <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon size={14} className="text-muted" />
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[11px] font-bold text-app">Foto #{idx + 1}</span>
+                              <span className="text-[9px] font-mono text-muted truncate max-w-[150px] sm:max-w-[220px]">
+                                {url}
+                              </span>
+                            </div>
                           </div>
-                          <input
-                            type="url"
-                            value={url}
-                            onChange={e => {
-                              const newGal = [...formData.galeria]
-                              newGal[idx] = e.target.value
-                              setFormData({ ...formData, galeria: newGal })
-                            }}
-                            placeholder="https://ejemplo.com/foto-secundario.jpg"
-                            className="flex-1 h-9 px-3 rounded-lg bg-surface-2 border border-app text-xs text-app focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newGal = formData.galeria.filter((_, i) => i !== idx)
-                              setFormData({ ...formData, galeria: newGal })
-                            }}
-                            className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Reemplazar Foto */}
+                            <label className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-surface border border-app flex items-center justify-center cursor-pointer transition-colors" title="Cambiar foto">
+                              <UploadCloud size={14} className="text-muted hover:text-primary" />
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={(e) => handleGalleryImageUpload(idx, e)} 
+                                className="hidden" 
+                                disabled={loadingGalleryIndex !== null}
+                              />
+                            </label>
+                            {/* Eliminar Foto */}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await deleteImage(url)
+                                } catch (err) {
+                                  console.warn('Error al borrar de Storage:', err)
+                                }
+                                const newGal = formData.galeria.filter((_, i) => i !== idx)
+                                setFormData({ ...formData, galeria: newGal })
+                              }}
+                              className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
+                              title="Eliminar foto"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1724,52 +1865,89 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                     <span className="text-xs font-bold text-app uppercase tracking-wider block">Galería de Imágenes Secundarias</span>
                     <span className="text-[10px] text-muted block mt-0.5">Agrega otras tomas del producto para habilitar el carrusel deslizable.</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        galeria: [...(prev.galeria || []), '']
-                      }))
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
-                  >
-                    <Plus size={14} /> Agregar Imagen
-                  </button>
+                  <div className="flex gap-1.5">
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                      <UploadCloud size={14} className="text-primary shrink-0" />
+                      <span>Galería</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                        className="hidden" 
+                        disabled={loadingGalleryIndex !== null}
+                      />
+                    </label>
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                      <Camera size={14} className="text-primary shrink-0" />
+                      <span>Cámara</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="environment" 
+                        onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                        className="hidden" 
+                        disabled={loadingGalleryIndex !== null}
+                      />
+                    </label>
+                  </div>
                 </div>
+
+                {loadingGalleryIndex === (formData.galeria?.length || 0) && (
+                  <div className="flex items-center justify-center gap-2 p-3 border border-app bg-surface rounded-xl animate-pulse">
+                    <Loader2 size={16} className="animate-spin text-primary shrink-0" />
+                    <span className="text-xs font-bold text-primary">Subiendo nueva imagen... {galleryProgress}%</span>
+                  </div>
+                )}
 
                 {formData.galeria && formData.galeria.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto no-scrollbar">
                     {formData.galeria.map((url, idx) => (
-                      <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app">
-                        <div className="w-12 h-12 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
-                          {url ? (
-                            <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon size={16} className="text-muted" />
-                          )}
+                      <div key={idx} className="flex gap-2 items-center bg-surface p-2.5 rounded-xl border border-app justify-between">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <div className="w-10 h-10 rounded-lg bg-surface-2 overflow-hidden flex-shrink-0 border border-app flex items-center justify-center">
+                            {url ? (
+                              <img src={url} alt={`Secundaria ${idx+1}`} className="w-full h-full object-cover" />
+                            ) : (
+                              <ImageIcon size={14} className="text-muted" />
+                            )}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[11px] font-bold text-app">Foto #{idx + 1}</span>
+                            <span className="text-[9px] font-mono text-muted truncate max-w-[120px] sm:max-w-[155px]">
+                              {url}
+                            </span>
+                          </div>
                         </div>
-                        <input
-                          type="url"
-                          value={url}
-                          onChange={e => {
-                            const newGal = [...formData.galeria]
-                            newGal[idx] = e.target.value
-                            setFormData({ ...formData, galeria: newGal })
-                          }}
-                          placeholder="https://ejemplo.com/foto-secundario.jpg"
-                          className="flex-1 h-9 px-3 rounded-lg bg-surface-2 border border-app text-xs text-app focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newGal = formData.galeria.filter((_, i) => i !== idx)
-                            setFormData({ ...formData, galeria: newGal })
-                          }}
-                          className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Reemplazar Foto */}
+                          <label className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-surface border border-app flex items-center justify-center cursor-pointer transition-colors" title="Cambiar foto">
+                            <UploadCloud size={14} className="text-muted hover:text-primary" />
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => handleGalleryImageUpload(idx, e)} 
+                              className="hidden" 
+                              disabled={loadingGalleryIndex !== null}
+                            />
+                          </label>
+                          {/* Eliminar Foto */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await deleteImage(url)
+                              } catch (err) {
+                                console.warn('Error al borrar de Storage:', err)
+                              }
+                              const newGal = formData.galeria.filter((_, i) => i !== idx)
+                              setFormData({ ...formData, galeria: newGal })
+                            }}
+                            className="w-8 h-8 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors"
+                            title="Eliminar foto"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -21,6 +21,10 @@ d:/Aplicaciones/App Ventas/
 │   │   │   ├── inventory/
 │   │   │   │   ├── CategoryManager.jsx     ← Gestión de categorías
 │   │   │   │   └── ProductFormModal.jsx    ← Modal creación/edición con manejo de variantes y validación Zod
+│   │   │   ├── orders/
+│   │   │   │   └── OrderShareModal.jsx     ← Modal interactivo premium de compartición de seguimiento de pedidos
+│   │   │   ├── settings/
+│   │   │   │   └── AppResetTool.jsx        ← Utilidad administrativa destructiva de alta seguridad
 │   │   │   ├── AdminOrders.jsx             ← Panel Kanban/Lista para gestionar pedidos y estados
 │   │   │   └── AdminCredits.jsx            ← Gestión de fiados, lista de deudores y registro de abonos
 │   │   ├── client/

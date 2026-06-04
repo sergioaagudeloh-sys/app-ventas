@@ -18,7 +18,7 @@ const FILTERS_REF = doc(db, 'config', 'catalogFilters')
  * Configuración por defecto que se crea si Firestore está vacío.
  * (Primera vez que se abre la app)
  */
-const DEFAULT_SETTINGS = {
+export const DEFAULT_SETTINGS = {
   appName: 'Mi Tienda',
   sellerName: 'Vendedor',
   appIcon: '',
@@ -112,6 +112,7 @@ export async function updateCatalogFilters(filters) {
 
 /**
  * Escucha cambios en tiempo real de la configuración.
+ * Retorna los valores por defecto en memoria si el documento no existe.
  * @param {function} onUpdate - Callback con la config actualizada
  * @returns {function} Función para cancelar la suscripción
  */
@@ -119,6 +120,9 @@ export function subscribeToAppConfig(onUpdate) {
   return onSnapshot(SETTINGS_REF, (snap) => {
     if (snap.exists()) {
       onUpdate(snap.data())
+    } else {
+      console.log('[Config] Configuración no encontrada en Firestore. Usando valores de fábrica en memoria...')
+      onUpdate(DEFAULT_SETTINGS)
     }
   })
 }

@@ -55,12 +55,12 @@ export function generateBrandIcon(appIcon, primaryColor) {
         resolve(canvas.toDataURL('image/png'))
       } catch (err) {
         console.error('Error al generar dataURL del canvas:', err)
-        resolve(appIcon) // Fallback al original si falla el canvas por CORS o similar
+        resolve('/pwa-192x192.png') // Fallback al original local
       }
     }
     img.onerror = () => {
-      console.warn('No se pudo cargar la imagen del logo de la tienda para generar el icono PWA.')
-      resolve(appIcon) // Fallback al original si falla la carga
+      console.warn('No se pudo cargar la imagen del logo de la tienda para generar el icono PWA. Usando fallback por defecto.')
+      resolve('/pwa-192x192.png') // Fallback al original local si falla la carga
     }
     img.src = appIcon
   })
