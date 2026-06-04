@@ -504,19 +504,19 @@ export default function CheckoutModal({ isOpen, onClose }) {
     const isDigital = snap?.tipoEntrega === 'digital'
 
     const e = {
-      carrito:   String.fromCodePoint(0x1F6D2),
-      cliente:   String.fromCodePoint(0x1F464),
-      celular:   String.fromCodePoint(0x1F4F1),
-      ubicacion: String.fromCodePoint(0x1F4CD),
-      tienda:    String.fromCodePoint(0x1F3EA),
-      caja:      String.fromCodePoint(0x1F4E6),
-      item:      String.fromCodePoint(0x1F3F7),
-      tarjeta:   String.fromCodePoint(0x1F4B3),
-      dinero:    String.fromCodePoint(0x1F4B0),
-      nota:      String.fromCodePoint(0x1F4DD),
-      camion:    String.fromCodePoint(0x1F69A),
-      cupon:     String.fromCodePoint(0x1F39F),
-      digital:   String.fromCodePoint(0x1F4F2),
+      carrito:   '\uD83D\uDED2', // 🛒
+      cliente:   '\uD83D\uDC64', // 👤
+      celular:   '\uD83D\uDCF1', // 📱
+      ubicacion: '\uD83D\uDCCD', // 📍
+      tienda:    '\uD83C\uDFEA', // 🏪
+      caja:      '\uD83D\uDCE6', // 📦
+      item:      '\uD83C\uDFF7\uFE0F', // 🏷️
+      tarjeta:   '\uD83D\uDCB3', // 💳
+      dinero:    '\uD83D\uDCB0', // 💰
+      nota:      '\uD83D\uDCDD', // 📝
+      camion:    '\uD83D\uDE9A', // 🚚
+      cupon:     '\uD83C\uDF9F\uFE0F', // 🎟️
+      digital:   '\uD83D\uDCF2', // 📲
     }
 
     const metodosLabel = { efectivo: 'Efectivo', transferencia: 'Transferencia', credito: 'Crédito (Fiado)' }
@@ -535,7 +535,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
     } else if (isDigital) {
       entregaLine = `${e.digital} *Entrega:* Digital / Servicios`
     } else if (snap?.tipoEntrega === 'mesa') {
-      entregaLine = `🛎️ *Entrega:* En Mesa (${snap?.tableName || 'Sin Mesa'})`
+      entregaLine = `\uD83D\uDECE\uFE0F *Entrega:* En Mesa (${snap?.tableName || 'Sin Mesa'})`
     } else {
       const addressText = currentSettings.pickup?.address ? ` (${currentSettings.pickup.address})` : ''
       entregaLine = `${e.tienda} *Entrega:* Retiro en Tienda${addressText}`
@@ -554,7 +554,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
     const subtotalLine = `\nSubtotal: ${formatCurrency(snap?.subtotal || getTotal())}`
 
     const bancoLine = bancoInfo
-      ? `\n🏦 *Banco elegido:* ${bancoInfo.banco} · ${bancoInfo.numeroCuenta}${bancoInfo.titular ? ` · ${bancoInfo.titular}` : ''}`
+      ? `\n\uD83C\uDFE6 *Banco elegido:* ${bancoInfo.banco} · ${bancoInfo.numeroCuenta}${bancoInfo.titular ? ` · ${bancoInfo.titular}` : ''}`
       : ''
 
     const seller = useAppConfigStore.getState().sellerName || 'el Administrador'

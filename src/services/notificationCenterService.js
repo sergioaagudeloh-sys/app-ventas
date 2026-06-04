@@ -301,19 +301,21 @@ export async function archiveAll(recipientId, recipientRole) {
     if (isClient && recipientId) {
       q = query(
         collection(db, COL),
-        where('recipientId', '==', recipientId),
-        where('status', '!=', 'archived')
+        where('recipientId', '==', recipientId)
       )
     } else {
       q = query(
         collection(db, COL),
-        where('recipientRole', '==', recipientRole),
-        where('status', '!=', 'archived')
+        where('recipientRole', '==', recipientRole)
       )
     }
     const snap = await getDocs(q)
     const batch = writeBatch(db)
-    snap.docs.forEach(d => batch.update(d.ref, { status: 'archived' }))
+    snap.docs.forEach(d => {
+      if (d.data().status !== 'archived') {
+        batch.update(d.ref, { status: 'archived' })
+      }
+    })
     await batch.commit()
   } catch (error) {
     console.error('[NC] Error al archivar todas:', error)

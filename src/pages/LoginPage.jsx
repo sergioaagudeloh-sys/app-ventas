@@ -8,7 +8,7 @@ import { Store, Smartphone, Shield, Mail, Lock, ArrowLeft, User } from 'lucide-r
 import { auth, db } from '../config/firebaseConfig'
 import useAuthStore from '../store/authStore'
 import useAppConfigStore from '../store/appConfigStore'
-import { updateAppConfig } from '../services/appConfigService'
+import { updateAppConfig, DEFAULT_SETTINGS } from '../services/appConfigService'
 import { ROLES, CLIENT_LOGIN_TRUST_MESSAGE, COLLECTIONS } from '../constants'
 import useInactivityTimer from '../hooks/useInactivityTimer'
 import SmartHint from '../components/client/guided/SmartHint'
@@ -96,19 +96,41 @@ export default function LoginPage() {
         userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
       } else {
         // Registro por primera vez
-        userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword)
-        const cleanWhatsapp = adminWhatsapp.replace(/\D/g, '')
-        const configUpdates = {
-          adminRegistered: true,
-          sellerName: adminSellerName.trim(),
-          whatsappAdmin: cleanWhatsapp
+        try {
+          userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword)
+          const cleanWhatsapp = adminWhatsapp.replace(/\D/g, '')
+          const configUpdates = {
+            ...DEFAULT_SETTINGS,
+            adminRegistered: true,
+            sellerName: adminSellerName.trim(),
+            whatsappAdmin: cleanWhatsapp
+          }
+          await updateAppConfig(configUpdates)
+          setConfig({
+            ...useAppConfigStore.getState(),
+            ...configUpdates
+          })
+        } catch (regErr) {
+          if (regErr.code === 'auth/email-already-in-use') {
+            // El correo ya existe en Firebase Auth, pero Firestore está en blanco (adminRegistered === false).
+            // Iniciamos sesión con la contraseña provista y guardamos la configuración inicial.
+            userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+            const cleanWhatsapp = adminWhatsapp.replace(/\D/g, '')
+            const configUpdates = {
+              ...DEFAULT_SETTINGS,
+              adminRegistered: true,
+              sellerName: adminSellerName.trim(),
+              whatsappAdmin: cleanWhatsapp
+            }
+            await updateAppConfig(configUpdates)
+            setConfig({
+              ...useAppConfigStore.getState(),
+              ...configUpdates
+            })
+          } else {
+            throw regErr
+          }
         }
-        await updateAppConfig(configUpdates)
-        // Actualizar store local de configuración
-        setConfig({
-          ...useAppConfigStore.getState(),
-          ...configUpdates
-        })
       }
       
       const user = userCredential.user
@@ -228,7 +250,7 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={() => navigate('/')}
-        className="absolute top-5 left-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-surface/95 backdrop-blur-md border border-app hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
+        className="absolute top-5 left-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-surface/95 backdrop-blur-md border border-primary/15 hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
       >
         <ArrowLeft size={16} className="text-primary flex-shrink-0" />
         <span>Ir atrás</span>
@@ -248,7 +270,7 @@ export default function LoginPage() {
             setError('')
           }
         }}
-        className="absolute top-5 right-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-app hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
+        className="absolute top-5 right-5 flex items-center justify-center gap-2.5 w-40 h-12 rounded-2xl bg-black/5 dark:bg-white/10 backdrop-blur-md border border-primary/15 hover:border-primary/50 text-app font-bold text-sm shadow-md transition-all duration-300 hover:scale-105 active:scale-95 z-30 cursor-pointer"
       >
         {mode === 'client' ? (
           <>
@@ -340,11 +362,10 @@ export default function LoginPage() {
             </motion.div>
           </div>
 
-          {/* 2. CARD DE FORMULARIO CONTINUO */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full bg-surface rounded-3xl shadow-xl border border-app overflow-hidden p-5 md:p-6"
+            className="w-full bg-surface rounded-3xl shadow-xl shadow-primary/5 border border-primary/10 overflow-hidden p-5 md:p-6"
           >
             <div className="w-full">
               {/* ─── Formulario Cliente ───────────────────────────────────── */}
@@ -368,7 +389,7 @@ export default function LoginPage() {
                             value={celular}
                             onChange={(e) => setCelular(e.target.value)}
                             placeholder="3XXXXXXXXX"
-                            className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            className="w-full h-11 pl-10 pr-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                             autoComplete="tel"
                             aria-required="true"
                             aria-describedby="trust-message"
@@ -384,8 +405,8 @@ export default function LoginPage() {
                     {/* Paso 2: Pedir nombre (Solo si es nuevo) */}
                     {clientStep === 2 && (
                       <div key="step2">
-                        <div className="mb-4 bg-primary/5 p-3 rounded-2xl border border-primary/10">
-                          <p className="text-xs text-primary font-bold mb-1">¡Hola! Parece que eres nuevo por aquí.</p>
+                        <div className="mb-4 bg-primary/[0.04] p-3.5 rounded-2xl border border-primary/10">
+                          <p className="text-xs text-primary font-bold mb-1">¡Hola! Parece que eres nuevo por aquí. 👋</p>
                           <p className="text-[11px] text-muted leading-relaxed">Ingresa tu nombre para guardar tus datos y hacer más rápidos tus próximos pedidos.</p>
                         </div>
                         <label htmlFor="client-nombre" className="block text-[11px] font-bold text-app mb-2 uppercase tracking-wider">
@@ -397,7 +418,7 @@ export default function LoginPage() {
                           value={nombre}
                           onChange={(e) => setNombre(e.target.value)}
                           placeholder="Ej. María Pérez"
-                          className="w-full h-12 px-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                          className="w-full h-12 px-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                           autoComplete="given-name"
                           aria-required="true"
                           autoFocus
@@ -468,7 +489,7 @@ export default function LoginPage() {
                         value={adminEmail}
                         onChange={(e) => setAdminEmail(e.target.value)}
                         placeholder="Correo electrónico"
-                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                         required
                       />
                     </div>
@@ -480,7 +501,7 @@ export default function LoginPage() {
                         value={adminPassword}
                         onChange={(e) => setAdminPassword(e.target.value)}
                         placeholder="Contraseña"
-                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                        className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                         required
                       />
                     </div>
@@ -494,7 +515,7 @@ export default function LoginPage() {
                             value={adminSellerName}
                             onChange={(e) => setAdminSellerName(e.target.value)}
                             placeholder="Nombre del Vendedor / Dueño"
-                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                             required
                           />
                         </div>
@@ -506,7 +527,7 @@ export default function LoginPage() {
                             value={adminWhatsapp}
                             onChange={(e) => setAdminWhatsapp(e.target.value)}
                             placeholder="Número de WhatsApp (Ej: 573001234567)"
-                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-app text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
+                            className="w-full h-12 pl-11 pr-4 rounded-2xl bg-surface-2 border border-primary/15 text-app placeholder:text-muted/65 text-sm focus:outline-none focus:border-primary transition-all shadow-inner focus:ring-1 focus:ring-primary/20"
                             required
                           />
                         </div>
