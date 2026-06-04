@@ -49,11 +49,55 @@ function getCentralFirestore() {
  * - Modo Spark (Conexión Directa Firestore) si no está el endpoint pero hay credenciales de base de datos.
  * 
  * @param {number} totalVentas - Monto total acumulado facturado en el mes.
- * @param {number} comisionPorcentaje - Porcentaje comisionado pactado con el desarrollador.
+ * @param {object|number} billingConfigOrPercent - Configuración de facturación (o porcentaje legado).
  * @param {string} periodo - Periodo formateado en año-mes (ej: "2026-05").
+ * @param {number} orderCount - Cantidad de pedidos en el periodo.
  */
-export async function reportMonthlyBillingToDeveloper(totalVentas, comisionPorcentaje, periodo) {
-  const comisionValor = (totalVentas * comisionPorcentaje) / 100;
+export async function reportMonthlyBillingToDeveloper(
+  totalVentas,
+  billingConfigOrPercent,
+  periodo,
+  orderCount = 0,
+  totalVentasNetas = null,
+  totalImpuestos = 0,
+  facturasDianCount = 0
+) {
+  let billingMode = 'percentage';
+  let comisionPorcentaje = 1;
+  let montoFijoServicio = 0;
+  let pagoMensualFijo = 0;
+  let comisionValor = 0;
+  let enableDianBilling = false;
+  let costoPorFacturaDian = 0;
+
+  if (billingConfigOrPercent && typeof billingConfigOrPercent === 'object') {
+    billingMode = billingConfigOrPercent.billingMode || 'percentage';
+    comisionPorcentaje = billingConfigOrPercent.comisionPorcentaje ?? 1;
+    montoFijoServicio = billingConfigOrPercent.montoFijoServicio ?? 0;
+    pagoMensualFijo = billingConfigOrPercent.pagoMensualFijo ?? 0;
+    enableDianBilling = billingConfigOrPercent.enableDianBilling === true;
+    costoPorFacturaDian = billingConfigOrPercent.costoPorFacturaDian ?? 0;
+
+    // Si la DIAN está activa, la base comisionable es el subtotal/ventas netas (antes de IVA/impuestos).
+    // Si no está activa, la base comisionable es el total bruto de ventas.
+    const baseComisionable = enableDianBilling ? (totalVentasNetas ?? totalVentas) : totalVentas;
+
+    if (billingMode === 'percentage') {
+      comisionValor = (baseComisionable * comisionPorcentaje) / 100;
+    } else if (billingMode === 'fixed_per_service') {
+      comisionValor = orderCount * montoFijoServicio;
+    } else if (billingMode === 'flat_monthly') {
+      comisionValor = pagoMensualFijo;
+    }
+
+    // Agregar el cobro fijo por amortización de emisión de facturas DIAN
+    if (enableDianBilling && facturasDianCount > 0) {
+      comisionValor += (facturasDianCount * costoPorFacturaDian);
+    }
+  } else {
+    comisionPorcentaje = Number(billingConfigOrPercent) || 1;
+    comisionValor = (totalVentas * comisionPorcentaje) / 100;
+  }
 
   // 1. MODO BLAZE: HTTP Endpoint (Cloud Function)
   if (CENTRAL_ENDPOINT && DEV_TOKEN) {
@@ -68,9 +112,18 @@ export async function reportMonthlyBillingToDeveloper(totalVentas, comisionPorce
         body: JSON.stringify({
           clientId: CLIENT_ID || "desconocido",
           totalVentas,
+          totalVentasNetas: totalVentasNetas ?? totalVentas,
+          totalImpuestos,
+          facturasDianCount,
+          costoPorFacturaDian,
           comisionPorcentaje,
           comisionValor,
-          periodo
+          billingMode,
+          montoFijoServicio,
+          pagoMensualFijo,
+          periodo,
+          orderCount,
+          enableDianBilling
         })
       });
 
@@ -91,7 +144,6 @@ export async function reportMonthlyBillingToDeveloper(totalVentas, comisionPorce
   if (centralDb && DEV_TOKEN && CLIENT_ID) {
     try {
       console.log("[Telemetry] Reportando vía Firestore Directo...");
-      // Guardar el reporte usando una ID única (ej: cliente_periodo)
       const reportId = `${CLIENT_ID}_${periodo}`;
       const reportRef = doc(centralDb, "reportesBilling", reportId);
 
@@ -100,8 +152,17 @@ export async function reportMonthlyBillingToDeveloper(totalVentas, comisionPorce
         token: DEV_TOKEN, // Enviamos el token para validación por reglas de seguridad
         periodo,
         totalVentas,
+        totalVentasNetas: totalVentasNetas ?? totalVentas,
+        totalImpuestos,
+        facturasDianCount,
+        costoPorFacturaDian,
         comisionPorcentaje,
         comisionValor,
+        billingMode,
+        montoFijoServicio,
+        pagoMensualFijo,
+        orderCount,
+        enableDianBilling,
         updatedAt: serverTimestamp(),
       });
 
@@ -112,6 +173,6 @@ export async function reportMonthlyBillingToDeveloper(totalVentas, comisionPorce
     return;
   }
 
-  console.warn("[Telemetry] Transmisión omitida: Faltan variables de configuración.");
+  console.debug("[Telemetry] Modo local: sin conexión central configurada.");
 }
 

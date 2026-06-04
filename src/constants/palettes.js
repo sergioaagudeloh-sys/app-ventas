@@ -469,6 +469,32 @@ export const SEASONAL_EVENTS = {
       textMuted: '#d7ccc8',
       border: '#5c4033'
     }
+  },
+  'custom-brand': {
+    id: 'custom-brand',
+    name: 'Tema Personalizado',
+    light: {
+      primary: 'var(--color-primary-custom, #0ea5e9)',
+      secondary: 'var(--color-secondary-custom, #3b82f6)',
+      accent: 'var(--color-primary-custom, #0ea5e9)',
+      bg: 'var(--color-bg-custom, #ffffff)',
+      surface: 'var(--color-surface-custom, #f8fafc)',
+      surface2: 'var(--color-surface-2-custom, #f1f5f9)',
+      text: 'var(--color-text-custom, #0f172a)',
+      textMuted: '#64748b',
+      border: 'var(--color-border-custom, #e2e8f0)'
+    },
+    dark: {
+      primary: 'var(--color-primary-custom, #0ea5e9)',
+      secondary: 'var(--color-secondary-custom, #3b82f6)',
+      accent: 'var(--color-primary-custom, #0ea5e9)',
+      bg: 'var(--color-bg-custom-dark, #080f1e)',
+      surface: 'var(--color-surface-custom-dark, #0d1a2e)',
+      surface2: 'var(--color-surface-2-custom-dark, #112238)',
+      text: 'var(--color-text-custom-dark, #f0f7ff)',
+      textMuted: '#cbd5e1',
+      border: 'var(--color-border-custom-dark, #1e3a5f)'
+    }
   }
 }
 

@@ -1224,8 +1224,9 @@ export default function AdminSettings() {
       const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       reportMonthlyBillingToDeveloper(
         billingMetrics.totalMes || 0,
-        billingMetrics.commissionPercent || 1,
-        periodo
+        billingMetrics,
+        periodo,
+        billingMetrics.pedidosMes || 0
       )
     }
   }, [billingLoading, billingMetrics])
@@ -1578,7 +1579,15 @@ export default function AdminSettings() {
         promoImageUrl: ''
       },
       tablesEnabled: state.tablesEnabled ?? false,
-      commercialOptimization: mergeCommercialOptimization(state.commercialOptimization)
+      commercialOptimization: mergeCommercialOptimization(state.commercialOptimization),
+      dianSettings: state.dianSettings || {
+        enabled: false,
+        razonSocial: '',
+        nit: '',
+        digitoVerificacion: '',
+        emailFiscal: '',
+        ivaPorDefecto: 19
+      }
     }
   })
 
@@ -1675,7 +1684,15 @@ export default function AdminSettings() {
           promoImageUrl: ''
         },
         tablesEnabled: config.tablesEnabled ?? false,
-        commercialOptimization: mergeCommercialOptimization(config.commercialOptimization)
+        commercialOptimization: mergeCommercialOptimization(config.commercialOptimization),
+        dianSettings: config.dianSettings || {
+          enabled: false,
+          razonSocial: '',
+          nit: '',
+          digitoVerificacion: '',
+          emailFiscal: '',
+          ivaPorDefecto: 19
+        }
       })
       setIsFormInitialized(true)
     }
@@ -1847,7 +1864,7 @@ export default function AdminSettings() {
   // Developer Zone handlers - Restauración real de la aplicación a cero
   const handleFullReset = async () => {
     if (confirmRestoreText !== 'RESTAURAR') return
-    if (!window.confirm('¿Estás COMPLETAMENTE SEGURO de restaurar la aplicación? Se eliminarán de forma REAL y permanente todos los productos, categorías, pedidos, créditos, cupones, anuncios y usuarios (excepto tu cuenta de administrador actual). Esta acción no se puede deshacer.')) return
+    if (!window.confirm('¿Estás COMPLETAMENTE SEGURO de restaurar la aplicación? Se eliminarán de forma REAL y permanente absolutamente todos los productos, categorías, pedidos, créditos, cupones, anuncios, notificaciones, logs, mesas y la configuración del negocio. Serás redirigido a la pantalla de registro inicial. Esta acción no se puede deshacer.')) return
 
     setLoading(true)
     setMessage({ type: 'success', text: 'Restaurando base de datos a cero (borrado real)...' })
@@ -1859,13 +1876,39 @@ export default function AdminSettings() {
         COLLECTIONS.ORDERS,
         COLLECTIONS.CREDITS,
         'coupons',
-        'ads'
+        'ads',
+        'notifications',
+        'clientNotifications',
+        'fcmTokens',
+        'accessLogs',
+        'qrAnalytics',
+        'trackingAnalytics',
+        'users',
+        'wholesaleOrders',
+        'deliveries',
+        'employees',
+        'production',
+        'tableRequests',
+        'tables',
+        'config'
       ]
 
       const deletedCount = await resetAppData(collectionsToClean, 'sergioaagudeloh@gmail.com')
 
       setConfirmRestoreText('')
-      setMessage({ type: 'success', text: `¡Restauración exitosa! Se eliminaron un total de ${deletedCount} registros de negocio de forma permanente. La aplicación está lista en cero.` })
+      setMessage({ type: 'success', text: `¡Restauración exitosa! Se eliminaron un total de ${deletedCount} registros. Redirigiendo al inicio de sesión...` })
+      
+      // Cerrar sesión y redirigir
+      setTimeout(async () => {
+        try {
+          await signOutAdmin()
+          useAuthStore.getState().logout()
+          navigate('/', { replace: true })
+        } catch (e) {
+          window.location.href = '/'
+        }
+      }, 2000)
+
     } catch (error) {
       console.error(error)
       setMessage({ type: 'error', text: 'Error al restaurar la aplicación: ' + error.message })
@@ -2658,6 +2701,21 @@ export default function AdminSettings() {
                 <ChevronRight size={18} className="text-muted shrink-0" />
               </button>
 
+              {/* Facturación Electrónica DIAN */}
+              <button
+                onClick={() => setActiveSubSection('dian')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-500/10">
+                  <Receipt size={20} className="text-emerald-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Facturación Electrónica (DIAN)</p>
+                  <p className="text-xs text-muted mt-0.5">Configura los datos fiscales del negocio para la emisión de facturas oficiales.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
               {/* Configuración de Mesas */}
               {formData.tablesEnabled && (
                 <button
@@ -2679,6 +2737,135 @@ export default function AdminSettings() {
           </div>
         ) : (
           <div className="bg-surface rounded-3xl border border-app shadow-sm flex flex-col relative">
+
+            {/* SUBSECCIÓN FORM: Facturación Electrónica DIAN */}
+            {activeSubSection === 'dian' && (
+              <div className="p-5 sm:p-6 space-y-6">
+                <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app shadow-sm">
+                  <div>
+                    <p className="text-sm font-bold text-app">Habilitar Facturación Electrónica (Colombia)</p>
+                    <p className="text-xs text-muted mt-0.5">Activa la recopilación de datos fiscales de la DIAN en el checkout</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                    <input type="checkbox" className="sr-only peer"
+                      checked={formData.dianSettings?.enabled ?? false}
+                      onChange={async (e) => {
+                        const checked = e.target.checked
+                        const newDian = { ...(formData.dianSettings || {}), enabled: checked }
+                        setFormData({ ...formData, dianSettings: newDian })
+                        try {
+                          await updateAppConfig({ dianSettings: newDian })
+                          setSaveMessage({ type: 'success', text: checked ? 'Facturación electrónica activada.' : 'Facturación electrónica desactivada.' })
+                          setTimeout(() => setSaveMessage(null), 3000)
+                        } catch (err) {
+                          console.error(err)
+                        }
+                      }} />
+                    <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                  </label>
+                </div>
+
+                {formData.dianSettings?.enabled && (
+                  <div className="space-y-4 pt-2">
+                    <h3 className="text-sm font-bold text-app border-b border-app pb-2">Información Fiscal del Negocio</h3>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-muted mb-1.5">Razón Social</label>
+                        <input
+                          type="text"
+                          value={formData.dianSettings?.razonSocial || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            dianSettings: { ...formData.dianSettings, razonSocial: e.target.value }
+                          })}
+                          placeholder="Ej. Mi Negocio SAS"
+                          className="w-full h-11 px-3.5 rounded-xl bg-surface-2 border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-9">
+                          <label className="block text-xs font-bold text-muted mb-1.5">NIT</label>
+                          <input
+                            type="text"
+                            value={formData.dianSettings?.nit || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              dianSettings: { ...formData.dianSettings, nit: e.target.value }
+                            })}
+                            placeholder="Ej. 901234567"
+                            className="w-full h-11 px-3.5 rounded-xl bg-surface-2 border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="block text-xs font-bold text-muted mb-1.5">DV</label>
+                          <input
+                            type="text"
+                            maxLength={1}
+                            value={formData.dianSettings?.digitoVerificacion || ''}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              dianSettings: { ...formData.dianSettings, digitoVerificacion: e.target.value }
+                            })}
+                            placeholder="0"
+                            className="w-full h-11 text-center rounded-xl bg-surface-2 border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted mb-1.5">Correo Electrónico Fiscal</label>
+                        <input
+                          type="email"
+                          value={formData.dianSettings?.emailFiscal || ''}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            dianSettings: { ...formData.dianSettings, emailFiscal: e.target.value }
+                          })}
+                          placeholder="factura@minegocio.com"
+                          className="w-full h-11 px-3.5 rounded-xl bg-surface-2 border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-muted mb-1.5">IVA por defecto (%)</label>
+                        <input
+                          type="number"
+                          value={formData.dianSettings?.ivaPorDefecto ?? 19}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            dianSettings: { ...formData.dianSettings, ivaPorDefecto: Number(e.target.value) }
+                          })}
+                          placeholder="19"
+                          className="w-full h-11 px-3.5 rounded-xl bg-surface-2 border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-4 border-t border-app">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await updateAppConfig({ dianSettings: formData.dianSettings })
+                            setSaveMessage({ type: 'success', text: 'Datos fiscales de la DIAN guardados correctamente.' })
+                            setTimeout(() => setSaveMessage(null), 3000)
+                          } catch (err) {
+                            console.error(err)
+                            setSaveMessage({ type: 'error', text: 'Error al guardar datos fiscales.' })
+                            setTimeout(() => setSaveMessage(null), 3000)
+                          }
+                        }}
+                        className="h-10 px-5 rounded-xl bg-primary text-white text-sm font-bold active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                      >
+                        <Save size={16} /> Guardar Ajustes Fiscales
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* SUBSECCIÓN FORM: Configuración de Mesas */}
             {activeSubSection === 'mesas' && (
@@ -5527,58 +5714,26 @@ export default function AdminSettings() {
                   )}
 
                   <div className="bg-surface rounded-2xl border border-app overflow-hidden">
-                    <div className="px-5 pt-5 pb-4">
-                      <p className="text-sm font-bold text-app mb-1">Porcentaje de comisión</p>
-                      <p className="text-xs text-muted mb-4">Se aplica sobre el total de cada pedido completado.</p>
-                      <div className="flex gap-3 items-end">
-                        <div className="flex-1">
-                          <label className="text-xs font-bold text-app mb-1.5 block">Comisión por venta (%)</label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={inputVal}
-                              onChange={(e) => {
-                                const raw = e.target.value.replace(/[^0-9.]/g, '')
-                                const parts = raw.split('.')
-                                const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : raw
-                                setCommissionInput(cleaned)
-                              }}
-                              onBlur={(e) => {
-                                if (e.target.value.trim() === '') {
-                                  setCommissionInput(String(currentPercent))
-                                } else {
-                                  const num = parseFloat(e.target.value)
-                                  setCommissionInput(isNaN(num) ? String(currentPercent) : String(num))
-                                }
-                              }}
-                              className="w-full h-11 pl-3 pr-8 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted">%</span>
-                          </div>
+                    <div className="px-5 py-4">
+                      <p className="text-sm font-bold text-app mb-1">Modelo de Facturación SaaS</p>
+                      <p className="text-xs text-muted mb-4">Configurado de manera centralizada desde el Dashboard del Desarrollador.</p>
+                      <div className="p-3.5 bg-surface-2 border border-app rounded-xl space-y-2.5">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-muted">Método Activo:</span>
+                          <span className="font-bold text-emerald-500 uppercase">
+                            {billingMetrics?.billingMode === 'percentage' && 'Porcentaje por Venta'}
+                            {billingMetrics?.billingMode === 'fixed_per_service' && 'Valor Fijo por Servicio'}
+                            {billingMetrics?.billingMode === 'flat_monthly' && 'Pago Mensual Fijo'}
+                          </span>
                         </div>
-                        <button
-                          onClick={async () => {
-                            const num = parseFloat(inputVal)
-                            if (!isNaN(num) && num >= 0) {
-                              try {
-                                await savePercent(num)
-                                setCommissionInput(null)
-                                setSaveMessage({ type: 'success', text: `Comisión actualizada al ${num}%` })
-                                setTimeout(() => setSaveMessage(null), 3000)
-                              } catch (error) {
-                                setSaveMessage({ type: 'error', text: 'Error al actualizar la comisión.' })
-                                setTimeout(() => setSaveMessage(null), 3000)
-                              }
-                            }
-                          }}
-                          disabled={billingIsSaving}
-                          className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
-                          style={{ background: 'var(--color-primary)', color: 'white' }}
-                        >
-                          <Save size={16} className={billingIsSaving ? 'animate-spin opacity-40' : ''} />
-                          {billingIsSaving ? 'Guardando...' : 'Guardar'}
-                        </button>
+                        <div className="flex justify-between items-center text-xs border-t border-app pt-2.5">
+                          <span className="font-semibold text-muted">Tarifa Pactada:</span>
+                          <span className="font-bold text-app">
+                            {billingMetrics?.billingMode === 'percentage' && `${billingMetrics?.comisionPorcentaje}%`}
+                            {billingMetrics?.billingMode === 'fixed_per_service' && `${fmt(billingMetrics?.montoFijoServicio)} por pedido`}
+                            {billingMetrics?.billingMode === 'flat_monthly' && `${fmt(billingMetrics?.pagoMensualFijo)} al mes`}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -6593,60 +6748,27 @@ export default function AdminSettings() {
               </div>
             )}
 
-            {/* Configuración del porcentaje */}
             <div className="bg-surface rounded-2xl border border-app overflow-hidden">
-              <div className="px-5 pt-5 pb-4">
-                <p className="text-sm font-bold text-app mb-1">Porcentaje de comisión</p>
-                <p className="text-xs text-muted mb-4">Se aplica sobre el total de cada pedido completado.</p>
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-app mb-1.5 block">Comisión por venta (%)</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={inputVal}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/[^0-9.]/g, '')
-                          const parts = raw.split('.')
-                          const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : raw
-                          setCommissionInput(cleaned)
-                        }}
-                        onBlur={(e) => {
-                          if (e.target.value.trim() === '') {
-                            setCommissionInput(String(currentPercent))
-                          } else {
-                            const num = parseFloat(e.target.value)
-                            setCommissionInput(isNaN(num) ? String(currentPercent) : String(num))
-                          }
-                        }}
-                        className="w-full h-11 pl-3 pr-8 rounded-xl bg-surface-2 border border-app text-sm text-app focus:outline-none focus:border-emerald-500 transition-colors"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted">%</span>
-                    </div>
+              <div className="px-5 py-4">
+                <p className="text-sm font-bold text-app mb-1">Modelo de Facturación SaaS</p>
+                <p className="text-xs text-muted mb-4">Configurado de manera centralizada desde el Dashboard del Desarrollador.</p>
+                <div className="p-3.5 bg-surface-2 border border-app rounded-xl space-y-2.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-muted">Método Activo:</span>
+                    <span className="font-bold text-emerald-500 uppercase">
+                      {billingMetrics?.billingMode === 'percentage' && 'Porcentaje por Venta'}
+                      {billingMetrics?.billingMode === 'fixed_per_service' && 'Valor Fijo por Servicio'}
+                      {billingMetrics?.billingMode === 'flat_monthly' && 'Pago Mensual Fijo'}
+                    </span>
                   </div>
-                  <button
-                    onClick={async () => {
-                      const num = parseFloat(inputVal)
-                      if (!isNaN(num) && num >= 0) {
-                        try {
-                          await savePercent(num)
-                          setCommissionInput(null)
-                          setSaveMessage({ type: 'success', text: `Comisión actualizada al ${num}%` })
-                          setTimeout(() => setSaveMessage(null), 3000)
-                        } catch (error) {
-                          setSaveMessage({ type: 'error', text: 'Error al actualizar la comisión.' })
-                          setTimeout(() => setSaveMessage(null), 3000)
-                        }
-                      }
-                    }}
-                    disabled={billingIsSaving}
-                    className="h-11 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center gap-2 shrink-0 disabled:opacity-60"
-                    style={{ background: 'var(--color-primary)', color: 'white' }}
-                  >
-                    <Save size={16} className={billingIsSaving ? 'animate-spin opacity-40' : ''} />
-                    {billingIsSaving ? 'Guardando...' : 'Guardar'}
-                  </button>
+                  <div className="flex justify-between items-center text-xs border-t border-app pt-2.5">
+                    <span className="font-semibold text-muted">Tarifa Pactada:</span>
+                    <span className="font-bold text-app">
+                      {billingMetrics?.billingMode === 'percentage' && `${billingMetrics?.comisionPorcentaje}%`}
+                      {billingMetrics?.billingMode === 'fixed_per_service' && `${fmt(billingMetrics?.montoFijoServicio)} por pedido`}
+                      {billingMetrics?.billingMode === 'flat_monthly' && `${fmt(billingMetrics?.pagoMensualFijo)} al mes`}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
