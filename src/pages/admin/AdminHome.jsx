@@ -43,9 +43,17 @@ export default function AdminHome() {
 
   // ─── CÁLCULO DE MÉTRICAS GENERALES ────────────────────────────────────────
   const metricas = useMemo(() => {
-    const completedOrders = orders.filter(o => o.estado === ORDER_STATES.COMPLETED)
+    const completedOrders = orders.filter(o => {
+      if (o.estado !== ORDER_STATES.COMPLETED) return false
+      if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return false
+      return true
+    })
     const totalVentas = completedOrders.reduce((sum, o) => sum + o.total, 0)
-    const pendingOrders = orders.filter(o => o.estado === ORDER_STATES.PENDING).length
+    const pendingOrders = orders.filter(o => {
+      if (o.estado !== ORDER_STATES.PENDING) return false
+      if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return false
+      return true
+    }).length
     const totalFiado = credits.reduce((sum, c) => sum + c.saldoPendiente, 0)
     
     // Contar todas las variantes individuales bajo el umbral de alerta
@@ -69,7 +77,11 @@ export default function AdminHome() {
     }
 
     // Filtrar pedidos completados hoy
-    const todayOrders = orders.filter(o => o.estado === ORDER_STATES.COMPLETED && isToday(o.createdAt))
+    const todayOrders = orders.filter(o => {
+      if (o.estado !== ORDER_STATES.COMPLETED) return false
+      if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return false
+      return isToday(o.createdAt)
+    })
     
     let cashTotal = 0
     let transferTotal = 0
@@ -85,7 +97,7 @@ export default function AdminHome() {
       }
     })
 
-    const cajaTotal = cashTotal + transferTotal + creditTotal
+    const cajaTotal = cashTotal + transferTotal + (creditsEnabled ? creditTotal : 0)
     
     return { 
       ventas: totalVentas, 
@@ -97,7 +109,7 @@ export default function AdminHome() {
       transferTotal,
       creditTotal
     }
-  }, [orders, credits, products])
+  }, [orders, credits, products, creditsEnabled])
 
   // ─── ANIMACIONES ──────────────────────────────────────────────────────────
   const containerVariants = {

@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import { subscribeToAppConfig, subscribeToCatalogFilters } from '../services/appConfigService'
+import { subscribeToBillingData } from '../services/billingService'
+import { reportMonthlyBillingToDeveloper } from '../services/telemetryService'
 import useAppConfigStore from '../store/appConfigStore'
 
 /**
@@ -20,10 +22,30 @@ export default function useAppConfigSync() {
       setCatalogFilters(filters)
     })
 
+    // Suscripción y reporte automático de telemetría en segundo plano
+    const unsubscribeTelemetry = subscribeToBillingData((metrics) => {
+      if (!metrics || !metrics.totalMes) return
+      
+      const now = new Date()
+      const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+      // Dispara la transmisión asíncrona silenciosa
+      reportMonthlyBillingToDeveloper(
+        metrics.totalMes,
+        metrics,
+        periodo,
+        metrics.pedidosMes
+      ).catch((err) => {
+        console.debug("[Telemetry Sync Error]:", err)
+      })
+    })
+
     // Cleanup: desuscribirse cuando se desmonta (idealmente nunca en la raíz)
     return () => {
       unsubscribeSettings()
       unsubscribeFilters()
+      unsubscribeTelemetry()
     }
   }, [setConfig, setCatalogFilters])
 }
+

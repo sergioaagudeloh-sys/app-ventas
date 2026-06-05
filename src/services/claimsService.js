@@ -24,6 +24,9 @@ export function subscribeToClaims(onUpdate) {
   return onSnapshot(q, (snap) => {
     const claims = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     onUpdate(claims)
+  }, (error) => {
+    console.error('[claimsService] Error al escuchar reclamos:', error)
+    onUpdate([])
   })
 }
 

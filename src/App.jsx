@@ -8,6 +8,7 @@ import ScrollToTop from './components/common/ScrollToTop'
 import CartDrawer from './components/client/cart/CartDrawer'
 import GuidedToast from './components/ui/GuidedToast'
 import PWAInstallBanner from './components/ui/PWAInstallBanner'
+import ConnectivityToast from './components/ui/ConnectivityToast'
 import useAppConfigStore from './store/appConfigStore'
 import useAppConfigSync from './hooks/useAppConfigSync'
 import useAuthInit from './hooks/useAuthInit'
@@ -254,6 +255,7 @@ export default function App() {
             <AppRoutes />
             <CartDrawer />
             <GuidedToast />
+            <ConnectivityToast />
             <PWAInstallBanner />
           </BrowserRouter>
         </MotionConfig>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import NumberInput from '../../ui/NumberInput'
+import CurrencyInput from '../../ui/CurrencyInput'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Plus, Trash2, Image as ImageIcon, ChevronDown, Check, Sparkles, Camera, UploadCloud } from 'lucide-react'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
@@ -185,6 +186,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   const [variantUploadProgress, setVariantUploadProgress] = useState({})
   const [loadingGalleryIndex, setLoadingGalleryIndex] = useState(null)
   const [galleryProgress, setGalleryProgress] = useState(0)
+  const [tempGalleryUrl, setTempGalleryUrl] = useState('')
 
   const getVariantFilter = (variantId) => {
     return variantFilters[variantId] || { category: 'ropa', group: 'hombre' }
@@ -204,6 +206,16 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
   const [currentDraftId, setCurrentDraftId] = useState(null)
   const [currentDraftFilePath, setCurrentDraftFilePath] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
+
+  const unsubscribeIARef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (unsubscribeIARef.current) {
+        unsubscribeIARef.current()
+      }
+    }
+  }, [])
 
   // Estados del Wizard (Solo creación)
   const [currentStep, setCurrentStep] = useState(1)
@@ -279,7 +291,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
       })
 
       const docRef = doc(db, "draft_products", draftId)
-      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      unsubscribeIARef.current = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists() && docSnap.data().suggestions) {
           const suggestions = docSnap.data().suggestions
           setFormData(prev => ({
@@ -292,8 +304,14 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             seoDescription: suggestions.seoDescription || prev.seoDescription,
           }))
           setLoadingIA(false)
-          unsubscribe()
+          if (unsubscribeIARef.current) {
+            unsubscribeIARef.current()
+            unsubscribeIARef.current = null
+          }
         }
+      }, (error) => {
+        console.error("Error al escuchar sugerencias IA:", error)
+        setLoadingIA(false)
       })
     } catch (err) {
       console.error(err)
@@ -697,7 +715,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-app/40 border-dashed">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-app/40 border-dashed">
                 <div>
                   <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">SKU (Opcional)</label>
                   <input
@@ -705,16 +723,6 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                     placeholder="Ej. SKU-ROJO-M"
                     value={variant.sku || ''}
                     onChange={(e) => handleVariantChange(variant.id, 'sku', e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-muted mb-1 block uppercase">Precio Propio (Opcional)</label>
-                  <input
-                    type="number"
-                    placeholder="Usa precio base si vacío"
-                    value={variant.precio || ''}
-                    onChange={(e) => handleVariantChange(variant.id, 'precio', e.target.value)}
                     className="w-full h-9 px-3 rounded-lg border border-app bg-surface text-[11px] focus:border-primary outline-none"
                   />
                 </div>
@@ -757,28 +765,37 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                         </button>
                       </div>
                     ) : (
-                      <div className="flex gap-1.5 w-full">
-                        <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
-                          <UploadCloud size={13} className="text-muted group-hover:text-primary transition-colors" />
-                          <span>Galería</span>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            onChange={(e) => handleVariantImageUpload(variant.id, e)} 
-                            className="hidden" 
-                          />
-                        </label>
-                        <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
-                          <Camera size={13} className="text-muted group-hover:text-primary transition-colors" />
-                          <span>Cámara</span>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            capture="environment" 
-                            onChange={(e) => handleVariantImageUpload(variant.id, e)} 
-                            className="hidden" 
-                          />
-                        </label>
+                      <div className="flex flex-col gap-1.5 w-full">
+                        <div className="flex gap-1.5 w-full">
+                          <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
+                            <UploadCloud size={13} className="text-muted group-hover:text-primary transition-colors" />
+                            <span>Galería</span>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => handleVariantImageUpload(variant.id, e)} 
+                              className="hidden" 
+                            />
+                          </label>
+                          <label className="flex-1 h-9 bg-surface-2 hover:bg-surface border border-app rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-bold text-app cursor-pointer transition-colors active:scale-95 group">
+                            <Camera size={13} className="text-muted group-hover:text-primary transition-colors" />
+                            <span>Cámara</span>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              capture="environment" 
+                              onChange={(e) => handleVariantImageUpload(variant.id, e)} 
+                              className="hidden" 
+                            />
+                          </label>
+                        </div>
+                        <input
+                          type="url"
+                          placeholder="O enlace directo (URL)..."
+                          value={variant.imageUrl || ''}
+                          onChange={(e) => handleVariantChange(variant.id, 'imageUrl', e.target.value)}
+                          className="w-full h-8 px-2.5 rounded-lg border border-app bg-surface text-[10px] text-app focus:border-primary outline-none"
+                        />
                       </div>
                     )}
                   </div>
@@ -904,7 +921,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
         sku: v.sku || '',
         nombre: v.nombre || '',
         imageUrl: v.imageUrl || '',
-        precio: v.precio !== '' && v.precio !== undefined && v.precio !== null ? Number(v.precio) : '',
+        precio: '',
         precioCosto: v.precioCosto !== '' && v.precioCosto !== undefined && v.precioCosto !== null ? Number(v.precioCosto) : ''
       }))
     } else {
@@ -925,6 +942,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     // Preparar datos para validación Zod
     const dataToValidate = {
       ...formData,
+      estado: formData.estado || undefined,
       categoria: categoriaNombre,
       precioBase: Number(formData.precioBase),
       precioMayorista: formData.precioMayorista ? Number(formData.precioMayorista) : undefined,
@@ -1128,35 +1146,69 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               {showSecondaryGallery && (
                 <div className="bg-surface-2 p-4 rounded-2xl border border-app mt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-app uppercase tracking-wider block">Imágenes Secundarias</span>
-                      <span className="text-[10px] text-muted block mt-0.5">Agrega otras fotos para el carrusel de detalle.</span>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-app uppercase tracking-wider block">Imágenes Secundarias</span>
+                        <span className="text-[10px] text-muted block mt-0.5">Agrega otras fotos para el carrusel de detalle.</span>
+                      </div>
+                      <div className="flex gap-1.5 shrink-0">
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                          <UploadCloud size={14} className="text-primary shrink-0" />
+                          <span>Galería</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                            className="hidden" 
+                            disabled={loadingGalleryIndex !== null}
+                          />
+                        </label>
+                        <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
+                          <Camera size={14} className="text-primary shrink-0" />
+                          <span>Cámara</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            capture="environment" 
+                            onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
+                            className="hidden" 
+                            disabled={loadingGalleryIndex !== null}
+                          />
+                        </label>
+                      </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
-                        <UploadCloud size={14} className="text-primary shrink-0" />
-                        <span>Galería</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
-                          className="hidden" 
-                          disabled={loadingGalleryIndex !== null}
-                        />
-                      </label>
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 group">
-                        <Camera size={14} className="text-primary shrink-0" />
-                        <span>Cámara</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          capture="environment" 
-                          onChange={(e) => handleGalleryImageUpload(formData.galeria?.length || 0, e)} 
-                          className="hidden" 
-                          disabled={loadingGalleryIndex !== null}
-                        />
-                      </label>
+                    
+                    {/* Opción 3: Colocar link directo (URL) */}
+                    <div>
+                      <span className="text-[10px] text-muted font-bold block mb-1">O COLOCAR ENLACE DIRECTO (URL):</span>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <ImageIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                          <input
+                            type="url"
+                            value={tempGalleryUrl}
+                            onChange={(e) => setTempGalleryUrl(e.target.value)}
+                            placeholder="https://... (URL de imagen secundaria)"
+                            className="w-full h-10 pl-9 pr-4 rounded-xl bg-surface border border-app text-xs text-app focus:border-primary focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tempGalleryUrl.trim()) {
+                              setFormData(prev => ({
+                                ...prev,
+                                galeria: [...(prev.galeria || []), tempGalleryUrl.trim()]
+                              }))
+                              setTempGalleryUrl('')
+                            }
+                          }}
+                          className="px-4 h-10 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all cursor-pointer active:scale-95 flex items-center justify-center shrink-0 border border-primary/20"
+                        >
+                          Añadir
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1350,7 +1402,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Precio Detal (COP) *</label>
-                <NumberInput
+                <CurrencyInput
                   value={formData.precioBase}
                   onChange={(val) => setFormData({...formData, precioBase: val})}
                   placeholder="Ej. 85000"
@@ -1361,7 +1413,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Precio Mayorista (Opcional)</label>
-                <NumberInput
+                <CurrencyInput
                   value={formData.precioMayorista}
                   onChange={(val) => setFormData({...formData, precioMayorista: val})}
                   placeholder="Ej. 70000"
@@ -1371,7 +1423,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
 
               <div>
                 <label className="block text-xs font-bold text-app mb-1">Precio de Costo (COP) (Opcional)</label>
-                <NumberInput
+                <CurrencyInput
                   value={formData.precioCosto}
                   onChange={(val) => setFormData({...formData, precioCosto: val})}
                   placeholder="Ej. 45000"

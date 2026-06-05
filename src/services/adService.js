@@ -63,5 +63,8 @@ export function subscribeToAds(onUpdate) {
   return onSnapshot(q, (snap) => {
     const ads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     onUpdate(ads)
+  }, (error) => {
+    console.error('[adService] Error al escuchar anuncios:', error)
+    onUpdate([])
   })
 }

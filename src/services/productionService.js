@@ -63,6 +63,9 @@ export function subscribeToProductionOrders(callback) {
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, (error) => {
+    console.error('[productionService] Error al escuchar órdenes de producción:', error)
+    callback([])
   })
 }
 

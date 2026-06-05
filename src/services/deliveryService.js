@@ -327,6 +327,9 @@ export function subscribeToDeliveries(callback, mensajeroId = null) {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     data.sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0))
     callback(data)
+  }, (error) => {
+    console.error('[deliveryService] Error al escuchar entregas activas:', error)
+    callback([])
   })
 }
 
@@ -339,6 +342,9 @@ export function subscribeToAllDeliveries(callback) {
   return onSnapshot(q, snap => {
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     callback(data)
+  }, (error) => {
+    console.error('[deliveryService] Error al escuchar todas las entregas:', error)
+    callback([])
   })
 }
 

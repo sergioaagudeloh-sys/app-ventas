@@ -58,6 +58,9 @@ export function subscribeToActiveSessions(callback) {
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, error => {
+    console.error('[accessLogService] Error al escuchar sesiones activas:', error)
+    callback([])
   })
 }
 
@@ -72,6 +75,9 @@ export function subscribeToRecentLogs(callback, limitCount = 100) {
   )
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, error => {
+    console.error('[accessLogService] Error al escuchar logs recientes:', error)
+    callback([])
   })
 }
 
