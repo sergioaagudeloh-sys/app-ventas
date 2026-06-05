@@ -5,13 +5,15 @@ import { ChevronDown, Check } from 'lucide-react'
 /**
  * Componente unificado CustomSelect.
  * Reemplaza selectores locales repetidos en el panel de inventario y ajustes.
+ * @prop {boolean} dropUp - Si es true, el menú se despliega hacia arriba.
  */
 export default function CustomSelect({
   value,
   onChange,
   options = [],
   placeholder = 'Seleccionar...',
-  emptyOption = null
+  emptyOption = null,
+  dropUp = false,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const selected = options.find(o => o.value === value)
@@ -39,11 +41,13 @@ export default function CustomSelect({
             {/* Overlay para cerrar al hacer click fuera */}
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: dropUp ? 10 : -10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              exit={{ opacity: 0, y: dropUp ? 10 : -10 }}
               transition={{ duration: 0.15 }}
-              className="absolute z-50 top-12 left-0 right-0 mt-1 bg-surface border border-app rounded-2xl shadow-xl overflow-hidden"
+              className={`absolute z-50 left-0 right-0 bg-surface border border-app rounded-2xl shadow-xl overflow-hidden ${
+                dropUp ? 'bottom-12 mb-1' : 'top-12 mt-1'
+              }`}
             >
               <div className="max-h-60 overflow-y-auto no-scrollbar py-2">
                 {emptyOption && (
@@ -82,8 +86,8 @@ export default function CustomSelect({
         )}
       </AnimatePresence>
 
-      {/* Espaciador dinámico para scroll modal */}
-      {isOpen && <div className="h-48 pointer-events-none" />}
+      {/* Espaciador dinámico para scroll modal (solo cuando abre hacia abajo) */}
+      {isOpen && !dropUp && <div className="h-48 pointer-events-none" />}
     </div>
   )
 }

@@ -502,7 +502,10 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
               <div className="grid grid-cols-2 gap-4">
                 {hasColorFilter && (
                   <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-app mb-1 block uppercase">Color Referencial *</label>
+                    <label className="text-[10px] font-bold text-app mb-1 block uppercase">
+                      Color Referencial
+                      <span className="ml-1.5 text-[9px] font-semibold text-muted normal-case tracking-normal bg-surface-2 px-1.5 py-0.5 rounded-full border border-app">(Opcional)</span>
+                    </label>
                     <div className="flex flex-wrap gap-2 items-center bg-surface p-3 rounded-xl border border-app">
                       {PRESET_COLORS.map(c => {
                         const isSelected = variant.color === c.hex || variant.color === c.name
@@ -621,7 +624,8 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                         {/* Fila 3: Grid de Tallas */}
                         <div className="space-y-2 pt-3 border-t border-app/40 border-dashed">
                           <label className="text-[10px] font-bold text-app uppercase tracking-wider block">
-                            Selecciona la Talla *
+                            Selecciona la Talla
+                            <span className="ml-1.5 text-[9px] font-semibold text-muted normal-case tracking-normal bg-surface-2 px-1.5 py-0.5 rounded-full border border-app">(Opcional)</span>
                           </label>
                           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1.5">
                             {(() => {
@@ -839,29 +843,14 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
     }
 
     if (step === 5) {
-      const hasColorFilter = catalogFilters?.colors !== false
-      const hasSizeFilter = catalogFilters?.sizes !== false
-      const hasVariantsEnabled = hasColorFilter || hasSizeFilter
-
-      if (hasVariantsEnabled) {
-        if (!formData.variantes || formData.variantes.length === 0) {
-          stepErrors.variantes = "Debes añadir al menos una variante."
-        } else {
-          formData.variantes.forEach((v, index) => {
-            if (hasColorFilter && (!v.color || !v.color.trim())) {
-              stepErrors[`variantes.${index}.color`] = `El color es obligatorio.`
-            }
-            if (hasSizeFilter && (!v.talla || !v.talla.trim())) {
-              stepErrors[`variantes.${index}.talla`] = `La talla es obligatoria.`
-            }
-            if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
-              stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
-            }
-          })
-        }
+      // Solo el stock es obligatorio y debe ser un número válido >= 0.
+      // Color, talla y demás campos de variante son opcionales (decisión del admin).
+      if (!formData.variantes || formData.variantes.length === 0) {
+        stepErrors.variantes = 'Debes añadir al menos una variante.'
       } else {
         formData.variantes.forEach((v, index) => {
-          if (v.stock === '' || isNaN(Number(v.stock)) || Number(v.stock) < 0) {
+          const stockNum = v.stock === '' ? NaN : Number(v.stock)
+          if (isNaN(stockNum) || stockNum < 0) {
             stepErrors[`variantes.${index}.stock`] = `El stock de la variante ${index + 1} no puede ser negativo.`
           }
         })
@@ -1306,6 +1295,7 @@ export default function ProductFormModal({ isOpen, onClose, onSave, initialData 
                   options={categories.map(c => ({ value: c.id, label: c.nombre }))}
                   placeholder="Selecciona una categoría..."
                   emptyOption="Sin categoría"
+                  dropUp={true}
                 />
                 {errors.categoriaId && <p className="text-error text-xs mt-1">{errors.categoriaId}</p>}
               </div>

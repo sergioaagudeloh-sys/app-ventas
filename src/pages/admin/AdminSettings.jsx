@@ -3717,19 +3717,7 @@ export default function AdminSettings() {
                     </label>
                   </div>
 
-                  {/* Switch Mesas y QR */}
-                  <div className="flex items-center justify-between p-4 bg-surface-2 rounded-2xl border border-app">
-                    <div>
-                      <p className="text-sm font-bold text-app">Módulo de Pedidos en Mesa y Autoservicio QR</p>
-                      <p className="text-xs text-muted mt-0.5">Habilita el mapa de salón para meseros, comandas para cocina a la mesa, y autogestión de clientes por escaneo de QR.</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                      <input type="checkbox" className="sr-only peer"
-                        checked={formData.tablesEnabled || false}
-                        onChange={(e) => setFormData({ ...formData, tablesEnabled: e.target.checked })} />
-                      <div className="w-11 h-6 bg-app/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
-                    </label>
-                  </div>
+
                 </div>
 
                 <div className="p-5 border-t border-app bg-surface-2/30">

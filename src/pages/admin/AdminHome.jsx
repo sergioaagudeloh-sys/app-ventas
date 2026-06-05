@@ -143,7 +143,7 @@ export default function AdminHome() {
             src={appIcon} 
             alt={appName || 'Logo'} 
             className="h-48 w-auto max-w-[360px] object-contain shrink-0 hover:scale-105 transition-all duration-300 select-none"
-            style={{ marginTop: '-2rem', marginBottom: '-2rem' }}
+            style={{ marginTop: '0.5rem', marginBottom: '-1.5rem' }}
           />
         ) : (
           <div 
@@ -291,7 +291,7 @@ export default function AdminHome() {
         <h2 className="text-[11px] font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5 opacity-80">
           🚀 Accesos Rápidos
         </h2>
-        <div className={`grid grid-cols-2 ${creditsEnabled ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-2.5`}>
+        <div className={`grid grid-cols-2 ${creditsEnabled ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-2.5`}>
           <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
             <Link to="/admin/inventario" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
               <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
@@ -318,22 +318,6 @@ export default function AdminHome() {
               </Link>
             </motion.div>
           )}
-          <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
-            <Link to="/admin/rendimiento-qr" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
-              <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <QrCode size={16} />
-              </div>
-              <span className="font-bold text-app text-xs tracking-tight">Rendimiento QR</span>
-            </Link>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.025, y: -1.5 }} whileTap={{ scale: 0.975 }}>
-            <Link to="/admin/configuracion" className="flex items-center gap-3 p-2.5 bg-surface rounded-xl border border-app hover:border-primary/50 transition-all hover:bg-surface-2 group h-full">
-              <div className="w-8 h-8 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Settings size={16} />
-              </div>
-              <span className="font-bold text-app text-xs tracking-tight">Configuración</span>
-            </Link>
-          </motion.div>
         </div>
       </motion.div>
 
