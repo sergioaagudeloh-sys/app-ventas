@@ -22,7 +22,7 @@ import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../../constants'
 
 export default function PortalVendedor() {
   const { portalEmployee } = usePortalStore()
-  const { appName, appIcon, whatsappAdmin } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, creditsEnabled } = useAppConfigStore()
   const { data: products = [], isLoading: loadingProducts } = useProducts(true)
   const { data: categories = [] } = useCategories()
   const { mutateAsync: createPhysicalOrder, isPending: isSubmitting } = useCreatePhysicalOrder()
@@ -392,7 +392,7 @@ export default function PortalVendedor() {
               {[
                 { v: PAYMENT_METHODS.CASH, label: 'Efectivo', Icon: Coins },
                 { v: PAYMENT_METHODS.TRANSFER, label: 'Transferencia', Icon: CreditCard },
-                { v: PAYMENT_METHODS.CREDIT, label: 'Crédito', Icon: Wallet },
+                ...(creditsEnabled ? [{ v: PAYMENT_METHODS.CREDIT, label: 'Crédito', Icon: Wallet }] : []),
               ].map(({ v, label, Icon }) => (
                 <button key={v} className={`portal-payment-btn ${paymentMethod === v ? 'portal-payment-btn--active' : ''}`} onClick={() => setPaymentMethod(v)}>
                   <Icon size={16} /><span>{label}</span>

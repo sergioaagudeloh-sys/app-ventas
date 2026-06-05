@@ -39,6 +39,9 @@ export function subscribeToTables(callback) {
   const q = query(collection(db, COL), orderBy('nombre'))
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }, (error) => {
+    console.error('[tableService] Error al escuchar mesas:', error)
+    callback([])
   })
 }
 
@@ -95,6 +98,9 @@ export function subscribeToTableRequests(callback) {
       return tB - tA
     })
     callback(list)
+  }, (error) => {
+    console.error('[tableService] Error al escuchar llamados de mesa:', error)
+    callback([])
   })
 }
 

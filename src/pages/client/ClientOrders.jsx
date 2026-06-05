@@ -14,6 +14,7 @@ import useAppConfigStore from '../../store/appConfigStore'
 import { ORDER_STATES, ORDER_STATE_LABELS, PAYMENT_METHOD_LABELS, GUIDED_MESSAGES, SUPPORT_WHATSAPP } from '../../constants'
 import { formatCurrency } from '../../utils/formatters'
 import Pagination from '../../components/ui/Pagination'
+import EmptyState from '../../components/ui/EmptyState'
 
 // Lazy-load complex modals only when they are needed by the user
 const ClaimRequestModal = lazy(() => import('../../components/client/claims/ClaimRequestModal'))
@@ -828,17 +829,13 @@ export default function ClientOrders() {
       ) : activeTab === 'especial' ? (
         <>
           {activeWholesale.length === 0 && hiddenWholesale.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-              <div className="w-20 h-20 mx-auto bg-surface-2 rounded-full flex items-center justify-center mb-4">
-                <PackagePlus size={32} className="text-muted" />
-              </div>
-              <p className="text-app font-bold text-base mb-1">
-                No hay pedidos especiales aquí
-              </p>
-              <p className="text-sm text-muted px-4">
-                Aquí aparecerán las solicitudes de pedidos especiales que realices.
-              </p>
-            </motion.div>
+            <EmptyState
+              title="No hay pedidos especiales"
+              description="Aquí aparecerán las solicitudes de pedidos especiales de mayorista que realices."
+              icon={PackagePlus}
+              actionLabel="Ver Catálogo"
+              onAction={() => navigate('/tienda/catalogo')}
+            />
           ) : (
             <div className="space-y-6">
               {activeWholesale.length > 0 ? (
@@ -905,17 +902,13 @@ export default function ClientOrders() {
       ) : (
         <>
           {activeOrders.length === 0 && hiddenOrders.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
-              <div className="w-20 h-20 mx-auto bg-surface-2 rounded-full flex items-center justify-center mb-4">
-                <Package size={32} className="text-muted" />
-              </div>
-              <p className="text-app font-bold text-base mb-1">
-                {EMPTY_STATE_MESSAGES[activeFilter]?.title || 'No hay pedidos aquí'}
-              </p>
-              <p className="text-sm text-muted px-4">
-                {EMPTY_STATE_MESSAGES[activeFilter]?.description || 'Aquí aparecerán los pedidos que realices.'}
-              </p>
-            </motion.div>
+            <EmptyState
+              title={EMPTY_STATE_MESSAGES[activeFilter]?.title || 'No hay pedidos aquí'}
+              description={EMPTY_STATE_MESSAGES[activeFilter]?.description || 'Aquí aparecerán los pedidos que realices.'}
+              icon={Package}
+              actionLabel="Explorar Catálogo"
+              onAction={() => navigate('/tienda/catalogo')}
+            />
           ) : (
             <div className="space-y-6">
               {/* Lista de Pedidos Activos */}

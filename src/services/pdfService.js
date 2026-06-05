@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import { formatCurrency } from '../utils/formatters'
 import { ORDER_STATES, PAYMENT_METHODS } from '../constants'
+import useAppConfigStore from '../store/appConfigStore'
 
 // Helper to convert Firestore timestamp or other date representation to a local Date object
 function toLocalDate(ts) {
@@ -15,6 +16,7 @@ function toLocalDate(ts) {
  * Generates and downloads the Financial Sales Report PDF.
  */
 export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }) {
+  const { creditsEnabled } = useAppConfigStore.getState()
   const from = new Date(dateFrom + 'T00:00:00')
   const to = new Date(dateTo + 'T23:59:59')
 
@@ -22,6 +24,7 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }
     if (o.estado !== ORDER_STATES.COMPLETED) return false
     const fecha = toLocalDate(o.createdAt)
     if (!fecha) return false
+    if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return false
     return fecha >= from && fecha <= to
   })
 
@@ -151,9 +154,14 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }
   
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Efectivo: ${formatCurrency(cashTotal)}`, 115, 107)
-  doc.text(`Transferencia: ${formatCurrency(transferTotal)}`, 115, 112)
-  doc.text(`Credito: ${formatCurrency(creditTotal)}`, 115, 117)
+  let currentY = 107
+  doc.text(`Efectivo: ${formatCurrency(cashTotal)}`, 115, currentY)
+  currentY += 5
+  doc.text(`Transferencia: ${formatCurrency(transferTotal)}`, 115, currentY)
+  if (creditsEnabled) {
+    currentY += 5
+    doc.text(`Credito: ${formatCurrency(creditTotal)}`, 115, currentY)
+  }
 
   // Row 3 (Cost & Profit)
   doc.setFillColor(249, 250, 251)

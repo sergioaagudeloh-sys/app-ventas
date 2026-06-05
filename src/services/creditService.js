@@ -126,6 +126,9 @@ export function subscribeToCredits(estado = 'activo', onUpdate) {
     const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     const sorted = credits.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
     onUpdate(sorted)
+  }, (error) => {
+    console.error('[creditService] Error al escuchar créditos activos:', error)
+    onUpdate([])
   })
 }
 
@@ -142,6 +145,9 @@ export function subscribeToClientCredits(celular, onUpdate) {
     const credits = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     const sorted = credits.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0))
     onUpdate(sorted)
+  }, (error) => {
+    console.error('[creditService] Error al escuchar créditos del cliente:', error)
+    onUpdate([])
   })
 }
 

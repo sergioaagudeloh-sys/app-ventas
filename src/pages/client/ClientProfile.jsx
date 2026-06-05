@@ -14,7 +14,7 @@ const EMOJIS = ['😊', '😎', '🦄', '🐶', '🐱', '🦋', '🚀', '🌟', 
 export default function ClientProfile() {
   const { user, logout, updateClient } = useAuthStore()
   const { isAssistanceMode, enableAssistance, disableAssistance, resetProgress } = useGuidedStore()
-  const { guidedModeEnabled, developerPhone, appName } = useAppConfigStore()
+  const { guidedModeEnabled, developerPhone, appName, creditsEnabled } = useAppConfigStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
   const navigate = useNavigate()
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -136,17 +136,20 @@ export default function ClientProfile() {
             <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
           </Link>
           
-          <div className="h-[0.5px] bg-gray-100 mx-2" />
-          
-          <Link to="/tienda/creditos" className="flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 rounded-xl transition-colors group">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-app text-app flex items-center justify-center border border-app group-hover:border-primary/50 transition-colors">
-                <CreditCard size={20} />
-              </div>
-              <span className="font-bold text-sm text-app">Mis Créditos</span>
-            </div>
-            <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
-          </Link>
+          {creditsEnabled && (
+            <>
+              <div className="h-[0.5px] bg-gray-100 mx-2" />
+              <Link to="/tienda/creditos" className="flex items-center justify-between px-3 py-2.5 hover:bg-surface-2 rounded-xl transition-colors group">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-app text-app flex items-center justify-center border border-app group-hover:border-primary/50 transition-colors">
+                    <CreditCard size={20} />
+                  </div>
+                  <span className="font-bold text-sm text-app">Mis Créditos</span>
+                </div>
+                <ChevronRight size={20} className="text-muted group-hover:text-primary transition-colors" />
+              </Link>
+            </>
+          )}
         </div>
 
         {/* ─── DESCARGAR APLICACIÓN ─────────────────────────────────────── */}

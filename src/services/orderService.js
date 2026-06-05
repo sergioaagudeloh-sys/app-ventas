@@ -159,6 +159,9 @@ export function subscribeToOrders(callback) {
   return onSnapshot(q, (snap) => {
     const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     callback(list)
+  }, (error) => {
+    console.error('[orderService] Error al escuchar todos los pedidos:', error)
+    callback([])
   })
 }
 
@@ -189,6 +192,9 @@ export function subscribeToClientOrders(celular, callback) {
       return tB - tA
     })
     callback(sorted)
+  }, (error) => {
+    console.error('[orderService] Error al escuchar pedidos del cliente:', error)
+    callback([])
   })
 }
 

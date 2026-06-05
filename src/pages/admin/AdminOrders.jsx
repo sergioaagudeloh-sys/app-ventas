@@ -46,7 +46,7 @@ const NEXT_STATES = {
 export default function AdminOrders() {
   const { data: orders = [], isLoading } = useOrders()
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus()
-  const { appName, appIcon, whatsappAdmin, deliverySettings, claimsEnabled } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, deliverySettings, claimsEnabled, creditsEnabled, couponsEnabled } = useAppConfigStore()
   const { data: credits = [] } = useCredits('activo')
   const { data: wholesaleRequests = [] } = useWholesaleRequests()
   const { mutate: updateWholesaleStatus } = useUpdateWholesaleStatus()
@@ -95,21 +95,29 @@ export default function AdminOrders() {
     const totalFiados = credits.reduce((sum, c) => sum + c.saldoPendiente, 0)
 
     orders.forEach(o => {
+      if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return
       if (o.estado === ORDER_STATES.PENDING) pendientes++
       if (o.estado === ORDER_STATES.COMPLETED) completados++
     })
 
-    return [
+    const items = [
       { label: 'Pendientes', value: pendientes, icon: Clock, color: 'text-warning' },
       { label: 'Completados', value: completados, icon: CheckCircle, color: 'text-success' },
-      { label: 'Créditos', value: formatCurrency(totalFiados), icon: CreditCard, color: 'text-primary', path: '/admin/credito' },
     ]
-  }, [orders, credits])
+
+    if (creditsEnabled) {
+      items.push({ label: 'Créditos', value: formatCurrency(totalFiados), icon: CreditCard, color: 'text-primary', path: '/admin/credito' })
+    }
+
+    return items
+  }, [orders, credits, creditsEnabled])
 
   // ─── Filtrado ──────────────────────────────────────────────────────────
   const filters = ['Todos', ORDER_STATES.PENDING, ORDER_STATES.COMPLETED, ORDER_STATES.CREDIT_APPROVED, ORDER_STATES.CANCELLED]
 
   const matchesSearchAndFilter = (order) => {
+    if (!creditsEnabled && order.metodoPago === PAYMENT_METHODS.CREDIT) return false
+    
     const matchesSearch = 
       fuzzyMatch(order.orderNumber, searchTerm) ||
       fuzzyMatch(order.cliente?.nombre, searchTerm) ||
@@ -695,7 +703,7 @@ export default function AdminOrders() {
                         <span className="font-semibold text-primary">+{formatCurrency(order.costoEnvio || 0)}</span>
                       </div>
                     )}
-                    {order.descuento > 0 && (
+                    {order.descuento > 0 && couponsEnabled && (
                       <div className="flex justify-between text-muted">
                         <span>🏷️ Descuento:</span>
                         <span className="font-semibold text-green-500">-{formatCurrency(order.descuento)}</span>
@@ -761,7 +769,7 @@ export default function AdminOrders() {
       </div>
 
       {/* Métricas con Rediseño Simétrico */}
-      <div className="grid grid-cols-3 gap-3 md:gap-6 mb-6">
+      <div className={`grid ${creditsEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-3 md:gap-6 mb-6`}>
         {metrics.map((m, i) => {
           const Icon = m.icon
           const isClickable = !!m.path

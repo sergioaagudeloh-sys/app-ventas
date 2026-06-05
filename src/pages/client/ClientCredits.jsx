@@ -62,13 +62,17 @@ export default function ClientCredits() {
     const cleanPhone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
     const mensaje = `Hola, deseo realizar el pago total de mi crédito correspondiente al pedido *#${credit.orderNumber}* por un valor de *${formatCurrency(credit.saldoPendiente)}*. Mi número de celular es ${user?.celular}.`
     
-    await createCreditNotification({
-      type: 'pago_total',
-      clienteNombre: user?.nombre || 'Cliente',
-      clienteCelular: user?.celular || '',
-      monto: credit.saldoPendiente,
-      orderNumber: credit.orderNumber
-    })
+    try {
+      await createCreditNotification({
+        type: 'pago_total',
+        clienteNombre: user?.nombre || 'Cliente',
+        clienteCelular: user?.celular || '',
+        monto: credit.saldoPendiente,
+        orderNumber: credit.orderNumber
+      })
+    } catch (error) {
+      console.error('[ClientCredits] Error al crear la notificación de pago total:', error)
+    }
 
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`, '_blank')
   }
@@ -96,13 +100,17 @@ export default function ClientCredits() {
     const cleanPhone = whatsappAdmin?.replace(/\D/g, '') || SUPPORT_WHATSAPP?.replace(/\D/g, '') || ''
     const mensaje = `Hola, deseo registrar un abono de *${formatCurrency(monto)}* a mi crédito activo correspondiente al pedido *#${selectedCredit.orderNumber}* (el cual tiene un saldo pendiente de ${formatCurrency(selectedCredit.saldoPendiente)}). Mi número de celular es ${user?.celular}.`
     
-    await createCreditNotification({
-      type: 'abono',
-      clienteNombre: user?.nombre || 'Cliente',
-      clienteCelular: user?.celular || '',
-      monto: monto,
-      orderNumber: selectedCredit.orderNumber
-    })
+    try {
+      await createCreditNotification({
+        type: 'abono',
+        clienteNombre: user?.nombre || 'Cliente',
+        clienteCelular: user?.celular || '',
+        monto: monto,
+        orderNumber: selectedCredit.orderNumber
+      })
+    } catch (error) {
+      console.error('[ClientCredits] Error al crear la notificación de abono:', error)
+    }
 
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(mensaje)}`, '_blank')
     setSelectedCredit(null)

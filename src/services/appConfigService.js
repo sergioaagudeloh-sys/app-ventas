@@ -124,6 +124,9 @@ export function subscribeToAppConfig(onUpdate) {
       console.log('[Config] Configuración no encontrada en Firestore. Usando valores de fábrica en memoria...')
       onUpdate(DEFAULT_SETTINGS)
     }
+  }, (error) => {
+    console.error('[appConfigService] Error al escuchar configuración general:', error)
+    onUpdate(DEFAULT_SETTINGS)
   })
 }
 
@@ -139,6 +142,9 @@ export function subscribeToCatalogFilters(onUpdate) {
     } else {
       onUpdate(DEFAULT_FILTERS)
     }
+  }, (error) => {
+    console.error('[appConfigService] Error al escuchar filtros del catálogo:', error)
+    onUpdate(DEFAULT_FILTERS)
   })
 }
 

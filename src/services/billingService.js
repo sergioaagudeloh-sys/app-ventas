@@ -236,6 +236,8 @@ export function subscribeToBillingData(onUpdate) {
   const unsubOrders = onSnapshot(qOrders, (snap) => {
     latestOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
     onUpdate(calcMetrics(latestOrders, latestConfig))
+  }, (error) => {
+    console.error("[Billing] Error al escuchar pedidos completados:", error)
   })
 
   // ─── Suscripción a la configuración de facturación ───────────────────
@@ -269,7 +271,7 @@ export function subscribeToBillingData(onUpdate) {
       onUpdate(calcMetrics(latestOrders, latestConfig))
     }, (err) => {
       console.warn("[Billing] Fallo al leer configuración central, usando fallback local:", err)
-      onSnapshot(SETTINGS_REF, (localSnap) => {
+      unsubSettings = onSnapshot(SETTINGS_REF, (localSnap) => {
         if (localSnap.exists()) {
           const data = localSnap.data()
           latestConfig = {
@@ -282,8 +284,11 @@ export function subscribeToBillingData(onUpdate) {
           }
           onUpdate(calcMetrics(latestOrders, latestConfig))
         }
+      }, (localErr) => {
+        console.error("[Billing] Error al leer fallback de configuración local:", localErr)
       })
     })
+
   } else {
     unsubSettings = onSnapshot(SETTINGS_REF, (snap) => {
       if (snap.exists()) {
@@ -298,6 +303,8 @@ export function subscribeToBillingData(onUpdate) {
         }
         onUpdate(calcMetrics(latestOrders, latestConfig))
       }
+    }, (error) => {
+      console.error("[Billing] Error al escuchar configuración local en billingService:", error)
     })
   }
 

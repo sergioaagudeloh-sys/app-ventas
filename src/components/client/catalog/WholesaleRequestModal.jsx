@@ -79,11 +79,10 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
     }
   }
 
-  if (!isOpen || !product) return null
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      {isOpen && product && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -218,6 +217,7 @@ export default function WholesaleRequestModal({ product, type, isOpen, onClose }
           )}
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   )
 }

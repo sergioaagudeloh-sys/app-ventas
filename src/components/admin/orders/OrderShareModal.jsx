@@ -41,7 +41,6 @@ export default function OrderShareModal({ isOpen, onClose, order }) {
     }
   }, [isOpen, order, trackingLink])
 
-  if (!isOpen || !order) return null
 
   // ─── ACCIÓN: Copiar Enlace al Portapapeles ─────────────────────────────────
   const handleCopyLink = () => {
@@ -139,7 +138,8 @@ export default function OrderShareModal({ isOpen, onClose, order }) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {isOpen && order && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -247,6 +247,7 @@ export default function OrderShareModal({ isOpen, onClose, order }) {
 
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   )
 }

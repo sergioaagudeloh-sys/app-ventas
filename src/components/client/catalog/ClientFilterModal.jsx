@@ -16,6 +16,18 @@ export default function ClientFilterModal({ isOpen, onClose, allProducts, onAppl
     }
   }, [isOpen, currentFilters])
 
+  // Scroll Lock when open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
   // Extract unique values from products
   const uniqueOptions = useMemo(() => {
     const dynamicAttrs = {}
@@ -73,11 +85,10 @@ export default function ClientFilterModal({ isOpen, onClose, allProducts, onAppl
 
   const countActiveLocalFilters = Object.values(localFilters).flat().length
 
-  if (!isOpen) return null
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
+      {isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -212,6 +223,7 @@ export default function ClientFilterModal({ isOpen, onClose, allProducts, onAppl
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   )
 }

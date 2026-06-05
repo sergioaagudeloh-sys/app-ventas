@@ -10,6 +10,7 @@ import { formatCurrency } from '../../utils/formatters'
 import { useProducts } from '../../hooks/useInventory'
 import { exportSalesReportPDF, exportRotationReportPDF } from '../../services/pdfService'
 import CustomDatePicker from '../../components/ui/DatePicker'
+import useAppConfigStore from '../../store/appConfigStore'
 
 
 // ─── Helpers de fecha ────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ export default function AdminSalesDetail() {
   const navigate = useNavigate()
   const { data: orders = [], isLoading } = useOrders()
   const { data: products = [] } = useProducts()
+  const { creditsEnabled } = useAppConfigStore()
   const [dateFrom, setDateFrom] = useState(isoFirstOfMonth)
   const [dateTo, setDateTo] = useState(isoToday)
 
@@ -56,6 +58,7 @@ export default function AdminSalesDetail() {
       if (o.estado !== ORDER_STATES.COMPLETED) return false
       const fecha = toLocalDate(o.createdAt)
       if (!fecha) return false
+      if (!creditsEnabled && o.metodoPago === PAYMENT_METHODS.CREDIT) return false
       return fecha >= from && fecha <= to
     })
 
@@ -84,7 +87,7 @@ export default function AdminSalesDetail() {
       .sort((a, b) => b.cantidad - a.cantidad)
 
     return { total: totalFiltered, cantidad: orderCount, todosLosProductos }
-  }, [orders, products, dateFrom, dateTo])
+  }, [orders, products, dateFrom, dateTo, creditsEnabled])
 
   // Animaciones
   const containerVariants = {

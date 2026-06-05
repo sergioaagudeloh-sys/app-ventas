@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import NumberInput from '../../components/ui/NumberInput'
+import CurrencyInput from '../../components/ui/CurrencyInput'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -43,7 +44,7 @@ export default function AdminSales() {
   const { data: categories = [] } = useCategories()
   const { user: currentAdmin } = useAuthStore()
   const { mutateAsync: createPhysicalOrder, isPending: isSubmitting } = useCreatePhysicalOrder()
-  const { appName, appIcon, whatsappAdmin, bankInfo, bankInfo2 } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, bankInfo, bankInfo2, creditsEnabled } = useAppConfigStore()
 
   // Estados del POS
   const [cart, setCart] = useState([])
@@ -544,8 +545,7 @@ export default function AdminSales() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">Precio unitario</label>
-                    <NumberInput
-                      min={0}
+                    <CurrencyInput
                       value={customItem.precio}
                       onChange={(val) => setCustomItem(p => ({ ...p, precio: val }))}
                       placeholder="Ej. 25000"
@@ -874,7 +874,7 @@ export default function AdminSales() {
             {/* Método de pago */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-muted uppercase tracking-widest block">Método de Pago</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid ${creditsEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                 <button
                   onClick={() => setPaymentMethod(PAYMENT_METHODS.CASH)}
                   className={`py-3 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
@@ -899,17 +899,19 @@ export default function AdminSales() {
                   <span className="text-[10px] font-bold">Transf.</span>
                 </button>
 
-                <button
-                  onClick={() => setPaymentMethod(PAYMENT_METHODS.CREDIT)}
-                  className={`py-3 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
-                    paymentMethod === PAYMENT_METHODS.CREDIT
-                      ? 'bg-primary text-white border-primary shadow-sm'
-                      : 'bg-surface-2 text-app border-app hover:bg-surface-2/80'
-                  }`}
-                >
-                  <CreditCard size={16} />
-                  <span className="text-[10px] font-bold">Fiado</span>
-                </button>
+                {creditsEnabled && (
+                  <button
+                    onClick={() => setPaymentMethod(PAYMENT_METHODS.CREDIT)}
+                    className={`py-3 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                      paymentMethod === PAYMENT_METHODS.CREDIT
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-surface-2 text-app border-app hover:bg-surface-2/80'
+                    }`}
+                  >
+                    <CreditCard size={16} />
+                    <span className="text-[10px] font-bold">Fiado</span>
+                  </button>
+                )}
               </div>
             </div>
 
