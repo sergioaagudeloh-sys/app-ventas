@@ -1815,7 +1815,7 @@ export default function AdminSettings() {
       className={`p-4 md:p-8 mx-auto pb-24 overflow-x-hidden relative ${
         activeSection 
           ? (activeSection === 'marca' || activeSection === 'apariencia' ? 'max-w-6xl' : 'max-w-3xl') 
-          : 'max-w-2xl'
+          : 'max-w-6xl'
       }`}
     >
       {/* Toast de guardado renderizado en Portal para evitar brincos de animación */}
@@ -1904,10 +1904,10 @@ export default function AdminSettings() {
       {/* ─── VISTA: MENÚ PRINCIPAL ─────────────────────────────────────────── */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {!activeSection && (
-        <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
           {/* ── Tarjeta 1: Tienda ─────────────────────────────────── */}
-          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden h-fit">
             <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Tienda</p>
             {['cupones', 'publicidad', 'marca', 'personalizar', 'apariencia'].map((id) => {
               if (id === 'cupones' && !couponsEnabled) return null
@@ -1934,7 +1934,7 @@ export default function AdminSettings() {
           </div>
 
           {/* ── Tarjeta 2: Gestión ────────────────────────────────── */}
-          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden h-fit">
             <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Gestión</p>
             {['ventas', 'seguridad'].map((id) => {
               const section = MENU_SECTIONS.find(s => s.id === id)
@@ -1960,7 +1960,7 @@ export default function AdminSettings() {
           </div>
 
           {/* ── Tarjeta 3: Sistema ────────────────────────────────── */}
-          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-3xl shadow-sm overflow-hidden h-fit">
             <p className="text-[10px] font-black text-muted uppercase tracking-widest px-5 pt-4 pb-2">Sistema</p>
             {['developer', 'pwa'].map((id) => {
               const section = MENU_SECTIONS.find(s => s.id === id)
@@ -1991,7 +1991,7 @@ export default function AdminSettings() {
       {/* Botón Cerrar Sesión (solo en menú principal) */}
       {!activeSection && (
         <>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-8 flex justify-center max-w-sm mx-auto">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/10 transition-all active:scale-95"
