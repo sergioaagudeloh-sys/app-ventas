@@ -75,10 +75,10 @@ export function useProducts(onlyActive = false) {
         return p
       })
 
-      // Pre-cargar imágenes en segundo plano silenciosamente
+      // Pre-cargar imágenes en segundo plano silenciosamente (máx. 12 para no saturar el ancho de banda)
       if (typeof window !== 'undefined') {
         setTimeout(() => {
-          products.forEach(p => {
+          products.slice(0, 12).forEach(p => {
             if (p.imageUrl) {
               const img = new Image()
               img.src = p.imageUrl

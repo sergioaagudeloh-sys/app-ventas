@@ -125,8 +125,8 @@ export async function updateDynamicManifest(appName, appIcon, pwaAppName, pwaApp
 
   // Convertir el JSON a string y codificarlo como un Data URI Base64
   const manifestString = JSON.stringify(manifest)
-  const manifestBlob = new Blob([manifestString], { type: 'application/json' })
-  const manifestUrl = URL.createObjectURL(manifestBlob)
+  const base64Manifest = btoa(unescape(encodeURIComponent(manifestString)))
+  const manifestUrl = `data:application/manifest+json;base64,${base64Manifest}`
 
   // Buscar el tag de manifest existente en el head del index.html
   let link = document.querySelector('link[rel="manifest"]')
