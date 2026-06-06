@@ -1,5 +1,4 @@
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
+// jsPDF y jspdf-autotable se importan dinámicamente en cada función para reducir el bundle inicial del cliente
 import { formatCurrency } from '../utils/formatters'
 import { ORDER_STATES, PAYMENT_METHODS } from '../constants'
 import useAppConfigStore from '../store/appConfigStore'
@@ -15,7 +14,9 @@ function toLocalDate(ts) {
 /**
  * Generates and downloads the Financial Sales Report PDF.
  */
-export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }) {
+export async function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }) {
+  const { jsPDF } = await import('jspdf')
+  const { autoTable } = await import('jspdf-autotable')
   const { creditsEnabled } = useAppConfigStore.getState()
   const from = new Date(dateFrom + 'T00:00:00')
   const to = new Date(dateTo + 'T23:59:59')
@@ -220,7 +221,9 @@ export function exportSalesReportPDF({ dateFrom, dateTo, orders, products = [] }
 /**
  * Generates and downloads the Product Rotation and Inventory Report PDF.
  */
-export function exportRotationReportPDF({ dateFrom, dateTo, orders, products }) {
+export async function exportRotationReportPDF({ dateFrom, dateTo, orders, products }) {
+  const { jsPDF } = await import('jspdf')
+  const { autoTable } = await import('jspdf-autotable')
   const from = new Date(dateFrom + 'T00:00:00')
   const to = new Date(dateTo + 'T23:59:59')
 
@@ -328,7 +331,9 @@ export function exportRotationReportPDF({ dateFrom, dateTo, orders, products }) 
 /**
  * Generates and downloads the Developer Monthly Commission Receipt PDF.
  */
-export function exportDeveloperReceiptPDF({ signatureDataUrl, orders, config, billingMetrics }) {
+export async function exportDeveloperReceiptPDF({ signatureDataUrl, orders, config, billingMetrics }) {
+  const { jsPDF } = await import('jspdf')
+  const { autoTable } = await import('jspdf-autotable')
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth()

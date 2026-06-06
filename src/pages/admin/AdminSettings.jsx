@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -25,6 +25,8 @@ import { formatCurrency } from '../../utils/formatters'
 import LeafletMapPicker from '../../components/ui/LeafletMapPicker'
 import QRCode from 'qrcode'
 import DeliveryCustomMessengerPanel from '../../components/admin/settings/DeliveryCustomMessengerPanel'
+
+const DeveloperDiagnosticsModal = lazy(() => import('../../components/admin/settings/DeveloperDiagnosticsModal'))
 
 // ─── DATOS FICTICIOS (SEEDS) ──────────────────────────────────────────────
 const SEED_CATEGORIES = [
@@ -800,6 +802,31 @@ export default function AdminSettings() {
   const [isDevAuthenticated, setIsDevAuthenticated] = useState(false)
   const [devPinInput, setDevPinInput] = useState('')
   const [devPinError, setDevPinError] = useState(false)
+  
+  // Consola de Diagnóstico de Desarrollador
+  const [versionClicks, setVersionClicks] = useState(0)
+  const [isDevConsoleOpen, setIsDevConsoleOpen] = useState(false)
+
+  const handleVersionClick = () => {
+    const userEmail = auth.currentUser?.email || useAuthStore.getState().user?.email
+    const devEmail = import.meta.env.VITE_DEVELOPER_EMAIL
+    
+    // En desarrollo local (Vite dev mode) omitimos la validación estricta de email para facilitar las pruebas
+    const isLocalDev = import.meta.env.DEV
+    
+    if (!isLocalDev && (!userEmail || !devEmail || userEmail.toLowerCase() !== devEmail.toLowerCase())) {
+      return
+    }
+
+    setVersionClicks((prev) => {
+      const next = prev + 1
+      if (next >= 7) {
+        setIsDevConsoleOpen(true)
+        return 0
+      }
+      return next
+    })
+  }
   const [confirmRestoreText, setConfirmRestoreText] = useState('')
 
   // Navegación de secciones (null = menú principal)
@@ -1963,15 +1990,26 @@ export default function AdminSettings() {
 
       {/* Botón Cerrar Sesión (solo en menú principal) */}
       {!activeSection && (
-        <div className="mt-6 flex justify-center">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/10 transition-all active:scale-95"
-          >
-            <LogOut size={20} />
-            Cerrar Sesión
-          </button>
-        </div>
+        <>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-red-500/5 border border-red-500/20 text-red-500 font-bold hover:bg-red-500/10 transition-all active:scale-95"
+            >
+              <LogOut size={20} />
+              Cerrar Sesión
+            </button>
+          </div>
+          <div className="mt-8 pt-6 border-t border-app flex flex-col items-center justify-center gap-1 select-none">
+            <p 
+              onClick={handleVersionClick}
+              className="text-[11px] font-bold text-muted hover:text-primary transition-colors cursor-pointer"
+            >
+              Prototipe v1.0.0
+            </p>
+            <p className="text-[9px] text-muted opacity-50">Ecosistema Prototipe © {new Date().getFullYear()}</p>
+          </div>
+        </>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -6645,6 +6683,13 @@ export default function AdminSettings() {
           </ThemeModalLock>
         )}
       </AnimatePresence>
+
+      <Suspense fallback={null}>
+        <DeveloperDiagnosticsModal 
+          isOpen={isDevConsoleOpen} 
+          onClose={() => setIsDevConsoleOpen(false)} 
+        />
+      </Suspense>
     </motion.div>
   )
 }

@@ -5,9 +5,7 @@ import {
   where,
   onSnapshot,
   orderBy,
-  getFirestore,
 } from 'firebase/firestore'
-import { initializeApp, getApps, getApp } from 'firebase/app'
 import { db } from '../config/firebaseConfig'
 import { updateAppConfig } from './appConfigService'
 import { COLLECTIONS, ORDER_STATES } from '../constants'
@@ -15,39 +13,9 @@ import { COLLECTIONS, ORDER_STATES } from '../constants'
 const ordersRef = collection(db, COLLECTIONS.ORDERS)
 const SETTINGS_REF = doc(db, 'config', 'settings')
 
-// Variables de entorno para conectar al Firebase Central de Control (Spark mode)
-const CENTRAL_API_KEY = import.meta.env.VITE_DEVELOPER_CENTRAL_API_KEY;
-const CENTRAL_PROJECT_ID = import.meta.env.VITE_DEVELOPER_CENTRAL_PROJECT_ID;
-const CLIENT_ID = import.meta.env.VITE_DEVELOPER_CLIENT_ID;
+import { getCentralFirestore } from './centralFirebaseService'
 
-/**
- * Inicializa y retorna la instancia del Firestore Central de forma perezosa.
- */
-function getCentralFirestore() {
-  if (!CENTRAL_API_KEY || !CENTRAL_PROJECT_ID) {
-    return null;
-  }
-  const appName = "centralDevApp";
-  try {
-    let app;
-    if (getApps().some(a => a.name === appName)) {
-      app = getApp(appName);
-    } else {
-      app = initializeApp({
-        apiKey: CENTRAL_API_KEY,
-        authDomain: import.meta.env.VITE_DEVELOPER_CENTRAL_AUTH_DOMAIN,
-        projectId: CENTRAL_PROJECT_ID,
-        storageBucket: import.meta.env.VITE_DEVELOPER_CENTRAL_STORAGE_BUCKET,
-        messagingSenderId: import.meta.env.VITE_DEVELOPER_CENTRAL_MESSAGING_SENDER_ID,
-        appId: import.meta.env.VITE_DEVELOPER_CENTRAL_APP_ID,
-      }, appName);
-    }
-    return getFirestore(app);
-  } catch (err) {
-    console.error("Error inicializando Firebase Central en Billing:", err);
-    return null;
-  }
-}
+const CLIENT_ID = import.meta.env.VITE_DEVELOPER_CLIENT_ID;
 
 /**
  * Guarda el nuevo porcentaje de comisión del desarrollador en Firestore.

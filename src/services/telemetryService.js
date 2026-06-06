@@ -1,5 +1,4 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Variables de entorno para modo Blaze (HTTP)
 const CENTRAL_ENDPOINT = import.meta.env.VITE_DEVELOPER_TELEMETRY_ENDPOINT;
@@ -14,33 +13,7 @@ const CENTRAL_MESSAGING_SENDER_ID = import.meta.env.VITE_DEVELOPER_CENTRAL_MESSA
 const CENTRAL_APP_ID = import.meta.env.VITE_DEVELOPER_CENTRAL_APP_ID;
 const CLIENT_ID = import.meta.env.VITE_DEVELOPER_CLIENT_ID;
 
-/**
- * Inicializa y retorna la instancia del Firestore Central de forma perezosa.
- */
-function getCentralFirestore() {
-  if (!CENTRAL_API_KEY || !CENTRAL_PROJECT_ID) {
-    return null;
-  }
-
-  const appName = "centralDevApp";
-  let centralApp;
-
-  // Evitar duplicados de inicialización en Hot Reload
-  if (getApps().some(app => app.name === appName)) {
-    centralApp = getApp(appName);
-  } else {
-    centralApp = initializeApp({
-      apiKey: CENTRAL_API_KEY,
-      authDomain: CENTRAL_AUTH_DOMAIN,
-      projectId: CENTRAL_PROJECT_ID,
-      storageBucket: CENTRAL_STORAGE_BUCKET,
-      messagingSenderId: CENTRAL_MESSAGING_SENDER_ID,
-      appId: CENTRAL_APP_ID,
-    }, appName);
-  }
-
-  return getFirestore(centralApp);
-}
+import { getCentralFirestore } from './centralFirebaseService';
 
 /**
  * Reporta los acumulados mensuales de la tienda al panel central del desarrollador.
