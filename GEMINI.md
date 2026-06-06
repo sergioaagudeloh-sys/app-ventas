@@ -41,6 +41,10 @@
     - En todos los casos, se debe realizar la **evaluación de la Hoja de Ruta Maestra** (`hoja_de_ruta_maestro.md`) al finalizar.
     - **REGLA DE DOCUMENTACIÓN CRUZADA:** Cualquier cambio realizado desde este chat sobre un proyecto secundario (distinto de App Ventas) obliga a documentar la bitácora, mapas y tareas dentro del directorio específico de ese proyecto para asegurar la consistencia leída por otras IAs.
   * DISPARADOR RÁPIDO DE EXTRACCIÓN: Siempre que el usuario escriba la palabra **`@extraer-componente`** en cualquier parte de su mensaje, la IA debe activar de manera obligatoria la skill `component-extractor` para auditar el código fuente, extraer la funcionalidad identificada como un componente reutilizable portátil y documentarlo bajo los estándares estrictos de la biblioteca.
+  * DISPARADOR RÁPIDO DE SANDBOX: Siempre que el usuario escriba **`@sandbox [nombre_proyecto] [NombreComponente]`**, la IA debe activar de manera obligatoria la skill `sandbox-integrator`. Esta skill lee el `.md` del componente indicado en la biblioteca, evalúa si es simulable, y ejecuta automáticamente los cambios necesarios en `D:\Aplicaciones\dev-dashboard\src\components\admin\ComponentSandbox.jsx` (playground interactivo si aplica, o entrada en `COMPONENT_META` si no). Siempre verifica el build al finalizar.
+  * DISPARADOR RÁPIDO DE PORTABILIDAD: Siempre que el usuario escriba **`@portar-componente [proyecto_destino] [NombreComponente]`**, la IA debe activar de manera obligatoria la skill `portar-componente`. Esta skill localiza el componente `.md` en la biblioteca, extrae el código, determina la ruta destino correcta en el proyecto, realiza adaptaciones de imports/Firestore, escribe el archivo y comprueba la compilación de producción (`npm run build`).
+
+
 
 - BIBLIOTECA DE COMPONENTES REUTILIZABLES:
   * Al crear un nuevo componente genérico y estable en el código, documéntalo obligatoriamente en `D:\Aplicaciones\Documentacion Proyecto\06_Biblioteca_Componentes\` bajo su subcarpeta correspondiente.
