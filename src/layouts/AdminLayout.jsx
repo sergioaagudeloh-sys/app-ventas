@@ -25,6 +25,9 @@ import useFCMPermission from '../hooks/useFCMPermission'
 import NotificationHistoryTray from '../components/common/NotificationHistoryTray'
 import NCToastContainer from '../components/common/NCToastContainer'
 
+import { useConnectivityStore } from '../store/connectivityStore'
+import { useLocation } from 'react-router-dom'
+
 const NAV_ITEMS = [
   { path: '/admin/inicio', icon: LayoutDashboard, label: 'Inicio' },
   { path: '/admin/inventario', icon: Package, label: 'Inventario' },
@@ -37,6 +40,15 @@ export default function AdminLayout() {
   const { appName, appIcon, creditsEnabled } = useAppConfigStore()
   const { logout, user } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const isOnline = useConnectivityStore((state) => state.isOnline)
+
+  // Redirigir al POS si se pierde la conexión mientras se está en otra pestaña
+  useEffect(() => {
+    if (!isOnline && location.pathname !== '/admin/ventas') {
+      navigate('/admin/ventas', { replace: true })
+    }
+  }, [isOnline, location.pathname, navigate])
 
   // Sincronizar el permiso y tokens de FCM para Admin
   const { requestPermission } = useFCMPermission(user?.uid || 'admin', 'admin')
@@ -87,18 +99,21 @@ export default function AdminLayout() {
     }
   }, [notifications])
 
-  // Navegación adaptativa según feature flags de módulos
+  // Navegación adaptativa según feature flags de módulos y estado de conexión
   const filteredNavItems = useMemo(() => {
+    if (!isOnline) {
+      return NAV_ITEMS.filter(item => item.path === '/admin/ventas')
+    }
     return NAV_ITEMS.filter(item => {
       if (item.path.includes('credito') && !creditsEnabled) return false
       return true
     })
-  }, [creditsEnabled])
+  }, [creditsEnabled, isOnline])
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
       logout()
+      await signOut(auth)
       navigate('/login')
     } catch (error) {
       console.error('Error al cerrar sesión:', error)
@@ -220,24 +235,24 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Popover / Cajón Lateral de Notificaciones (Desktop) */}
+      {/* Modal Flotante de Notificaciones */}
       <AnimatePresence>
         {isNotificationsOpen && (
-          <>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 pointer-events-none">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-40 bg-black/50"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
               onClick={() => setIsNotificationsOpen(false)}
             />
             <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full md:w-80 z-50 shadow-2xl"
+              className="relative w-full max-w-lg h-[80vh] max-h-[600px] z-[101] shadow-2xl rounded-3xl overflow-hidden pointer-events-auto border border-app"
             >
               <NotificationHistoryTray
                 notifications={notifications}
@@ -254,7 +269,7 @@ export default function AdminLayout() {
                 }}
               />
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

@@ -54,7 +54,9 @@ export default function useNotificationCenter({
   }, [])
 
   useEffect(() => {
-    if (!recipientId && !recipientRole) return
+    if (!recipientId || !recipientRole) return
+    // Evitar suscripciones de clientes anónimos o por defecto sin celular real
+    if (recipientRole === 'client' && (recipientId === 'client' || recipientId === 'anonimo')) return
 
     isInitializedRef.current = false
 

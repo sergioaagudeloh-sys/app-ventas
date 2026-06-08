@@ -7,7 +7,7 @@ Este documento detalla la estructura lógica, el propósito y la justificación 
 ## 📂 Listado de Colecciones Requeridas
 
 ### 1. `config`
-* **Propósito**: Configuración general del negocio y feature flags de personalización SaaS.
+* **Propósito**: Configuración general del negocio y feature flags de personalización de instancias.
 * **Función**: 
   * Almacena datos generales (título del negocio, nombre del vendedor, contacto, slogan, términos de garantía).
   * Guarda datos de conciliación bancaria y pasarelas de pago (bancos, titulares, códigos QR).

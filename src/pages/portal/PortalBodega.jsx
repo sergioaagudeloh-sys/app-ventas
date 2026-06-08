@@ -4,11 +4,12 @@
  * Permite registrar movimientos de inventario (entrada, salida, ajuste, merma)
  * y consultar el stock actual de productos.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Warehouse, Plus, Minus, Package, Search, CheckCircle2, AlertCircle, Loader2, X, ArrowUpCircle, ArrowDownCircle, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useProducts } from '../../hooks/useInventory'
-import { registerStockMovement } from '../../services/stockMovementService'
+import { registerStockMovement, subscribeToEmployeeMovements } from '../../services/stockMovementService'
 import { updateDoc, doc } from 'firebase/firestore'
 import { db } from '../../config/firebaseConfig'
 import { COLLECTIONS } from '../../constants'
@@ -23,6 +24,7 @@ const TYPES = [
 ]
 
 export default function PortalBodega() {
+  const queryClient = useQueryClient()
   const { portalEmployee } = usePortalStore()
   const { data: products = [], isLoading } = useProducts(false)
 
@@ -34,6 +36,16 @@ export default function PortalBodega() {
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [feedback, setFeedback] = useState(null) // { type: 'ok' | 'error', msg }
+
+  const [activeLeftTab, setActiveLeftTab] = useState('products') // 'products' | 'movements'
+  const [employeeMovements, setEmployeeMovements] = useState([])
+
+  // Suscribirse a los movimientos de este empleado
+  useEffect(() => {
+    if (!portalEmployee?.id) return
+    const unsub = subscribeToEmployeeMovements(portalEmployee.id, setEmployeeMovements)
+    return () => unsub()
+  }, [portalEmployee?.id])
 
   const filtered = useMemo(() => products.filter(p =>
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
@@ -77,6 +89,9 @@ export default function PortalBodega() {
       )
       await updateDoc(doc(db, COLLECTIONS.PRODUCTS, selectedProduct.id), { variantes: updatedVariantes })
 
+      // Invalidar caché de productos en react-query para actualizar el listado izquierdo y otros componentes
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+
       // Sincronizar el estado local para reflejar la actualización inmediatamente en el portal de bodega
       const updatedProduct = { ...selectedProduct, variantes: updatedVariantes }
       setSelectedProduct(updatedProduct)
@@ -106,33 +121,103 @@ export default function PortalBodega() {
       </div>
 
       <div className="portal-bodega-grid">
-        {/* ─── PANEL IZQUIERDO: LISTA DE PRODUCTOS ──────────────────── */}
-        <div className="portal-bodega-products">
-          <div className="portal-search-box">
-            <Search size={16} />
-            <input className="portal-search-input" placeholder="Buscar producto..." value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)} />
-            {searchTerm && <button onClick={() => setSearchTerm('')}><X size={14} /></button>}
+        {/* ─── PANEL IZQUIERDO: LISTA DE PRODUCTOS O HISTORIAL ───────── */}
+        <div className="portal-bodega-products flex flex-col h-full">
+          {/* Selector de pestañas */}
+          <div className="flex border border-app mb-3 gap-1 p-1 bg-surface-2 rounded-xl shrink-0">
+            <button
+              onClick={() => setActiveLeftTab('products')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeLeftTab === 'products'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-muted hover:text-app'
+              }`}
+            >
+              <Package size={14} /> Productos
+            </button>
+            <button
+              onClick={() => setActiveLeftTab('movements')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeLeftTab === 'movements'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-muted hover:text-app'
+              }`}
+            >
+              <SlidersHorizontal size={14} /> Mis Movimientos
+            </button>
           </div>
-          {isLoading ? (
-            <div className="portal-loading"><Loader2 className="animate-spin" size={24} /></div>
+
+          {activeLeftTab === 'products' ? (
+            <>
+              <div className="portal-search-box shrink-0">
+                <Search size={16} />
+                <input className="portal-search-input" placeholder="Buscar producto..." value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)} />
+                {searchTerm && <button onClick={() => setSearchTerm('')}><X size={14} /></button>}
+              </div>
+              {isLoading ? (
+                <div className="portal-loading flex-1 flex items-center justify-center"><Loader2 className="animate-spin" size={24} /></div>
+              ) : (
+                <div className="portal-bodega-list flex-1 overflow-y-auto">
+                  {filtered.map(p => {
+                    const totalStock = p.variantes?.reduce((s, v) => s + (v.stock || 0), 0) || 0
+                    return (
+                      <button key={p.id} className={`portal-bodega-product-btn ${selectedProduct?.id === p.id ? 'portal-bodega-product-btn--active' : ''}`}
+                        onClick={() => selectProduct(p)}>
+                        <div className="portal-bodega-product-info">
+                          <p className="portal-bodega-product-name">{p.nombre}</p>
+                          <p className="portal-bodega-product-price">{formatCurrency(p.precioBase)}</p>
+                        </div>
+                        <span className={`portal-stock-badge ${totalStock <= 0 ? 'portal-stock-badge--agotado' : totalStock <= 5 ? 'portal-stock-badge--low' : ''}`}>
+                          {totalStock} und.
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           ) : (
-            <div className="portal-bodega-list">
-              {filtered.map(p => {
-                const totalStock = p.variantes?.reduce((s, v) => s + (v.stock || 0), 0) || 0
-                return (
-                  <button key={p.id} className={`portal-bodega-product-btn ${selectedProduct?.id === p.id ? 'portal-bodega-product-btn--active' : ''}`}
-                    onClick={() => selectProduct(p)}>
-                    <div className="portal-bodega-product-info">
-                      <p className="portal-bodega-product-name">{p.nombre}</p>
-                      <p className="portal-bodega-product-price">{formatCurrency(p.precioBase)}</p>
+            <div className="portal-bodega-list flex-1 overflow-y-auto space-y-2.5 pr-1 mt-1">
+              {employeeMovements.length === 0 ? (
+                <div className="portal-bodega-empty py-16 flex flex-col items-center justify-center">
+                  <SlidersHorizontal size={32} className="text-muted/40 mb-2" />
+                  <p className="text-xs text-muted">No has registrado movimientos recientemente</p>
+                </div>
+              ) : (
+                employeeMovements.map((m) => {
+                  const typeColors = {
+                    entrada: { bg: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20', label: 'Entrada' },
+                    salida: { bg: 'bg-orange-500/10 text-orange-500 border border-orange-500/20', label: 'Salida' },
+                    ajuste: { bg: 'bg-sky-500/10 text-sky-500 border border-sky-500/20', label: 'Ajuste' },
+                    merma: { bg: 'bg-red-500/10 text-red-500 border border-red-500/20', label: 'Merma' },
+                  }
+                  const type = typeColors[m.type] || { bg: 'bg-app/10 text-app border border-app/20', label: m.type }
+                  const dateStr = m.createdAt?.seconds 
+                    ? new Date(m.createdAt.seconds * 1000).toLocaleString('es-CO', { 
+                        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+                      })
+                    : '—'
+                  
+                  return (
+                    <div key={m.id} className="p-3 bg-surface rounded-xl border border-app text-left flex flex-col gap-1.5 shadow-sm transition-all hover:border-app-hover">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${type.bg}`}>
+                          {type.label}
+                        </span>
+                        <span className="text-[10px] text-muted font-medium">{dateStr}</span>
+                      </div>
+                      <div className="text-xs text-app font-semibold">
+                        {m.productName}
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-muted">
+                        <span>Cantidad: <strong className="text-app">{m.quantity} und.</strong></span>
+                        {m.reason && <span className="italic max-w-[150px] truncate" title={m.reason}>"{m.reason}"</span>}
+                      </div>
                     </div>
-                    <span className={`portal-stock-badge ${totalStock <= 0 ? 'portal-stock-badge--agotado' : totalStock <= 5 ? 'portal-stock-badge--low' : ''}`}>
-                      {totalStock} und.
-                    </span>
-                  </button>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
           )}
         </div>

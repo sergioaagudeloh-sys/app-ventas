@@ -253,24 +253,24 @@ export default function ClientLayout() {
         </nav>
       </aside>
 
-      {/* Popover / Cajón Lateral de Notificaciones Responsivo al 100% */}
+      {/* Modal Flotante de Notificaciones */}
       <AnimatePresence>
         {isNotificationsOpen && (
-          <>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 pointer-events-none">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-40 bg-black/50"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
               onClick={() => setIsNotificationsOpen(false)}
             />
             <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="fixed right-0 top-0 h-screen w-full md:w-96 z-50 shadow-2xl"
+              className="relative w-full max-w-lg h-[80vh] max-h-[600px] z-[101] shadow-2xl rounded-3xl overflow-hidden pointer-events-auto border border-app"
             >
               <NotificationHistoryTray
                 notifications={notifications}
@@ -287,7 +287,7 @@ export default function ClientLayout() {
                 }}
               />
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

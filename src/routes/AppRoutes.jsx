@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore'
 import { ROLES } from '../constants'
 import AppLoader from '../components/ui/AppLoader'
 import RequirePortalAuth from '../components/portal/RequirePortalAuth'
+import { ErrorBoundaryFallback } from '../components/ui/feedback/ErrorBoundaryFallback'
 
 // ─── Lazy loading de páginas (Guía Maestra §11.3) ────────────────────────────
 const WelcomePage = lazy(() => import('../pages/WelcomePage'))
@@ -69,7 +70,9 @@ export default function AppRoutes() {
           path="/admin"
           element={
             <RequireAuth allowedRole={ROLES.ADMIN}>
-              <AdminLayout />
+              <ErrorBoundaryFallback fallbackTitle="Falla Crítica en Admin" fallbackDesc="El panel de control del administrador ha fallado.">
+                <AdminLayout />
+              </ErrorBoundaryFallback>
             </RequireAuth>
           }
         >
@@ -94,7 +97,9 @@ export default function AppRoutes() {
           path="/tienda"
           element={
             <RequireAuth allowedRole={ROLES.CLIENT}>
-              <ClientLayout />
+              <ErrorBoundaryFallback fallbackTitle="Falla Crítica en Tienda" fallbackDesc="El portal del cliente ha fallado.">
+                <ClientLayout />
+              </ErrorBoundaryFallback>
             </RequireAuth>
           }
         >
@@ -114,7 +119,9 @@ export default function AppRoutes() {
         <Route
           path="/portal"
           element={
-            <PortalLayout />
+            <ErrorBoundaryFallback fallbackTitle="Falla Crítica en Portales" fallbackDesc="El portal operativo de trabajo ha fallado.">
+              <PortalLayout />
+            </ErrorBoundaryFallback>
           }
         >
           <Route path="vendedor" element={

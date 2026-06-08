@@ -529,8 +529,8 @@ function EmployeeFormCard({ onSuccess, onError }) {
     e.preventDefault()
     if (!nombre.trim()) return onError('El nombre es obligatorio.')
     if (!pin.trim()) return onError('El código PIN es obligatorio.')
-    if (pin.length < 4 || pin.length > 6 || isNaN(Number(pin))) {
-      return onError('El PIN debe ser un número de 4 a 6 dígitos.')
+    if (pin.length !== 6 || isNaN(Number(pin))) {
+      return onError('El PIN debe ser un número de exactamente 6 dígitos.')
     }
 
     setLoading(true)
@@ -628,14 +628,14 @@ function EmployeeFormCard({ onSuccess, onError }) {
 
         {/* PIN de seguridad */}
         <div>
-          <label className="block text-xs font-semibold text-muted mb-1">Código PIN Táctil (4-6 dígitos) *</label>
+          <label className="block text-xs font-semibold text-muted mb-1">Código PIN Táctil (6 dígitos) *</label>
           <input
             type="password"
             maxLength={6}
             required
             value={pin}
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-            placeholder="Ej. 1234"
+            placeholder="Ej. 123456"
             className="w-full h-11 px-4 rounded-xl bg-surface border border-app text-sm text-app focus:outline-none focus:border-primary transition-colors tracking-widest font-mono"
           />
         </div>
@@ -788,7 +788,7 @@ export default function AdminSettings() {
   const { couponsEnabled = true } = config
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { logout } = useAuthStore()
+  const { logout, user } = useAuthStore()
   const { rawInstallable, handleInstall } = usePWAInstall()
   
   const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
@@ -1222,14 +1222,20 @@ export default function AdminSettings() {
   window.setEditEmployee = setEditEmployeeState
 
   useEffect(() => {
-    if (config.isLoaded) {
-      let unsub
+    if (config.isLoaded && user) {
+      let unsub = null
+      let active = true
       import('../../services/employeeService').then(({ subscribeToEmployees }) => {
-        unsub = subscribeToEmployees(setDbEmployees)
+        if (active) {
+          unsub = subscribeToEmployees(setDbEmployees)
+        }
       }).catch(console.error)
-      return () => { if (unsub) unsub() }
+      return () => {
+        active = false
+        if (unsub) unsub()
+      }
     }
-  }, [config.isLoaded])
+  }, [config.isLoaded, user])
 
   useEffect(() => {
     if (config.isLoaded && !isFormInitialized) {
@@ -1369,8 +1375,8 @@ export default function AdminSettings() {
   // Cerrar Sesión
   const handleLogout = async () => {
     try {
-      await signOutAdmin()
       logout()
+      await signOutAdmin()
       navigate('/login')
     } catch (error) {
       console.error('Error al cerrar sesión:', error)
@@ -1523,8 +1529,8 @@ export default function AdminSettings() {
       // Cerrar sesión y redirigir
       setTimeout(async () => {
         try {
-          await signOutAdmin()
           useAuthStore.getState().logout()
+          await signOutAdmin()
           navigate('/', { replace: true })
         } catch (e) {
           window.location.href = '/'
@@ -1812,11 +1818,7 @@ export default function AdminSettings() {
       initial={{ opacity: 0, x: activeSection ? 30 : -30 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.22, ease: 'easeOut' }}
-      className={`p-4 md:p-8 mx-auto pb-24 overflow-x-hidden relative ${
-        activeSection 
-          ? (activeSection === 'marca' || activeSection === 'apariencia' ? 'max-w-6xl' : 'max-w-3xl') 
-          : 'max-w-6xl'
-      }`}
+      className="p-4 md:p-8 mx-auto pb-24 overflow-x-hidden relative max-w-7xl"
     >
       {/* Toast de guardado renderizado en Portal para evitar brincos de animación */}
       {ReactDOM.createPortal(
@@ -2346,6 +2348,21 @@ export default function AdminSettings() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-app">Facturación Electrónica (DIAN)</p>
                   <p className="text-xs text-muted mt-0.5">Configura los datos fiscales del negocio para la emisión de facturas oficiales.</p>
+                </div>
+                <ChevronRight size={18} className="text-muted shrink-0" />
+              </button>
+
+              {/* Movimientos de Inventario (Auditoría) */}
+              <button
+                onClick={() => setActiveSubSection('movimientos')}
+                className="w-full flex items-center gap-4 py-4 hover:bg-surface-2 active:bg-primary/5 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/10">
+                  <Database size={20} className="text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-app">Movimientos de Inventario</p>
+                  <p className="text-xs text-muted mt-0.5">Audita el historial de entradas, salidas, ajustes y mermas por empleado y rol.</p>
                 </div>
                 <ChevronRight size={18} className="text-muted shrink-0" />
               </button>
@@ -5115,6 +5132,14 @@ export default function AdminSettings() {
                       icon: Smartphone,
                       iconBg: 'bg-blue-500/10 hover:bg-blue-500/15',
                       iconColor: 'text-blue-500'
+                    },
+                    {
+                      id: 'dev-reporte-error',
+                      label: 'Reportar Error de Prueba',
+                      description: 'Envía un error simulado para validar la llegada al panel central de fallas',
+                      icon: AlertTriangle,
+                      iconBg: 'bg-rose-500/10 hover:bg-rose-500/15',
+                      iconColor: 'text-rose-500'
                     }
                   ].map(tool => {
                     const ToolIcon = tool.icon
@@ -5307,7 +5332,7 @@ export default function AdminSettings() {
 
                   <div className="bg-surface rounded-2xl border border-app overflow-hidden">
                     <div className="px-5 py-4">
-                      <p className="text-sm font-bold text-app mb-1">Modelo de Facturación SaaS</p>
+                      <p className="text-sm font-bold text-app mb-1">Modelo de Facturación de Instancia</p>
                       <p className="text-xs text-muted mb-4">Configurado de manera centralizada desde el Dashboard del Desarrollador.</p>
                       <div className="p-3.5 bg-surface-2 border border-app rounded-xl space-y-2.5">
                         <div className="flex justify-between items-center text-xs">
@@ -5520,6 +5545,65 @@ export default function AdminSettings() {
                     className="w-full h-12 bg-primary text-white rounded-xl font-bold transition-all duration-300 active:scale-95 hover:opacity-90 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
                     <Save size={18} /> Guardar Contacto
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* 6. Subsección: Reportar Error de Prueba */}
+            {activeSubSection === 'dev-reporte-error' && (
+              <div className="bg-surface rounded-3xl shadow-sm border border-app overflow-hidden">
+                <div className="p-5 sm:p-6 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center mx-auto">
+                    <AlertTriangle size={32} className="text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-app">Canal de Telemetría de Fallos</h3>
+                    <p className="text-xs text-muted mt-1 max-w-sm mx-auto leading-relaxed">
+                      Esta herramienta permite gatillar de manera manual un error simulado en la aplicación de ventas actual y reportarlo en tiempo real a la consola de administración central.
+                    </p>
+                  </div>
+                  
+                  {message && (
+                    <div className={`p-4 rounded-xl flex items-start gap-3 text-left border ${message.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-green-500/10 border-green-500/20 text-green-500'}`}>
+                      {message.type === 'error' ? <AlertTriangle size={18} className="shrink-0" /> : <CheckCircle size={18} className="shrink-0" />}
+                      <span className="text-xs font-bold leading-relaxed">{message.text}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      onClick={async () => {
+                        setLoading(true);
+                        setMessage(null);
+                        try {
+                          const { reportAppFailureToDeveloper } = await import('../../services/telemetryService');
+                          const testError = new Error('TestTelemetryError: Prueba manual desde Opciones de Desarrollo de Ventas.');
+                          await reportAppFailureToDeveloper(testError.message, testError.stack);
+                          setMessage({
+                            type: 'success',
+                            text: '¡Reporte de error de prueba enviado con éxito a Firestore Central! Verifica la consola del desarrollador.'
+                          });
+                        } catch (err) {
+                          console.error(err);
+                          setMessage({
+                            type: 'error',
+                            text: `Fallo al reportar: ${err.message || 'Error desconocido'}`
+                          });
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      disabled={loading}
+                      className="w-full sm:w-auto px-6 h-11 bg-rose-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-rose-600 active:scale-95 disabled:opacity-50 transition-all cursor-pointer mx-auto shadow-sm"
+                    >
+                      {loading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <AlertTriangle size={16} />
+                      )}
+                      Enviar Error de Prueba
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -6342,7 +6426,7 @@ export default function AdminSettings() {
 
             <div className="bg-surface rounded-2xl border border-app overflow-hidden">
               <div className="px-5 py-4">
-                <p className="text-sm font-bold text-app mb-1">Modelo de Facturación SaaS</p>
+                <p className="text-sm font-bold text-app mb-1">Modelo de Facturación de Instancia</p>
                 <p className="text-xs text-muted mb-4">Configurado de manera centralizada desde el Dashboard del Desarrollador.</p>
                 <div className="p-3.5 bg-surface-2 border border-app rounded-xl space-y-2.5">
                   <div className="flex justify-between items-center text-xs">

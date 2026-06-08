@@ -24,27 +24,81 @@ import {
   CalendarDays,
   ShoppingBag,
   Store,
-  RefreshCw
+  RefreshCw,
+  WifiOff
 } from 'lucide-react'
 import ReactDOM from 'react-dom'
 import { useProducts, useCategories } from '../../hooks/useInventory'
 import { useCreatePhysicalOrder } from '../../hooks/useOrders'
-import { getClientByPhone, saveClientProfile } from '../../services/userService'
+import { getClientByPhone, saveClientProfile, getAllClients } from '../../services/userService'
 import useAuthStore from '../../store/authStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import { ORDER_STATES, PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../../constants'
+import { useConnectivityStore } from '../../store/connectivityStore'
+import { 
+  getOfflineProducts, 
+  saveOfflineProducts, 
+  getOfflineCategories, 
+  saveOfflineCategories, 
+  addOfflineSale, 
+  updateOfflineProductStock,
+  getOfflineClient,
+  saveOfflineClient,
+  saveOfflineClients
+} from '../../services/offlineDB'
 
 // Mapeador de colores visual
 import { getCssColor } from '../../utils/colors'
 
 export default function AdminSales() {
   const navigate = useNavigate()
+  const isOnline = useConnectivityStore((state) => state.isOnline)
   const { data: products = [], isLoading: loadingProducts } = useProducts(true)
   const { data: categories = [] } = useCategories()
   const { user: currentAdmin } = useAuthStore()
   const { mutateAsync: createPhysicalOrder, isPending: isSubmitting } = useCreatePhysicalOrder()
   const { appName, appIcon, whatsappAdmin, bankInfo, bankInfo2, creditsEnabled } = useAppConfigStore()
+
+  // Respaldo de datos offline
+  const [offlineProducts, setOfflineProducts] = useState([])
+  const [offlineCategories, setOfflineCategories] = useState([])
+
+  // Sincronizar catálogo local a IndexedDB cuando esté online (dependencia por longitud)
+  useEffect(() => {
+    if (isOnline && products.length > 0) {
+      saveOfflineProducts(products).catch(console.error)
+    }
+  }, [products.length, isOnline])
+
+  useEffect(() => {
+    if (isOnline && categories.length > 0) {
+      saveOfflineCategories(categories).catch(console.error)
+    }
+  }, [categories.length, isOnline])
+
+  // Sincronizar clientes a IndexedDB para búsqueda offline instantánea
+  useEffect(() => {
+    if (isOnline) {
+      getAllClients().then(clients => {
+        if (clients.length > 0) {
+          saveOfflineClients(clients).catch(console.error)
+        }
+      }).catch(console.error)
+    }
+  }, [isOnline])
+
+  // Cargar catálogo local desde IndexedDB únicamente cuando estemos offline
+  useEffect(() => {
+    if (!isOnline) {
+      getOfflineProducts().then(setOfflineProducts).catch(console.error)
+      getOfflineCategories().then(setOfflineCategories).catch(console.error)
+    }
+  }, [isOnline])
+
+  // Catálogo a visualizar en base al estado de conexión
+  const displayProducts = isOnline ? products : offlineProducts
+  const displayCategories = isOnline ? categories : offlineCategories
 
   // Estados del POS
   const [cart, setCart] = useState([])
@@ -110,7 +164,29 @@ export default function AdminSales() {
     const performSearch = async () => {
       setClientSearchStatus('searching')
       try {
-        const client = await getClientByPhone(cleanCelular)
+        let client = null
+        if (isOnline) {
+          try {
+            // Carrera de promesas con timeout de 800ms para evitar cuelgues offline
+            const networkPromise = getClientByPhone(cleanCelular)
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout de red')), 800)
+            )
+
+            client = await Promise.race([networkPromise, timeoutPromise])
+
+            if (client) {
+              // Guardar respaldo local
+              await saveOfflineClient(client)
+            }
+          } catch (netError) {
+            console.warn('[performSearch] Error o timeout de red, consultando IndexedDB:', netError)
+            client = await getOfflineClient(cleanCelular)
+          }
+        } else {
+          client = await getOfflineClient(cleanCelular)
+        }
+
         if (client) {
           setFoundClient(client)
           setClientName(client.nombre)
@@ -128,7 +204,7 @@ export default function AdminSales() {
 
     const timer = setTimeout(performSearch, 350)
     return () => clearTimeout(timer)
-  }, [celular])
+  }, [celular, isOnline])
 
   // Registro rápido de cliente
   const handleRegisterClient = async () => {
@@ -136,8 +212,19 @@ export default function AdminSales() {
     if (!cleanCelular || !clientName.trim()) return
     setIsRegisteringClient(true)
     try {
-      await saveClientProfile(cleanCelular, clientName.trim())
-      setFoundClient({ id: cleanCelular, nombre: clientName.trim(), celular: cleanCelular })
+      const clientData = { id: cleanCelular, nombre: clientName.trim(), celular: cleanCelular }
+      
+      if (isOnline) {
+        // Ejecutar de forma asíncrona sin bloquear la UI local
+        saveClientProfile(cleanCelular, clientName.trim()).catch(err => {
+          console.warn('[handleRegisterClient] Error al registrar en Firestore central:', err)
+        })
+      }
+      
+      // Guardar localmente siempre
+      await saveOfflineClient(clientData)
+      
+      setFoundClient(clientData)
       setClientSearchStatus('found')
     } catch (e) {
       console.error(e)
@@ -149,12 +236,12 @@ export default function AdminSales() {
 
   // Filtrado de productos
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    return displayProducts.filter(p => {
       const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = selectedCategory === 'Todos' || p.categoriaId === selectedCategory
       return matchesSearch && matchesCategory
     })
-  }, [products, searchTerm, selectedCategory])
+  }, [displayProducts, searchTerm, selectedCategory])
 
   // Helpers de variantes
   const hasMultipleVariants = (product) => {
@@ -238,7 +325,7 @@ export default function AdminSales() {
     return cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0)
   }
 
-  // Finalizar venta transaccional
+  // Finalizar venta transaccional o persistirla localmente si no hay conexión
   const handleFinalizeSale = async () => {
     if (cart.length === 0) return
     if (!foundClient) {
@@ -277,13 +364,53 @@ export default function AdminSales() {
       }
 
       const adminId = currentAdmin?.uid || currentAdmin?.email || 'admin'
-      const result = await createPhysicalOrder({ orderData, adminId })
 
-      setLastOrderDetails({
-        ...orderData,
-        orderNumber: result.orderNumber,
-        createdAt: new Date()
-      })
+      if (!isOnline) {
+        // MODO OFFLINE: Guardar localmente
+        const tempOrderId = `offline-sale-${Date.now()}`
+        const orderNumber = `OR-POS-OFFLINE-${Math.floor(100000 + Math.random() * 900000)}`
+
+        const saleData = {
+          id: tempOrderId,
+          adminId,
+          orderData: {
+            ...orderData,
+            orderNumber,
+            stockDescontado: true,
+            offline: true
+          }
+        }
+
+        // Guardar venta offline en la cola IndexedDB
+        await addOfflineSale(saleData)
+
+        // Descontar stock localmente en IndexedDB
+        for (const item of cart) {
+          if (!item.productId?.startsWith('custom-')) {
+            await updateOfflineProductStock(item.productId, item.variantId, item.cantidad)
+          }
+        }
+
+        // Recargar productos locales para actualizar la interfaz
+        const updatedOfflineProducts = await getOfflineProducts()
+        setOfflineProducts(updatedOfflineProducts)
+
+        setLastOrderDetails({
+          ...orderData,
+          orderNumber,
+          offline: true,
+          createdAt: new Date()
+        })
+      } else {
+        // MODO ONLINE: Crear en Firebase a través de transacción
+        const result = await createPhysicalOrder({ orderData, adminId })
+
+        setLastOrderDetails({
+          ...orderData,
+          orderNumber: result.orderNumber,
+          createdAt: new Date()
+        })
+      }
 
       // Resetear POS
       setCart([])
@@ -334,6 +461,12 @@ export default function AdminSales() {
           </style>
         </head>
         <body>
+          ${order.offline ? `
+            <div style="background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 10px; border-radius: 8px; text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 15px; font-family: sans-serif;">
+              ⚠️ COMPROBANTE PROVISIONAL (MODO OFFLINE)<br/>
+              La venta se sincronizará automáticamente al conectar la red.
+            </div>
+          ` : ''}
           <div class="header">
             ${appIcon ? `<img src="${appIcon}" alt="Logo" class="logo" />` : ''}
             <h1>${appName || 'Factura de Venta'}</h1>
@@ -424,7 +557,13 @@ export default function AdminSales() {
               className="relative z-10 bg-surface rounded-t-3xl w-full max-w-lg p-6 pb-8 space-y-4 shadow-2xl"
             >
               <button 
-                onClick={() => navigate(-1)}
+                onClick={() => {
+                  if (!isOnline) {
+                    setSaleMode('inventory')
+                  } else {
+                    navigate(-1)
+                  }
+                }}
                 className="absolute top-4 right-4 w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-muted hover:text-app transition-colors shadow-sm hover:scale-105 active:scale-95"
               >
                 <X size={16} />
@@ -469,7 +608,14 @@ export default function AdminSales() {
             <ShoppingCart size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-app">Ventas Directas</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-app">Ventas Directas</h1>
+              {!isOnline && (
+                <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/25 animate-pulse">
+                  <WifiOff size={10} /> Offline
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted">{saleMode === 'custom' ? 'Modo: Producto personalizado' : 'POS Inteligente de Mostrador'}</p>
           </div>
         </div>
@@ -609,7 +755,7 @@ export default function AdminSales() {
                   >
                     Todos
                   </button>
-                  {categories.map(cat => (
+                  {displayCategories.map(cat => (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}

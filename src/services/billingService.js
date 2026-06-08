@@ -214,7 +214,7 @@ export function subscribeToBillingData(onUpdate) {
 
   if (centralDb && CLIENT_ID) {
     console.log(`[Billing] Escuchando configuración de facturación en vivo desde central para ${CLIENT_ID}...`)
-    const centralClientRef = doc(centralDb, 'clientes_saas', CLIENT_ID)
+    const centralClientRef = doc(centralDb, 'clientes_control', CLIENT_ID)
     unsubSettings = onSnapshot(centralClientRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data()

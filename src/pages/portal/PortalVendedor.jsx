@@ -14,13 +14,16 @@ import {
 } from 'lucide-react'
 import { useProducts, useCategories } from '../../hooks/useInventory'
 import { useCreatePhysicalOrder } from '../../hooks/useOrders'
-import { getClientByPhone, saveClientProfile } from '../../services/userService'
+import { getClientByPhone, saveClientProfile, getAllClients } from '../../services/userService'
 import usePortalStore from '../../store/portalStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../../constants'
+import { useConnectivityStore } from '../../store/connectivityStore'
+import { getOfflineClient, saveOfflineClient, saveOfflineClients } from '../../services/offlineDB'
 
 export default function PortalVendedor() {
+  const isOnline = useConnectivityStore((state) => state.isOnline)
   const { portalEmployee } = usePortalStore()
   const { appName, appIcon, whatsappAdmin, creditsEnabled } = useAppConfigStore()
   const { data: products = [], isLoading: loadingProducts } = useProducts(true)
@@ -44,6 +47,17 @@ export default function PortalVendedor() {
   const [stockAlert, setStockAlert] = useState('')
   const [selectedProductForVariant, setSelectedProductForVariant] = useState(null)
 
+  // Sincronizar clientes a IndexedDB para búsqueda offline instantánea
+  useEffect(() => {
+    if (isOnline) {
+      getAllClients().then(clients => {
+        if (clients.length > 0) {
+          saveOfflineClients(clients).catch(console.error)
+        }
+      }).catch(console.error)
+    }
+  }, [isOnline])
+
   // Búsqueda de cliente en tiempo real
   useEffect(() => {
     const clean = celular.replace(/\D/g, '')
@@ -51,24 +65,60 @@ export default function PortalVendedor() {
     const timer = setTimeout(async () => {
       setClientSearchStatus('searching')
       try {
-        const client = await getClientByPhone(clean)
-        if (client) { setFoundClient(client); setClientName(client.nombre); setClientSearchStatus('found') }
-        else { setFoundClient(null); setClientName(''); setClientSearchStatus('not_found') }
-      } catch { setClientSearchStatus('') }
+        let client = null
+        if (isOnline) {
+          try {
+            client = await getClientByPhone(clean)
+            if (client) {
+              await saveOfflineClient(client)
+            }
+          } catch (netErr) {
+            console.warn('[PortalVendedor] Error al buscar online, consultando IndexedDB:', netErr)
+            client = await getOfflineClient(clean)
+          }
+        } else {
+          client = await getOfflineClient(clean)
+        }
+
+        if (client) { 
+          setFoundClient(client)
+          setClientName(client.nombre)
+          setClientSearchStatus('found') 
+        } else { 
+          setFoundClient(null)
+          setClientName('')
+          setClientSearchStatus('not_found') 
+        }
+      } catch { 
+        setClientSearchStatus('') 
+      }
     }, 350)
     return () => clearTimeout(timer)
-  }, [celular])
+  }, [celular, isOnline])
 
   const registerClient = async () => {
     const clean = celular.replace(/\D/g, '')
     if (!clean || !clientName.trim()) return
     setIsRegisteringClient(true)
     try {
-      await saveClientProfile(clean, clientName.trim())
-      setFoundClient({ id: clean, nombre: clientName.trim(), celular: clean })
+      const clientData = { id: clean, nombre: clientName.trim(), celular: clean }
+      
+      if (isOnline) {
+        saveClientProfile(clean, clientName.trim()).catch(err => {
+          console.warn('[registerClient] Error al registrar en Firestore central:', err)
+        })
+      }
+      
+      // Guardar localmente siempre
+      await saveOfflineClient(clientData)
+      
+      setFoundClient(clientData)
       setClientSearchStatus('found')
-    } catch { setStockAlert('Error al registrar el cliente.') }
-    finally { setIsRegisteringClient(false) }
+    } catch { 
+      setStockAlert('Error al registrar el cliente.') 
+    } finally { 
+      setIsRegisteringClient(false) 
+    }
   }
 
   const filteredProducts = useMemo(() => products.filter(p => {

@@ -1,8 +1,9 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { LogOut, Wifi, Bell } from 'lucide-react'
+import { LogOut, Wifi, Bell, WifiOff } from 'lucide-react'
 import usePortalStore from '../store/portalStore'
 import { ROLES, PORTAL_CONFIG } from '../constants'
 import { useEffect, useState } from 'react'
+import { useConnectivityStore } from '../store/connectivityStore'
 
 import useNotificationCenter from '../hooks/useNotificationCenter'
 import useFCMPermission from '../hooks/useFCMPermission'
@@ -11,6 +12,7 @@ import NotificationHistoryTray from '../components/common/NotificationHistoryTra
 import { AnimatePresence, motion } from 'framer-motion'
 
 export default function PortalLayout() {
+  const isOnline = useConnectivityStore((state) => state.isOnline)
   const { portalEmployee, clearPortalEmployee, currentLogId } = usePortalStore()
   const nav = useNavigate()
   const config = PORTAL_CONFIG[portalEmployee?.rol] || { color: 'var(--color-primary)', emoji: '👤', label: 'Portal', labelCorto: 'Portal' }
@@ -127,30 +129,41 @@ export default function PortalLayout() {
             )}
           </button>
 
-          <span className="portal-online-dot">
-            <Wifi size={14} />
-            En línea
-          </span>
+          {isOnline ? (
+            <span className="portal-online-dot">
+              <Wifi size={14} />
+              En línea
+            </span>
+          ) : (
+            <span className="portal-online-dot" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.3)', color: '#f59e0b' }}>
+              <WifiOff size={14} className="animate-pulse" />
+              Modo Offline
+            </span>
+          )}
           <button onClick={handleLogout} className="portal-logout-btn" title="Cerrar sesión">
             <LogOut size={18} />
           </button>
         </div>
       </header>
 
-      {/* Popover de Notificaciones Lateral en el Portal */}
+      {/* Modal Flotante de Notificaciones */}
       <AnimatePresence>
         {isNotificationsOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
               onClick={() => setIsNotificationsOpen(false)}
             />
             <motion.div
-              initial={{ x: '100%', opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="fixed right-0 top-0 h-screen w-full md:w-80 z-50 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full max-w-lg h-[80vh] max-h-[600px] z-[101] shadow-2xl rounded-3xl overflow-hidden pointer-events-auto border border-app"
             >
               <NotificationHistoryTray
                 notifications={notifications}
@@ -167,7 +180,7 @@ export default function PortalLayout() {
                 }}
               />
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 

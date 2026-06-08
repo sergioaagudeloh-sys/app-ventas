@@ -91,10 +91,12 @@ service cloud.firestore {
 
     // [NUEVO] Centro de Notificaciones Centralizado
     // Escritura abierta solo para creación (clientes, empleados y servicios internos).
-    // Lectura, actualización y borrado son exclusivos del administrador autenticado.
+    // Lectura y actualización para admins o clientes.
     match /notifications/{document} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdmin() || resource.data.recipientRole == 'client';
+      allow update: if isAdmin() || resource.data.recipientRole == 'client';
+      allow delete: if isAdmin();
     }
 
     // [NUEVO] Registro de Tokens FCM (Dispositivos)
@@ -114,7 +116,7 @@ service cloud.firestore {
 
     // Configuración y PINs de empleados (Altamente sensible)
     match /employees/{employeeId} {
-      allow read: if isAdmin();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -143,8 +145,7 @@ service cloud.firestore {
 
     // Kardex y Movimientos de Stock
     match /stockMovements/{movementId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow read, create: if true;
       allow update, delete: if isAdmin();
     }
 
