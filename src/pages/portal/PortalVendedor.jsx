@@ -26,7 +26,7 @@ import { getOfflineClient, saveOfflineClient, saveOfflineClients } from '../../s
 export default function PortalVendedor() {
   const isOnline = useConnectivityStore((state) => state.isOnline)
   const { portalEmployee } = usePortalStore()
-  const { appName, appIcon, whatsappAdmin, creditsEnabled } = useAppConfigStore()
+  const { appName, appIcon, whatsappAdmin, creditsEnabled, bankInfo, bankInfo2 } = useAppConfigStore()
   const { data: products = [], isLoading: loadingProducts } = useProducts(true)
   const { data: categories = [] } = useCategories()
   const { mutateAsync: createPhysicalOrder, isPending: isSubmitting } = useCreatePhysicalOrder()
@@ -47,6 +47,7 @@ export default function PortalVendedor() {
   const [lastOrder, setLastOrder] = useState(null)
   const [stockAlert, setStockAlert] = useState('')
   const [selectedProductForVariant, setSelectedProductForVariant] = useState(null)
+  const [expandedQrUrl, setExpandedQrUrl] = useState(null)
 
   const [vendedorOrders, setVendedorOrders] = useState([])
   const [loadingOrders, setLoadingOrders] = useState(true)
@@ -63,6 +64,13 @@ export default function PortalVendedor() {
     })
     return () => unsub()
   }, [portalEmployee?.id])
+
+  useEffect(() => {
+    if (stockAlert) {
+      const t = setTimeout(() => setStockAlert(''), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [stockAlert])
 
   // Sincronizar clientes a IndexedDB para búsqueda offline instantánea
   useEffect(() => {
@@ -225,7 +233,7 @@ export default function PortalVendedor() {
       {/* ─── ALERTA DE STOCK ──────────────────────────────────────────── */}
       <AnimatePresence>
         {stockAlert && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+          <motion.div initial={{ opacity: 0, y: -20, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -20, x: '-50%' }}
             className="portal-stock-alert" onClick={() => setStockAlert('')}>
             <AlertCircle size={16} /><span>{stockAlert}</span>
           </motion.div>
@@ -319,6 +327,41 @@ export default function PortalVendedor() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── MODAL PARA AMPLIAR EL QR ───────────────────────────────────── */}
+      <AnimatePresence>
+        {expandedQrUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setExpandedQrUrl(null)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white p-6 rounded-[2rem] shadow-2xl z-10 max-w-sm w-full flex flex-col items-center gap-4"
+            >
+              <button
+                onClick={() => setExpandedQrUrl(null)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                <X size={14} />
+              </button>
+              <p className="text-sm font-bold text-center mt-2 text-slate-800">Escanea para Pagar</p>
+              <div className="w-64 h-64 border border-slate-100 rounded-2xl overflow-hidden p-3 bg-white flex items-center justify-center shadow-inner">
+                <img src={expandedQrUrl} alt="Código QR Ampliado" className="w-full h-full object-contain" />
+              </div>
+              <p className="text-xs text-slate-500 text-center leading-relaxed">
+                Presenta este código al cliente para realizar la transferencia de forma directa.
+              </p>
             </motion.div>
           </div>
         )}
@@ -571,9 +614,9 @@ export default function PortalVendedor() {
               </div>
 
               {/* Pago */}
-              <div className="portal-section">
-                <p className="portal-section-title">Método de pago</p>
-                <div className={`grid ${creditsEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-3`}>
+              <div className="portal-section space-y-3">
+                <p className="portal-section-title mb-1">Método de pago</p>
+                <div className={`grid ${creditsEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                   {[
                     { v: PAYMENT_METHODS.CASH, label: 'Efectivo', Icon: Coins },
                     { v: PAYMENT_METHODS.TRANSFER, label: 'Transferencia', Icon: Wallet },
@@ -593,7 +636,74 @@ export default function PortalVendedor() {
                     </button>
                   ))}
                 </div>
-                <textarea className="portal-notes" placeholder="Notas adicionales (opcional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
+
+                {paymentMethod === PAYMENT_METHODS.TRANSFER && (
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-surface to-primary/[0.03] rounded-3xl border border-app shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest border-b border-transparent pb-1">
+                      Cuentas para Transferencia
+                    </p>
+                    <div className="space-y-3">
+                      {bankInfo?.banco && (
+                        <div className="flex items-center justify-between gap-3 text-xs">
+                          <div className="space-y-1 flex-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-primary text-white shadow-sm">
+                              {bankInfo.banco}
+                            </span>
+                            <p className="text-[10px] text-muted">
+                              Tipo: <span className="font-extrabold text-app">{bankInfo.tipoCuenta === 'ahorros' ? 'Ahorros' : bankInfo.tipoCuenta === 'corriente' ? 'Corriente' : 'Digital'}</span>
+                            </p>
+                            <p className="font-mono text-xs text-muted">
+                              Número: <span className="font-black text-app bg-surface-2 px-1.5 py-0.5 rounded">{bankInfo.numeroCuenta}</span>
+                            </p>
+                            <p className="text-[10px] text-muted">
+                              Titular: <span className="font-bold text-app">{bankInfo.titular}</span>
+                            </p>
+                          </div>
+                          {bankInfo.qrUrl && (
+                            <div 
+                              onClick={() => setExpandedQrUrl(bankInfo.qrUrl)}
+                              className="w-16 h-16 rounded-xl shadow-sm bg-white p-1 flex items-center justify-center shrink-0 hover:scale-105 transition-transform duration-300 cursor-pointer border border-app"
+                            >
+                              <img src={bankInfo.qrUrl} alt="QR Pago" className="w-full h-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {bankInfo2?.activa && bankInfo2?.banco && (
+                        <div className="flex items-center justify-between gap-3 text-xs pt-3 border-t border-app/50">
+                          <div className="space-y-1 flex-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-sm">
+                              {bankInfo2.banco}
+                            </span>
+                            <p className="text-[10px] text-muted">
+                              Tipo: <span className="font-extrabold text-app">{bankInfo2.tipoCuenta === 'ahorros' ? 'Ahorros' : bankInfo2.tipoCuenta === 'corriente' ? 'Corriente' : 'Digital'}</span>
+                            </p>
+                            <p className="font-mono text-xs text-muted">
+                              Número: <span className="font-black text-app bg-surface-2 px-1.5 py-0.5 rounded">{bankInfo2.numeroCuenta}</span>
+                            </p>
+                            <p className="text-[10px] text-muted">
+                              Titular: <span className="font-bold text-app">{bankInfo2.titular}</span>
+                            </p>
+                          </div>
+                          {bankInfo2.qrUrl && (
+                            <div 
+                              onClick={() => setExpandedQrUrl(bankInfo2.qrUrl)}
+                              className="w-16 h-16 rounded-xl shadow-sm bg-white p-1 flex items-center justify-center shrink-0 hover:scale-105 transition-transform duration-300 cursor-pointer border border-app"
+                            >
+                              <img src={bankInfo2.qrUrl} alt="QR Pago 2" className="w-full h-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {!bankInfo?.banco && (!bankInfo2?.activa || !bankInfo2?.banco) && (
+                        <p className="text-xs text-muted text-center py-2">No hay cuentas bancarias configuradas.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <textarea className="portal-notes mt-2" placeholder="Notas adicionales (opcional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
               </div>
 
               {/* Total y acción */}

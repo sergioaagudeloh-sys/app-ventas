@@ -486,9 +486,14 @@ export async function createPhysicalOrder(orderData, adminId) {
       })
     })
 
+    const resolvedStatus = (orderData.metodoPago === PAYMENT_METHODS.CASH || orderData.metodoPago === PAYMENT_METHODS.TRANSFER)
+      ? ORDER_STATES.COMPLETED
+      : (orderData.metodoPago === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.PENDING)
+
     transaction.set(orderIdRef, {
       ...orderData,
       orderNumber,
+      estado: resolvedStatus,
       stockDescontado: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()

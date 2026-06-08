@@ -47,6 +47,13 @@ export default function PortalBodega() {
     return () => unsub()
   }, [portalEmployee?.id])
 
+  useEffect(() => {
+    if (feedback) {
+      const t = setTimeout(() => setFeedback(null), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [feedback])
+
   const filtered = useMemo(() => products.filter(p =>
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
   ), [products, searchTerm])

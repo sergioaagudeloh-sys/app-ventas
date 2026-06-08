@@ -370,12 +370,17 @@ export default function AdminSales() {
         const tempOrderId = `offline-sale-${Date.now()}`
         const orderNumber = `OR-POS-OFFLINE-${Math.floor(100000 + Math.random() * 900000)}`
 
+        const resolvedStatus = (paymentMethod === PAYMENT_METHODS.CASH || paymentMethod === PAYMENT_METHODS.TRANSFER)
+          ? ORDER_STATES.COMPLETED
+          : (paymentMethod === PAYMENT_METHODS.CREDIT ? ORDER_STATES.CREDIT_APPROVED : ORDER_STATES.PENDING)
+
         const saleData = {
           id: tempOrderId,
           adminId,
           orderData: {
             ...orderData,
             orderNumber,
+            estado: resolvedStatus,
             stockDescontado: true,
             offline: true
           }
