@@ -527,14 +527,15 @@ export default function AdminOrders() {
                                   readOnly={true}
                                 />
                               </div>
-                              <div className="pt-1">
+                              <div className="pt-1.5">
                                 <a
                                   href={`https://www.google.com/maps/dir/?api=1&destination=${order.cliente.coords.lat},${order.cliente.coords.lng}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold transition-all active:scale-95 hover:opacity-90 cursor-pointer"
+                                  className="flex items-center justify-center gap-2 w-full h-11 bg-primary text-white rounded-xl text-xs font-bold transition-all active:scale-[0.98] hover:opacity-95 shadow-md shadow-primary/10 cursor-pointer text-center"
                                 >
-                                  🗺️ Abrir Ruta en Google Maps
+                                  <ExternalLink size={14} />
+                                  Abrir Ruta en Google Maps
                                 </a>
                               </div>
                             </motion.div>
