@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert, QrCode } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert, QrCode, Map } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
 import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
@@ -77,6 +77,7 @@ export default function AdminOrders() {
   const [showWholesaleModal, setShowWholesaleModal] = useState(false)
   const [tempDeliveryCosts, setTempDeliveryCosts] = useState({})
   const [savedPriceModal, setSavedPriceModal] = useState({ isOpen: false, orderNumber: '', value: 0 })
+  const [expandedMapOrderIds, setExpandedMapOrderIds] = useState(new Set())
   const triggerRef = useRef(null)
 
   const pendingWholesaleCount = useMemo(() => {
@@ -488,22 +489,57 @@ export default function AdminOrders() {
                     
                     {/* Leaflet Map Visualizer for Admin */}
                     {order.tipoEntrega === 'domicilio' && order.cliente?.coords && (
-                      <div className="mt-3 mb-3">
-                        <LeafletMapPicker
-                          address={order.cliente.direccion}
-                          coords={order.cliente.coords}
-                          readOnly={true}
-                        />
-                        <div className="mt-2">
-                          <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.cliente.coords.lat},${order.cliente.coords.lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold transition-all active:scale-95 hover:opacity-90 cursor-pointer"
-                          >
-                            🗺️ Abrir Ruta en Google Maps
-                          </a>
-                        </div>
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedMapOrderIds(prev => {
+                              const next = new Set(prev)
+                              if (next.has(order.id)) {
+                                next.delete(order.id)
+                              } else {
+                                next.add(order.id)
+                              }
+                              return next
+                            })
+                          }}
+                          className="flex items-center justify-between w-full px-3.5 py-2.5 rounded-xl bg-surface-2 hover:bg-surface-2/80 border border-app text-[11px] font-bold text-app transition-all active:scale-[0.98] select-none cursor-pointer mt-3"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Map size={13} className="text-primary" />
+                            {expandedMapOrderIds.has(order.id) ? 'Ocultar Mapa' : 'Ver Mapa de Ubicación'}
+                          </span>
+                          <ChevronDown size={12} className={`text-muted transition-transform duration-300 ${expandedMapOrderIds.has(order.id) ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <AnimatePresence initial={false}>
+                          {expandedMapOrderIds.has(order.id) && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden space-y-2"
+                            >
+                              <div className="pt-2">
+                                <LeafletMapPicker
+                                  address={order.cliente.direccion}
+                                  coords={order.cliente.coords}
+                                  readOnly={true}
+                                />
+                              </div>
+                              <div className="pt-1">
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${order.cliente.coords.lat},${order.cliente.coords.lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-bold transition-all active:scale-95 hover:opacity-90 cursor-pointer"
+                                >
+                                  🗺️ Abrir Ruta en Google Maps
+                                </a>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     )}
 
