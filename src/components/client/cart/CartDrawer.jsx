@@ -34,7 +34,11 @@ export default function CartDrawer() {
   const clientPhone = isClient && user?.celular
 
   useEffect(() => {
-    if (!isOpen || (!cartRecsEnabled && !historyRecsEnabled)) return
+    if (!isOpen) {
+      setRecommendedProducts([])
+      return
+    }
+    if (!cartRecsEnabled && !historyRecsEnabled) return
 
     let isMounted = true
     const fetchRecs = async () => {
@@ -45,7 +49,9 @@ export default function CartDrawer() {
 
         if (!isMounted) return
 
-        const cartProductIds = items.map(item => item.productId)
+        // Obtener los items más recientes del carrito directamente desde el estado de Zustand
+        const currentItems = useCartStore.getState().items
+        const cartProductIds = currentItems.map(item => item.productId)
 
         let historyCategories = []
         if (historyRecsEnabled && clientPhone) {
@@ -71,7 +77,7 @@ export default function CartDrawer() {
         })
 
         const cartCategories = Array.from(new Set(
-          items.map(item => {
+          currentItems.map(item => {
             const prod = allProducts.find(p => p.id === item.productId)
             return prod?.categoria
           }).filter(Boolean)
@@ -119,7 +125,7 @@ export default function CartDrawer() {
     return () => {
       isMounted = false
     }
-  }, [isOpen, cartRecsEnabled, historyRecsEnabled, clientPhone, items])
+  }, [isOpen, cartRecsEnabled, historyRecsEnabled, clientPhone])
 
   const handleContinueShopping = () => {
     closeCart()
