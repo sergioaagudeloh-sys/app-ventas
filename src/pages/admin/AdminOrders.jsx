@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactDOM from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert, QrCode, Map } from 'lucide-react'
+import { ClipboardList, Clock, Package, CheckCircle, Search, ChevronDown, MapPin, FileText, XCircle, X, MessageCircle, DollarSign, Archive, CreditCard, Calendar, PackagePlus, Phone, ExternalLink, ShieldAlert, QrCode, Map, History } from 'lucide-react'
 import { useOrders, useUpdateOrderStatus } from '../../hooks/useOrders'
 import { useCredits } from '../../hooks/useCredits'
 import { useWholesaleRequests, useUpdateWholesaleStatus } from '../../hooks/useWholesale'
@@ -78,6 +78,7 @@ export default function AdminOrders() {
   const [tempDeliveryCosts, setTempDeliveryCosts] = useState({})
   const [savedPriceModal, setSavedPriceModal] = useState({ isOpen: false, orderNumber: '', value: 0 })
   const [expandedMapOrderIds, setExpandedMapOrderIds] = useState(new Set())
+  const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null)
   const triggerRef = useRef(null)
 
   const pendingWholesaleCount = useMemo(() => {
@@ -617,10 +618,19 @@ export default function AdminOrders() {
                         <>
                           <button
                             onClick={(e) => handleContactClient(order.cliente?.celular, order.orderNumber)}
-                            className="col-span-2 flex items-center justify-center gap-2 h-11 bg-green-500/10 text-green-600 border border-green-500/20 rounded-xl text-sm font-bold hover:bg-green-500/20 transition-colors"
+                            className={`${order.estado === ORDER_STATES.COMPLETED ? 'col-span-1' : 'col-span-2'} flex items-center justify-center gap-2 h-11 bg-green-500/10 text-green-600 border border-green-500/20 rounded-xl text-sm font-bold hover:bg-green-500/20 transition-colors`}
                           >
                             <MessageCircle size={16} /> WhatsApp
                           </button>
+
+                          {order.estado === ORDER_STATES.COMPLETED && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setSelectedOrderForHistory(order) }}
+                              className="col-span-1 flex items-center justify-center gap-2 h-11 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm font-bold hover:bg-primary/20 transition-colors active:scale-95 transition-all cursor-pointer"
+                            >
+                              <History size={16} /> Historial
+                            </button>
+                          )}
 
                           {order.estado !== ORDER_STATES.COMPLETED && order.estado !== ORDER_STATES.CANCELLED && order.estado !== ORDER_STATES.CREDIT_APPROVED ? (
                             <>
@@ -1176,6 +1186,98 @@ export default function AdminOrders() {
                   className={`h-12 flex justify-center items-center rounded-xl font-bold text-white shadow-md transition-all active:scale-95 disabled:opacity-50 ${confirmDialog.btnBg}`}
                 >
                   {isPending ? 'Procesando...' : 'Confirmar'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Historial de Pedido */}
+      <AnimatePresence>
+        {selectedOrderForHistory && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setSelectedOrderForHistory(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-surface border border-app rounded-3xl shadow-2xl overflow-hidden p-6"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <History size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-app">Historial del Pedido</h2>
+                    <p className="text-xs text-muted font-mono">{selectedOrderForHistory.orderNumber}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedOrderForHistory(null)}
+                  className="w-8 h-8 rounded-lg bg-surface-2 hover:bg-surface border border-app flex items-center justify-center text-muted hover:text-app transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-4 my-6">
+                <div className="bg-surface-2/40 border border-app rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted">Cliente:</span>
+                    <span className="font-bold text-app">{selectedOrderForHistory.cliente?.nombre || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted">Método de Pago:</span>
+                    <span className="font-bold text-app uppercase">{PAYMENT_METHOD_LABELS[selectedOrderForHistory.metodoPago] || selectedOrderForHistory.metodoPago}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted">Tipo de Entrega:</span>
+                    <span className="font-bold text-app capitalize">{selectedOrderForHistory.tipoEntrega || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted">Creado el:</span>
+                    <span className="font-medium text-app">
+                      {selectedOrderForHistory.createdAt?.toDate ? selectedOrderForHistory.createdAt.toDate().toLocaleString() : new Date(selectedOrderForHistory.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  {selectedOrderForHistory.updatedAt && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted">Completado el:</span>
+                      <span className="font-medium text-app">
+                        {selectedOrderForHistory.updatedAt?.toDate ? selectedOrderForHistory.updatedAt.toDate().toLocaleString() : new Date(selectedOrderForHistory.updatedAt).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm pt-2 border-t border-app">
+                    <span className="text-muted font-bold">Total Facturado:</span>
+                    <span className="font-black text-primary text-base">{formatCurrency(selectedOrderForHistory.total)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setSelectedOrderForHistory(null)}
+                  className="h-11 flex justify-center items-center rounded-xl font-bold text-app bg-surface-2 hover:bg-surface border border-app transition-colors text-sm"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => {
+                    const trackingUrl = `/pedido/status?t=${selectedOrderForHistory.trackingToken || ''}`
+                    window.open(trackingUrl, '_blank')
+                  }}
+                  className="h-11 flex justify-center items-center rounded-xl font-bold text-white bg-primary hover:bg-primary/90 transition-colors text-sm shadow-md shadow-primary/10 active:scale-95"
+                >
+                  Ver Detalle
                 </button>
               </div>
             </motion.div>
