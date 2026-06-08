@@ -35,6 +35,7 @@ export default function CartDrawer() {
 
   useEffect(() => {
     if (!isOpen) {
+      // Solo limpiar al CERRAR, no al inicio de un re-fetch
       setRecommendedProducts([])
       return
     }
@@ -42,6 +43,7 @@ export default function CartDrawer() {
 
     let isMounted = true
     const fetchRecs = async () => {
+      // NO se limpia recommendedProducts aquí para evitar el parpadeo/desaparición
       setLoadingRecs(true)
       try {
         const { getProducts } = await import('../../../services/inventoryService')
@@ -49,7 +51,6 @@ export default function CartDrawer() {
 
         if (!isMounted) return
 
-        // Obtener los items más recientes del carrito directamente desde el estado de Zustand
         const currentItems = useCartStore.getState().items
         const cartProductIds = currentItems.map(item => item.productId)
 
@@ -61,19 +62,16 @@ export default function CartDrawer() {
           orders.forEach(order => {
             order.items?.forEach(item => {
               const prod = allProducts.find(p => p.id === item.productId)
-              if (prod?.categoria) {
-                categories.add(prod.categoria)
-              }
+              if (prod?.categoria) categories.add(prod.categoria)
             })
           })
           historyCategories = Array.from(categories)
         }
 
-        let candidates = allProducts.filter(p => {
+        const candidates = allProducts.filter(p => {
           if (cartProductIds.includes(p.id)) return false
           const isOutOfStock = p.variantes?.length > 0 && p.variantes.every(v => v.stock <= 0)
-          if (isOutOfStock) return false
-          return true
+          return !isOutOfStock
         })
 
         const cartCategories = Array.from(new Set(
@@ -85,34 +83,16 @@ export default function CartDrawer() {
 
         const scoredCandidates = candidates.map(p => {
           let score = 0
-          
-          if (cartCategories.includes(p.categoria)) {
-            score += 100
-          }
-
-          if (historyCategories.includes(p.categoria)) {
-            score += 50
-          }
-
-          if (p.salesCount && p.salesCount > 0) {
-            score += Math.min(p.salesCount, 30)
-          }
-
-          if (p.tienePromocion && p.precioPromo < p.precioBase) {
-            score += 20
-          }
-
-          if (p.destacado === true) {
-            score += 10
-          }
-
+          if (cartCategories.includes(p.categoria)) score += 100
+          if (historyCategories.includes(p.categoria)) score += 50
+          if (p.salesCount && p.salesCount > 0) score += Math.min(p.salesCount, 30)
+          if (p.tienePromocion && p.precioPromo < p.precioBase) score += 20
+          if (p.destacado === true) score += 10
           return { product: p, score }
         })
 
         scoredCandidates.sort((a, b) => b.score - a.score)
-        const topRecs = scoredCandidates.slice(0, 6).map(sc => sc.product)
-
-        setRecommendedProducts(topRecs)
+        if (isMounted) setRecommendedProducts(scoredCandidates.slice(0, 6).map(sc => sc.product))
       } catch (err) {
         console.error('Error fetching recommendations:', err)
       } finally {
@@ -121,10 +101,7 @@ export default function CartDrawer() {
     }
 
     fetchRecs()
-
-    return () => {
-      isMounted = false
-    }
+    return () => { isMounted = false }
   }, [isOpen, cartRecsEnabled, historyRecsEnabled, clientPhone])
 
   const handleContinueShopping = () => {
@@ -265,59 +242,125 @@ export default function CartDrawer() {
                 )}
 
                 {/* Recomendaciones en Carrito / Historial */}
-                {cartRecsEnabled && recommendedProducts.length > 0 && (
+                {cartRecsEnabled && (recommendedProducts.length > 0 || loadingRecs) && (
                   <div className="mt-8 border-t border-app pt-6 shrink-0">
                     <h3 className="text-sm font-extrabold text-app mb-4 flex items-center justify-between">
-                      <span>{recsTitle}</span>
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                        Ofertas para ti
+                      <span className="flex items-center gap-2">
+                        <span className="relative flex">
+                          <span className="w-2 h-2 rounded-full bg-primary animate-ping absolute" />
+                          <span className="w-2 h-2 rounded-full bg-primary relative" />
+                        </span>
+                        {recsTitle}
+                      </span>
+                      <span className="text-[10px] bg-gradient-to-r from-primary/20 to-primary/10 text-primary px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border border-primary/20">
+                        Solo para ti
                       </span>
                     </h3>
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x">
-                      {recommendedProducts.map((p) => {
-                        const pPrice = (p.tienePromocion && p.precioPromo < p.precioBase)
-                          ? p.precioPromo
-                          : p.precioBase
 
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => setSelectedProductDetail(p)}
-                            className="w-36 bg-surface border border-app rounded-2xl p-2.5 flex flex-col cursor-pointer shrink-0 snap-start hover:border-primary/40 hover:shadow-md transition-all duration-300 active:scale-95 group"
-                          >
-                            <div className="w-full h-24 bg-surface-2 rounded-xl overflow-hidden shrink-0 relative mb-2">
-                              {p.imageUrl ? (
-                                <img
-                                  src={p.imageUrl}
-                                  alt={p.nombre}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted">
-                                  <ImageIcon size={20} className="opacity-40" />
-                                </div>
-                              )}
-                              {p.tienePromocion && p.precioPromo < p.precioBase && (
-                                <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-sm">
-                                  PROMO
-                                </span>
-                              )}
-                            </div>
-                            <h4 className="text-xs font-bold text-app line-clamp-2 leading-tight flex-1">
-                              {p.nombre}
-                            </h4>
-                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-app/50 shrink-0">
-                              <span className="text-xs font-extrabold text-primary">
-                                {formatCurrency(pPrice)}
-                              </span>
-                              <span className="text-[10px] text-primary bg-primary/5 group-hover:bg-primary group-hover:text-white px-2 py-0.5 rounded-lg transition-colors font-bold">
-                                Ver
-                              </span>
+                    {loadingRecs && recommendedProducts.length === 0 ? (
+                      /* Skeleton Loader */
+                      <div className="flex gap-3 pb-2">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="w-36 shrink-0 rounded-2xl overflow-hidden bg-surface animate-pulse">
+                            <div className="w-full h-28 bg-gray-200 dark:bg-gray-700" />
+                            <div className="p-2.5 space-y-2">
+                              <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full w-4/5" />
+                              <div className="h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full w-3/5" />
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <motion.div
+                        initial="hidden"
+                        animate="show"
+                        variants={{
+                          hidden: { opacity: 0 },
+                          show: {
+                            opacity: 1,
+                            transition: { staggerChildren: 0.07 }
+                          }
+                        }}
+                        className="flex gap-3 overflow-x-auto pb-3 scrollbar-none snap-x"
+                      >
+                        {recommendedProducts.map((p) => {
+                          const isPromo = p.tienePromocion && p.precioPromo < p.precioBase
+                          const pPrice = isPromo ? p.precioPromo : p.precioBase
+
+                          return (
+                            <motion.div
+                              key={p.id}
+                              variants={{
+                                hidden: { opacity: 0, y: 20, scale: 0.92 },
+                                show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 280, damping: 22 } }
+                              }}
+                              whileHover={{ y: -5, scale: 1.03, transition: { type: 'spring', stiffness: 400, damping: 18 } }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => setSelectedProductDetail(p)}
+                              className="w-[130px] shrink-0 snap-start cursor-pointer group relative"
+                            >
+                              {/* Tarjeta con imagen dominante */}
+                              <div className="w-full h-[160px] rounded-2xl overflow-hidden relative shadow-md group-hover:shadow-xl transition-shadow duration-300">
+                                {p.imageUrl ? (
+                                  <img
+                                    src={p.imageUrl}
+                                    alt={p.nombre}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                                    <ImageIcon size={28} className="opacity-25" />
+                                  </div>
+                                )}
+
+                                {/* Gradiente oscuro en la parte inferior */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent pointer-events-none" />
+
+                                {/* Badge PROMO */}
+                                {isPromo && (
+                                  <div className="absolute top-2 left-2">
+                                    <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-lg shadow-lg tracking-wider flex items-center gap-0.5">
+                                      <span className="w-1 h-1 rounded-full bg-white animate-ping" />
+                                      PROMO
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Info sobre la imagen (overlay inferior) */}
+                                <div className="absolute bottom-0 left-0 right-0 p-2.5">
+                                  <h4 className="text-[11px] font-bold text-white line-clamp-2 leading-tight drop-shadow-sm">
+                                    {p.nombre}
+                                  </h4>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className="text-[12px] font-black text-white drop-shadow-sm">
+                                      {formatCurrency(pPrice)}
+                                    </span>
+                                    {isPromo && (
+                                      <span className="text-[9px] text-red-300 line-through">
+                                        {formatCurrency(p.precioBase)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Botón "+" flotante */}
+                              <motion.div
+                                className="absolute -bottom-2 right-2 w-8 h-8 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/40 text-white font-black text-lg leading-none"
+                                whileHover={{ scale: 1.2, rotate: 15 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedProductDetail(p)
+                                }}
+                              >
+                                +
+                              </motion.div>
+                            </motion.div>
+                          )
+                        })}
+                      </motion.div>
+                    )}
                   </div>
                 )}
               </div>
