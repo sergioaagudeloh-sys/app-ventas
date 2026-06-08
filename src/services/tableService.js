@@ -126,3 +126,25 @@ export async function resolveTableRequest(request, meseroId) {
     }
   }
 }
+
+/** Suscripción a las solicitudes resueltas por un mesero específico */
+export function subscribeToResolvedTableRequests(meseroId, callback) {
+  const q = query(
+    collection(db, 'tableRequests'),
+    where('status', '==', 'atendido'),
+    where('meseroId', '==', meseroId)
+  )
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    list.sort((a, b) => {
+      const tA = a.updatedAt?.seconds || 0
+      const tB = b.updatedAt?.seconds || 0
+      return tB - tA
+    })
+    callback(list.slice(0, 30))
+  }, (error) => {
+    console.error('[tableService] Error al escuchar llamados atendidos:', error)
+    callback([])
+  })
+}
+

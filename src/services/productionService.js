@@ -69,3 +69,21 @@ export function subscribeToProductionOrders(callback) {
   })
 }
 
+/**
+ * Suscripción en tiempo real a las órdenes entregadas/completadas en producción.
+ */
+export function subscribeToCompletedProductionOrders(callback) {
+  const q = query(
+    collection(db, COLLECTIONS.PRODUCTION),
+    where('estado', '==', 'entregado'),
+    orderBy('createdAt')
+  )
+  return onSnapshot(q, snap => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    callback(list.reverse().slice(0, 30)) // Mostrar las últimas 30
+  }, (error) => {
+    console.error('[productionService] Error al escuchar órdenes de producción completadas:', error)
+    callback([])
+  })
+}
+

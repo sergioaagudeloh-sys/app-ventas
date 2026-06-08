@@ -199,6 +199,25 @@ export function subscribeToClientOrders(celular, callback) {
 }
 
 /**
+ * Se suscribe a los pedidos registrados por un vendedor específico en tiempo real
+ */
+export function subscribeToVendedorOrders(vendedorId, callback) {
+  const q = query(ordersRef, where('vendedorId', '==', vendedorId))
+  return onSnapshot(q, (snap) => {
+    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    const sorted = list.sort((a, b) => {
+      const tA = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0
+      const tB = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0
+      return tB - tA
+    })
+    callback(sorted)
+  }, (error) => {
+    console.error('[orderService] Error al escuchar pedidos del vendedor:', error)
+    callback([])
+  })
+}
+
+/**
  * Elimina lógicamente (o limpia del cliente) un historial de pedidos en lote
  */
 export async function clearClientOrderHistory(orders) {

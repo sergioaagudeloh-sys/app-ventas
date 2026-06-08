@@ -10,7 +10,7 @@ import {
   Search, ShoppingCart, User, Plus, Minus, Trash2,
   Loader2, CheckCircle2, Printer, X, Package,
   FileText, Store, RefreshCw, CreditCard, Wallet, Coins,
-  ChefHat, AlertCircle
+  ChefHat, AlertCircle, History, ChevronRight
 } from 'lucide-react'
 import { useProducts, useCategories } from '../../hooks/useInventory'
 import { useCreatePhysicalOrder } from '../../hooks/useOrders'
@@ -19,6 +19,7 @@ import usePortalStore from '../../store/portalStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../../constants'
+import { getCssColor } from '../../utils/colors'
 import { useConnectivityStore } from '../../store/connectivityStore'
 import { getOfflineClient, saveOfflineClient, saveOfflineClients } from '../../services/offlineDB'
 
@@ -46,6 +47,22 @@ export default function PortalVendedor() {
   const [lastOrder, setLastOrder] = useState(null)
   const [stockAlert, setStockAlert] = useState('')
   const [selectedProductForVariant, setSelectedProductForVariant] = useState(null)
+
+  const [vendedorOrders, setVendedorOrders] = useState([])
+  const [loadingOrders, setLoadingOrders] = useState(true)
+
+  // Escuchar pedidos del vendedor
+  useEffect(() => {
+    if (!portalEmployee?.id) return
+    let unsub = () => {}
+    import('../../services/orderService').then(({ subscribeToVendedorOrders }) => {
+      unsub = subscribeToVendedorOrders(portalEmployee.id, (data) => {
+        setVendedorOrders(data)
+        setLoadingOrders(false)
+      })
+    })
+    return () => unsub()
+  }, [portalEmployee?.id])
 
   // Sincronizar clientes a IndexedDB para búsqueda offline instantánea
   useEffect(() => {
@@ -247,18 +264,59 @@ export default function PortalVendedor() {
           <div className="portal-modal-overlay" onClick={() => setSelectedProductForVariant(null)}>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 26, stiffness: 320 }}
               className="portal-variants-sheet" onClick={e => e.stopPropagation()}>
-              <div className="portal-variants-header">
-                <span className="portal-variants-title">{selectedProductForVariant.nombre}</span>
-                <button onClick={() => setSelectedProductForVariant(null)}><X size={20} /></button>
+              <div className="portal-variants-header mb-4">
+                <div>
+                  <span className="portal-variants-title block">{selectedProductForVariant.nombre}</span>
+                  <span className="text-[10px] text-muted">Selecciona la variante de inventario</span>
+                </div>
+                <button onClick={() => setSelectedProductForVariant(null)} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-muted hover:text-app">
+                  <X size={16} />
+                </button>
               </div>
-              <div className="portal-variants-list">
+              <div className="portal-variants-list max-h-[300px] overflow-y-auto pr-1 space-y-2">
                 {selectedProductForVariant.variantes?.map(v => (
-                  <button key={v.id} disabled={v.stock <= 0}
-                    className={`portal-variant-btn ${v.stock <= 0 ? 'portal-variant-btn--disabled' : ''}`}
-                    onClick={() => { addToCart(selectedProductForVariant, v, 1); setSelectedProductForVariant(null) }}>
-                    <span>{[v.talla, v.color].filter(Boolean).join(' / ') || 'Estándar'}</span>
-                    <span className="portal-variant-stock">{v.stock <= 0 ? 'Agotado' : `${v.stock} und.`}</span>
-                  </button>
+                  <div
+                    key={v.id}
+                    onClick={() => {
+                      if (v.stock > 0) {
+                        addToCart(selectedProductForVariant, v, 1)
+                        setSelectedProductForVariant(null)
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
+                      v.stock <= 0
+                        ? 'opacity-40 border-app bg-surface-2 cursor-not-allowed'
+                        : 'border-app hover:border-primary/50 hover:bg-primary-soft bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {v.color && (
+                        <div
+                          className="w-5 h-5 rounded-full border border-black/10 shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: getCssColor(v.color) }}
+                          title={v.color}
+                        />
+                      )}
+                      <div>
+                        <p className="text-xs font-bold text-app">
+                          {[v.talla ? `Talla: ${v.talla}` : '', v.color ? `Color: ${v.color}` : ''].filter(Boolean).join(' • ') || 'Estándar'}
+                        </p>
+                        <p className="text-[10px] text-muted">
+                          Stock: {v.stock} unidades
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-primary">
+                        {formatCurrency(selectedProductForVariant.precioBase)}
+                      </span>
+                      {v.stock > 0 ? (
+                        <ChevronRight size={14} className="text-muted" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-red-500 uppercase">Agotado</span>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </motion.div>
@@ -298,6 +356,9 @@ export default function PortalVendedor() {
         <button className={`portal-tab ${activeTab === 'cart' ? 'portal-tab--active' : ''}`} onClick={() => setActiveTab('cart')}>
           <ShoppingCart size={16} /> Carrito
           {cart.length > 0 && <span className="portal-tab-badge">{cart.reduce((s, i) => s + i.cantidad, 0)}</span>}
+        </button>
+        <button className={`portal-tab ${activeTab === 'history' ? 'portal-tab--active' : ''}`} onClick={() => setActiveTab('history')}>
+          <History size={16} /> Historial
         </button>
       </div>
 
@@ -375,93 +436,178 @@ export default function PortalVendedor() {
           )}
         </div>
 
-        {/* ─── PANEL CARRITO / CHECKOUT ─────────────────────────────────── */}
-        <div className={`portal-checkout-panel ${activeTab !== 'cart' ? 'portal-panel--hidden' : ''}`}>
-          {/* Cliente */}
-          <div className="portal-section">
-            <p className="portal-section-title"><User size={15} /> Cliente</p>
-            <div className="portal-client-search">
-              <input className="portal-input" type="tel" placeholder="Celular (10 dígitos)" maxLength={10}
-                value={celular} onChange={e => setCelular(e.target.value.replace(/\D/g, ''))} />
-              {clientSearchStatus === 'searching' && <Loader2 size={15} className="animate-spin portal-input-icon" />}
-              {clientSearchStatus === 'found' && <CheckCircle2 size={15} className="portal-input-icon portal-input-icon--ok" />}
-            </div>
-            <AnimatePresence>
-              {clientSearchStatus === 'found' && foundClient && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  className="portal-client-found">
-                  <p className="portal-client-name">{foundClient.nombre}</p>
-                  <p className="portal-client-phone">{foundClient.celular}</p>
-                </motion.div>
-              )}
-              {clientSearchStatus === 'not_found' && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  className="portal-client-register">
-                  <p>Cliente no encontrado. Registrar:</p>
-                  <input className="portal-input" placeholder="Nombre completo" value={clientName}
-                    onChange={e => setClientName(e.target.value)} />
-                  <button className="portal-register-btn" disabled={!clientName.trim() || isRegisteringClient} onClick={registerClient}>
-                    {isRegisteringClient ? <Loader2 size={14} className="animate-spin" /> : null} Registrar
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Items del carrito */}
-          <div className="portal-section portal-section--cart">
-            <p className="portal-section-title"><ShoppingCart size={15} /> Carrito ({cart.length} items)</p>
-            {cart.length === 0 ? (
-              <div className="portal-cart-empty">Sin productos aún</div>
-            ) : (
-              <div className="portal-cart-items">
-                {cart.map((item, idx) => (
-                  <div key={idx} className="portal-cart-item">
-                    <div className="portal-cart-item-info">
-                      <p className="portal-cart-item-name">{item.nombre}</p>
-                      {item.descripcion && <p className="portal-cart-item-variant text-[10px] italic opacity-85">Detalle: {item.descripcion}</p>}
-                      {(item.talla || item.color) && <p className="portal-cart-item-variant">{[item.talla, item.color].filter(Boolean).join(' / ')}</p>}
-                      <p className="portal-cart-item-price">{formatCurrency(item.precio)}</p>
-                    </div>
-                    <div className="portal-cart-item-controls">
-                      <button className="portal-qty-btn" onClick={() => updateQty(idx, -1)}><Minus size={13} /></button>
-                      <span>{item.cantidad}</span>
-                      <button className="portal-qty-btn" onClick={() => updateQty(idx, 1)}><Plus size={13} /></button>
-                      <button className="portal-qty-btn portal-qty-btn--delete" onClick={() => setCart(c => c.filter((_, i) => i !== idx))}><Trash2 size={13} /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Pago */}
-          <div className="portal-section">
-            <p className="portal-section-title">Método de pago</p>
-            <div className="portal-payment-methods">
-              {[
-                { v: PAYMENT_METHODS.CASH, label: 'Efectivo', Icon: Coins },
-                { v: PAYMENT_METHODS.TRANSFER, label: 'Transferencia', Icon: CreditCard },
-                ...(creditsEnabled ? [{ v: PAYMENT_METHODS.CREDIT, label: 'Crédito', Icon: Wallet }] : []),
-              ].map(({ v, label, Icon }) => (
-                <button key={v} className={`portal-payment-btn ${paymentMethod === v ? 'portal-payment-btn--active' : ''}`} onClick={() => setPaymentMethod(v)}>
-                  <Icon size={16} /><span>{label}</span>
-                </button>
-              ))}
-            </div>
-            <textarea className="portal-notes" placeholder="Notas adicionales (opcional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
-          </div>
-
-          {/* Total y acción */}
-          <div className="portal-checkout-footer">
-            <div className="portal-total">
-              <span>Total</span>
-              <span className="portal-total-amount">{formatCurrency(getTotal())}</span>
-            </div>
-            <button className="portal-finalize-btn" disabled={isSubmitting || cart.length === 0} onClick={finalizeSale}>
-              {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <><ShoppingCart size={18} /> Finalizar Venta</>}
+        {/* ─── PANEL CARRITO Y HISTORIAL ─────────────────────────────────── */}
+        <div className={`portal-checkout-panel ${activeTab === 'products' ? 'portal-panel--hidden' : ''}`}>
+          {/* Selector de Pestaña de Panel Derecho */}
+          <div className="md:grid hidden grid-cols-2 gap-2 mb-3 bg-surface-2 p-1 rounded-2xl border border-app shrink-0">
+            <button
+              onClick={() => setActiveTab('cart')}
+              className={`h-9 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer ${
+                activeTab !== 'history'
+                  ? 'bg-surface text-primary shadow-sm shadow-black/10'
+                  : 'text-muted hover:text-app bg-transparent'
+              }`}
+            >
+              <ShoppingCart size={14} /> Carrito {cart.length > 0 && `(${cart.length})`}
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`h-9 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer ${
+                activeTab === 'history'
+                  ? 'bg-surface text-primary shadow-sm shadow-black/10'
+                  : 'text-muted hover:text-app bg-transparent'
+              }`}
+            >
+              <History size={14} /> Historial
             </button>
           </div>
+
+          {activeTab === 'history' ? (
+            /* ─── CONTENIDO HISTORIAL ─────────────────────────────────── */
+            <div className="flex flex-col gap-3 flex-1 overflow-hidden h-full">
+              <p className="portal-section-title"><History size={15} /> Mis Ventas de Hoy ({vendedorOrders.length})</p>
+              {loadingOrders ? (
+                <div className="portal-loading">
+                  <Loader2 className="animate-spin" size={24} />
+                  <p>Cargando historial...</p>
+                </div>
+              ) : vendedorOrders.length === 0 ? (
+                <div className="portal-empty">
+                  <History size={36} />
+                  <p>No has realizado ventas hoy</p>
+                </div>
+              ) : (
+                <div className="portal-cart-items space-y-2.5">
+                  {vendedorOrders.map((order) => {
+                    const dateStr = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '—'
+                    return (
+                      <div key={order.id} className="p-3 bg-surface-2 border border-app rounded-2xl space-y-2 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-app">Pedido #{order.orderNumber || order.id?.slice(-4)}</span>
+                          <span className="text-[10px] text-muted">{dateStr}</span>
+                        </div>
+                        <div className="text-xs text-muted">
+                          Cliente: <span className="font-bold text-app">{order.cliente?.nombre || 'Desconocido'}</span>
+                        </div>
+                        <div className="space-y-1 bg-surface/50 p-2 rounded-xl border border-app">
+                          {order.items?.map((it, i) => (
+                            <div key={i} className="flex justify-between text-[11px] text-app">
+                              <span>{it.nombre} × {it.cantidad}</span>
+                              <span>{formatCurrency(it.precio * it.cantidad)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-between items-center text-xs pt-1">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            {PAYMENT_METHOD_LABELS[order.metodoPago] || order.metodoPago}
+                          </span>
+                          <span className="font-black text-app">{formatCurrency(order.total)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ─── CONTENIDO CHECKOUT CARRITO ─────────────────────────── */
+            <div className="flex flex-col gap-3 flex-1 overflow-hidden h-full">
+              {/* Cliente */}
+              <div className="portal-section">
+                <p className="portal-section-title"><User size={15} /> Cliente</p>
+                <div className="portal-client-search">
+                  <input className="portal-input" type="tel" placeholder="Celular (10 dígitos)" maxLength={10}
+                    value={celular} onChange={e => setCelular(e.target.value.replace(/\D/g, ''))} />
+                  {clientSearchStatus === 'searching' && <Loader2 size={15} className="animate-spin portal-input-icon" />}
+                  {clientSearchStatus === 'found' && <CheckCircle2 size={15} className="portal-input-icon portal-input-icon--ok" />}
+                </div>
+                <AnimatePresence>
+                  {clientSearchStatus === 'found' && foundClient && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="portal-client-found">
+                      <p className="portal-client-name">{foundClient.nombre}</p>
+                      <p className="portal-client-phone">{foundClient.celular}</p>
+                    </motion.div>
+                  )}
+                  {clientSearchStatus === 'not_found' && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="portal-client-register">
+                      <p>Cliente no encontrado. Registrar:</p>
+                      <input className="portal-input" placeholder="Nombre completo" value={clientName}
+                        onChange={e => setClientName(e.target.value)} />
+                      <button className="portal-register-btn" disabled={!clientName.trim() || isRegisteringClient} onClick={registerClient}>
+                        {isRegisteringClient ? <Loader2 size={14} className="animate-spin" /> : null} Registrar
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Items del carrito */}
+              <div className="portal-section portal-section--cart flex-1">
+                <p className="portal-section-title"><ShoppingCart size={15} /> Carrito ({cart.length} items)</p>
+                {cart.length === 0 ? (
+                  <div className="portal-cart-empty">Sin productos aún</div>
+                ) : (
+                  <div className="portal-cart-items">
+                    {cart.map((item, idx) => (
+                      <div key={idx} className="portal-cart-item">
+                        <div className="portal-cart-item-info">
+                          <p className="portal-cart-item-name">{item.nombre}</p>
+                          {item.descripcion && <p className="portal-cart-item-variant text-[10px] italic opacity-85">Detalle: {item.descripcion}</p>}
+                          {(item.talla || item.color) && <p className="portal-cart-item-variant">{[item.talla, item.color].filter(Boolean).join(' / ')}</p>}
+                          <p className="portal-cart-item-price">{formatCurrency(item.precio)}</p>
+                        </div>
+                        <div className="portal-cart-item-controls">
+                          <button className="portal-qty-btn" onClick={() => updateQty(idx, -1)}><Minus size={13} /></button>
+                          <span>{item.cantidad}</span>
+                          <button className="portal-qty-btn" onClick={() => updateQty(idx, 1)}><Plus size={13} /></button>
+                          <button className="portal-qty-btn portal-qty-btn--delete" onClick={() => setCart(c => c.filter((_, i) => i !== idx))}><Trash2 size={13} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pago */}
+              <div className="portal-section">
+                <p className="portal-section-title">Método de pago</p>
+                <div className={`grid ${creditsEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-3`}>
+                  {[
+                    { v: PAYMENT_METHODS.CASH, label: 'Efectivo', Icon: Coins },
+                    { v: PAYMENT_METHODS.TRANSFER, label: 'Transferencia', Icon: Wallet },
+                    ...(creditsEnabled ? [{ v: PAYMENT_METHODS.CREDIT, label: 'Fiado', Icon: CreditCard }] : []),
+                  ].map(({ v, label, Icon }) => (
+                    <button
+                      key={v}
+                      onClick={() => setPaymentMethod(v)}
+                      className={`py-3 px-2 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition-all ${
+                        paymentMethod === v
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-surface-2 text-app border-app hover:bg-surface-2/80'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      <span className="text-[10px] font-bold">{label}</span>
+                    </button>
+                  ))}
+                </div>
+                <textarea className="portal-notes" placeholder="Notas adicionales (opcional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
+              </div>
+
+              {/* Total y acción */}
+              <div className="portal-checkout-footer">
+                <div className="portal-total">
+                  <span>Total</span>
+                  <span className="portal-total-amount">{formatCurrency(getTotal())}</span>
+                </div>
+                <button className="portal-finalize-btn" disabled={isSubmitting || cart.length === 0} onClick={finalizeSale}>
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <><ShoppingCart size={18} /> Finalizar Venta</>}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
