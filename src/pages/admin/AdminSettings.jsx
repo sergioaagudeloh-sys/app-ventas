@@ -2503,6 +2503,146 @@ export default function AdminSettings() {
             )}
 
 
+            {/* SUBSECCIÓN FORM: Auditoría de Ajustes de Stock */}
+            {activeSubSection === 'movimientos' && (
+              <div className="p-5 sm:p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-app">Auditoría de Ajustes de Stock</h3>
+                    <p className="text-xs text-muted mt-1">Historial completo de modificaciones manuales de inventario realizadas por el equipo.</p>
+                  </div>
+                </div>
+
+                {/* Resumen de estadísticas */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-4 bg-surface-2 rounded-2xl border border-app shadow-sm flex flex-col justify-between">
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Ajustes Totales</p>
+                    <p className="text-2xl font-black text-app mt-1">{allStockMovements.length}</p>
+                  </div>
+                  <div className="p-4 bg-surface-2 rounded-2xl border border-app shadow-sm flex flex-col justify-between">
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Incrementos (Entradas)</p>
+                    <p className="text-2xl font-black text-green-500 mt-1">
+                      {allStockMovements.filter(m => m.type === 'addition').length}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-surface-2 rounded-2xl border border-app shadow-sm flex flex-col justify-between">
+                    <p className="text-[10px] font-bold text-muted uppercase tracking-wider">Reducciones (Salidas)</p>
+                    <p className="text-2xl font-black text-red-500 mt-1">
+                      {allStockMovements.filter(m => m.type === 'reduction').length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filtros */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-surface-2 rounded-2xl border border-app">
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Filtrar por Rol</label>
+                    <select
+                      value={selectedRoleFilter}
+                      onChange={(e) => {
+                        setSelectedRoleFilter(e.target.value)
+                        setSelectedEmployeeFilter('todos')
+                      }}
+                      className="w-full h-11 px-3.5 rounded-xl bg-surface border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                    >
+                      <option value="todos">Todos los Roles</option>
+                      <option value="admin">Administradores</option>
+                      <option value="empleado">Empleados</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-muted mb-1.5">Filtrar por Responsable</label>
+                    <select
+                      value={selectedEmployeeFilter}
+                      onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+                      className="w-full h-11 px-3.5 rounded-xl bg-surface border border-app text-app text-sm focus:outline-none focus:border-primary transition-colors"
+                    >
+                      <option value="todos">Todos los Responsables</option>
+                      {Array.from(new Set(allStockMovements
+                        .filter(m => selectedRoleFilter === 'todos' || m.createdByRole === selectedRoleFilter)
+                        .map(m => m.createdByName || m.createdByEmail || 'Sistema')
+                      )).map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Lista de movimientos */}
+                <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  {allStockMovements.length === 0 ? (
+                    <div className="text-center py-8 text-muted">
+                      <p className="text-sm">No hay registro de ajustes de stock aún.</p>
+                    </div>
+                  ) : (() => {
+                    const filtered = allStockMovements.filter(m => {
+                      const matchRole = selectedRoleFilter === 'todos' || m.createdByRole === selectedRoleFilter
+                      const matchEmployee = selectedEmployeeFilter === 'todos' || 
+                        (m.createdByName || m.createdByEmail || 'Sistema') === selectedEmployeeFilter
+                      return matchRole && matchEmployee
+                    })
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="text-center py-8 text-muted">
+                          <p className="text-sm">Ningún movimiento coincide con los filtros aplicados.</p>
+                        </div>
+                      )
+                    }
+
+                    return filtered.map((mov) => {
+                      const isAddition = mov.type === 'addition'
+                      const dateStr = mov.createdAt?.toDate ? mov.createdAt.toDate().toLocaleString('es-CO') : 
+                        mov.createdAt ? new Date(mov.createdAt).toLocaleString('es-CO') : 'Sin fecha'
+
+                      return (
+                        <div key={mov.id} className="p-4 bg-surface-2 rounded-2xl border border-app shadow-sm hover:border-primary/30 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${isAddition ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                              {isAddition ? <Plus size={16} /> : <Trash2 size={16} />}
+                            </div>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <p className="text-sm font-bold text-app">{mov.productName}</p>
+                                {mov.variantName && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-app/10 text-muted">
+                                    {mov.variantName}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted mt-0.5">
+                                Cantidad: <span className={isAddition ? 'text-green-500 font-semibold' : 'text-red-500 font-semibold'}>
+                                  {isAddition ? '+' : ''}{mov.quantity} uds
+                                </span>
+                              </p>
+                              <p className="text-xs text-muted mt-1 italic">
+                                "{mov.reason || 'Sin motivo especificado'}"
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col sm:items-end gap-1.5 text-xs shrink-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-app">{mov.createdByName || 'Sistema'}</span>
+                              <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                                mov.createdByRole === 'admin' 
+                                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
+                                  : 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                              }`}>
+                                {mov.createdByRole === 'admin' ? 'Admin' : 'Empleado'}
+                              </span>
+                            </div>
+                            <span className="text-muted text-[10px]">{dateStr}</span>
+                          </div>
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+              </div>
+            )}
+
+
             {/* SUBSECCIÓN FORM: Gestión de Personal */}
             {activeSubSection === 'empleados' && (
               <>
