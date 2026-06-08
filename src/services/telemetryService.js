@@ -1,4 +1,4 @@
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 // Variables de entorno para modo Blaze (HTTP)
 const CENTRAL_ENDPOINT = import.meta.env.VITE_DEVELOPER_TELEMETRY_ENDPOINT;
@@ -147,5 +147,34 @@ export async function reportMonthlyBillingToDeveloper(
   }
 
   console.debug("[Telemetry] Modo local: sin conexión central configurada.");
+}
+
+/**
+ * Reporta un error o excepción de la aplicación a la base de datos central de errores.
+ *
+ * @param {string} errorMsg - Mensaje del error.
+ * @param {string} stack - Stack trace completo del error.
+ */
+export async function reportAppFailureToDeveloper(errorMsg, stack) {
+  const centralDb = getCentralFirestore();
+  if (!centralDb) return;
+
+  try {
+    const newFailure = {
+      clientId: CLIENT_ID || "desconocido",
+      niche: "Ropa y Calzado", // Puedes obtener esto de configuraciones dinámicas
+      timestamp: new Date().toISOString(),
+      errorMsg: errorMsg || "Unknown Error",
+      stack: stack || "No stack trace available",
+      deviceInfo: navigator.userAgent || "Unknown Device",
+      resolved: false
+    };
+
+    const failuresRef = collection(centralDb, "app_failures");
+    await addDoc(failuresRef, newFailure);
+    console.log(`[Telemetry] Fallo reportado con éxito a la Consola Central.`);
+  } catch (error) {
+    console.error("[Telemetry] Error al enviar reporte de fallo a la Consola Central:", error);
+  }
 }
 

@@ -13,18 +13,27 @@ import { subscribeToBillingData, updateCommissionPercent } from '../services/bil
  *   isSaving: boolean,
  * }}
  */
+import useAuthStore from '../store/authStore'
+
 export function useBilling() {
   const [metrics, setMetrics] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const user = useAuthStore((state) => state.user)
 
   useEffect(() => {
+    if (!user) {
+      setMetrics(null)
+      setIsLoading(false)
+      return
+    }
+
     const unsubscribe = subscribeToBillingData((data) => {
       setMetrics(data)
       setIsLoading(false)
     })
     return () => unsubscribe()
-  }, [])
+  }, [user])
 
   const savePercent = useCallback(async (percent) => {
     setIsSaving(true)

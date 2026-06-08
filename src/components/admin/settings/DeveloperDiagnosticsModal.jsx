@@ -13,6 +13,7 @@ export default function DeveloperDiagnosticsModal({ isOpen, onClose }) {
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [loadingCentral, setLoadingCentral] = useState(false);
   const [loadingVapid, setLoadingVapid] = useState(false);
+  const [loadingErrorTest, setLoadingErrorTest] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState(
     typeof window !== 'undefined' ? Notification.permission : 'unknown'
   );
@@ -72,23 +73,49 @@ export default function DeveloperDiagnosticsModal({ isOpen, onClose }) {
     addLog('Iniciando prueba de conexión con Servidor Central/DNS...', 'info');
     const start = performance.now();
     try {
-      addLog('Realizando petición GET a Google APIs para verificar conectividad...', 'info');
-      const res = await fetch('https://firestore.googleapis.com/v1/projects/' + import.meta.env.VITE_FIREBASE_PROJECT_ID, {
-        method: 'GET'
-      });
+      addLog('Cargando servicio e inicializando Firestore Central...', 'info');
+      const { getCentralFirestore } = await import('../../../services/centralFirebaseService');
+      const centralDb = getCentralFirestore();
+      if (!centralDb) {
+        throw new Error('Falta la configuración de variables de entorno para conectar a la base de datos central de control.');
+      }
+      
+      const clientId = import.meta.env.VITE_DEVELOPER_CLIENT_ID || 'ventas-smartfix';
+      addLog(`Consultando documento de control del cliente "${clientId}" en Firestore Central...`, 'info');
+      
+      const clientRef = doc(centralDb, 'clientes_control', clientId);
+      const snap = await getDoc(clientRef);
       const end = performance.now();
       const latency = (end - start).toFixed(1);
-      if (res.ok || res.status === 404 || res.status === 403 || res.status === 400) {
-        addLog(`Petición realizada. HTTP Status: ${res.status}.`, 'info');
-        addLog(`¡Ping a Servidor Central finalizado! Latencia total: ${latency}ms`, 'success');
+      
+      addLog(`¡Conexión establecida exitosamente con la central! Latencia: ${latency}ms`, 'success');
+      if (snap.exists()) {
+        addLog('Configuración de facturación cargada desde central con éxito.', 'success');
       } else {
-        throw new Error(`Código de estado HTTP inesperado: ${res.status}`);
+        addLog('Conectado a Firestore Central, pero el documento de control de este cliente no fue encontrado. Canal activo.', 'info');
       }
     } catch (error) {
       console.error(error);
       addLog(`Error en Ping Central: ${error.message || 'Error de red / DNS'}`, 'error');
     } finally {
       setLoadingCentral(false);
+    }
+  };
+
+  // 2.5 Reportar Error de Prueba a Consola Central
+  const triggerTestErrorReport = async () => {
+    setLoadingErrorTest(true);
+    addLog('Generando y enviando error de telemetría de prueba...', 'info');
+    try {
+      const { reportAppFailureToDeveloper } = await import('../../../services/telemetryService');
+      const testError = new Error('TestTelemetryError: Prueba manual de canal de telemetría de fallos.');
+      await reportAppFailureToDeveloper(testError.message, testError.stack);
+      addLog('¡Reporte de error de prueba enviado con éxito a Firestore Central!', 'success');
+    } catch (error) {
+      console.error(error);
+      addLog(`Error al reportar fallo de prueba: ${error.message || 'Error desconocido'}`, 'error');
+    } finally {
+      setLoadingErrorTest(false);
     }
   };
 
@@ -248,6 +275,15 @@ export default function DeveloperDiagnosticsModal({ isOpen, onClose }) {
                 >
                   <Network size={16} className={loadingCentral ? 'animate-spin' : ''} />
                   Ping Central / API
+                </button>
+
+                <button
+                  onClick={triggerTestErrorReport}
+                  disabled={loadingErrorTest}
+                  className="flex-1 h-11 bg-rose-500/10 border border-rose-500/25 text-rose-500 text-xs font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-rose-500/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  <AlertTriangle size={16} className={loadingErrorTest ? 'animate-spin' : ''} />
+                  Reportar Error Prueba
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
 import { getMessaging, isSupported } from 'firebase/messaging'
@@ -21,8 +21,14 @@ const firebaseConfig = {
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig)
 
-// Exportar servicios
-export const db = getFirestore(app)
+// Exportar servicios con cache persistente local de Firestore
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+})
+
+export { db }
 export const auth = getAuth(app)
 export const storage = getStorage(app)
 

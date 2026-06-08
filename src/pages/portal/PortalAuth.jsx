@@ -100,7 +100,7 @@ export default function PortalAuth() {
   }
 
   const handleSubmit = async () => {
-    if (pin.length < 4) { setError('El PIN debe tener al menos 4 dígitos'); return }
+    if (pin.length !== 6) { setError('El PIN debe tener exactamente 6 dígitos'); return }
     setLoading(true)
     try {
       const employee = await authenticateEmployeeByIdAndPin(selectedEmployee.id, pin)
@@ -247,7 +247,7 @@ export default function PortalAuth() {
                     </button>
                   )
                   if (key === '✓') return (
-                    <button key={key} onClick={handleSubmit} disabled={loading || pin.length < 4}
+                    <button key={key} onClick={handleSubmit} disabled={loading || pin.length !== 6}
                       className="portal-key portal-key--confirm" aria-label="Confirmar">
                       {loading ? <Loader2 size={20} className="animate-spin" /> : '✓'}
                     </button>

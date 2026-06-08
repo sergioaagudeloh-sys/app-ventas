@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
-import { MotionConfig } from 'framer-motion'
+import { MotionConfig, motion, AnimatePresence } from 'framer-motion'
 import AppRoutes from './routes/AppRoutes'
 import ScrollToTop from './components/common/ScrollToTop'
 import CartDrawer from './components/client/cart/CartDrawer'
@@ -128,6 +128,7 @@ function ThemeApplier() {
 }
 
 import { updateDynamicManifest } from './utils/dynamicManifest'
+import { useConnectivityStore } from './store/connectivityStore'
 
 export default function App() {
   // Inicialización de la sesión global híbrida (LocalStorage + Firebase)
@@ -135,6 +136,35 @@ export default function App() {
   
   // Sincronización global Firestore <-> Zustand en tiempo real
   useAppConfigSync()
+
+  const isOnline = useConnectivityStore((state) => state.isOnline)
+  const [syncNotification, setSyncNotification] = useState(null)
+
+  // Escuchar evento de ventas offline sincronizadas con éxito para mostrar modal premium
+  useEffect(() => {
+    const handleSyncEvent = (e) => {
+      if (e.detail?.count > 0) {
+        setSyncNotification({ count: e.detail.count })
+      }
+    }
+    window.addEventListener('offline-sales-synced', handleSyncEvent)
+    return () => window.removeEventListener('offline-sales-synced', handleSyncEvent)
+  }, [])
+
+  // Disparar sincronización de ventas offline al recuperar la conexión a internet
+  useEffect(() => {
+    if (isOnline) {
+      // Retrasar la primera sincronización 1500ms para permitir que Firestore se reconecte
+      const timer = setTimeout(() => {
+        import('./services/orderService').then(({ syncOfflineSales }) => {
+          syncOfflineSales().catch(err => {
+            console.error('[App Offline Sync] Error al sincronizar:', err);
+          });
+        });
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline])
 
   const { 
     isLoaded, 
@@ -193,6 +223,37 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Monitoreo de Errores Globales (Reporte a Consola Central)
+  useEffect(() => {
+    const handleGlobalError = (event) => {
+      const error = event.error || {};
+      import('./services/telemetryService').then(({ reportAppFailureToDeveloper }) => {
+        reportAppFailureToDeveloper(
+          error.message || event.message || "Error Desconocido",
+          error.stack || `${event.filename}:${event.lineno}:${event.colno}`
+        );
+      }).catch(err => console.error('Error al cargar telemetryService:', err));
+    };
+
+    const handleUnhandledRejection = (event) => {
+      const reason = event.reason || {};
+      import('./services/telemetryService').then(({ reportAppFailureToDeveloper }) => {
+        reportAppFailureToDeveloper(
+          reason.message || (typeof reason === 'string' ? reason : "Rechazo de promesa no controlado"),
+          reason.stack || "Promise Unhandled Rejection Stack Unavailable"
+        );
+      }).catch(err => console.error('Error al cargar telemetryService:', err));
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   // Determinar si es la primera carga absoluta (sin caché local) y aún no se ha descargado de Firestore
   const isFirstLoad = !isLoaded && !localStorage.getItem('app-config-storage')
 
@@ -246,7 +307,17 @@ export default function App() {
   }
 
   return (
-    <ErrorBoundary FallbackComponent={AppErrorFallback}>
+    <ErrorBoundary 
+      FallbackComponent={AppErrorFallback}
+      onError={(error, info) => {
+        import('./services/telemetryService').then(({ reportAppFailureToDeveloper }) => {
+          reportAppFailureToDeveloper(
+            error?.message || error?.toString(),
+            error?.stack || info?.componentStack
+          );
+        }).catch(err => console.error('Error reporting failure:', err));
+      }}
+    >
       <QueryClientProvider client={queryClient}>
         <MotionConfig reducedMotion={animationsEnabled ? "user" : "always"}>
           <BrowserRouter>
@@ -257,6 +328,46 @@ export default function App() {
             <GuidedToast />
             <ConnectivityToast />
             <PWAInstallBanner />
+            
+            {/* Modal Premium de Sincronización de Ventas Offline */}
+            <AnimatePresence>
+              {syncNotification && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                  {/* Backdrop */}
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setSyncNotification(null)}
+                    style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}
+                  />
+                  {/* Card */}
+                  <motion.div
+                    initial={{ scale: 0.88, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.88, opacity: 0, y: 20 }}
+                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                    className="relative bg-surface rounded-3xl border border-app shadow-2xl p-6 max-w-xs w-full flex flex-col items-center text-center gap-4 z-10"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-wifi"><path d="M12 20h.01"/><path d="M8.5 16.5c3-3 4-3 7 0"/><path d="M5 13a10 9 0 0 1 14 0"/><path d="M2 9.5a15.75 15.75 0 0 1 20 0"/></svg>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-app">¡Ventas Sincronizadas!</p>
+                      <p className="text-xs text-muted leading-relaxed">
+                        Se han subido exitosamente <span className="font-extrabold text-emerald-500">{syncNotification.count}</span> venta(s) que habías registrado de forma local (offline).
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSyncNotification(null)}
+                      className="w-full h-11 rounded-2xl font-bold text-sm text-white active:scale-95 transition-all shadow-sm bg-emerald-500 hover:bg-emerald-600"
+                    >
+                      Entendido
+                    </button>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </BrowserRouter>
         </MotionConfig>
       </QueryClientProvider>

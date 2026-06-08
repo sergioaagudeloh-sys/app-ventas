@@ -3,6 +3,7 @@ import { subscribeToAppConfig, subscribeToCatalogFilters } from '../services/app
 import { subscribeToBillingData } from '../services/billingService'
 import { reportMonthlyBillingToDeveloper } from '../services/telemetryService'
 import useAppConfigStore from '../store/appConfigStore'
+import useAuthStore from '../store/authStore'
 
 /**
  * Hook global que sincroniza la configuración de Firestore con Zustand.
@@ -10,6 +11,8 @@ import useAppConfigStore from '../store/appConfigStore'
  */
 export default function useAppConfigSync() {
   const { setConfig, setCatalogFilters } = useAppConfigStore()
+  const user = useAuthStore((state) => state.user)
+  const role = useAuthStore((state) => state.role)
 
   useEffect(() => {
     // Suscripción a los ajustes generales (nombre, tema, banco, whatsapp, etc.)
@@ -22,30 +25,33 @@ export default function useAppConfigSync() {
       setCatalogFilters(filters)
     })
 
-    // Suscripción y reporte automático de telemetría en segundo plano
-    const unsubscribeTelemetry = subscribeToBillingData((metrics) => {
-      if (!metrics || !metrics.totalMes) return
-      
-      const now = new Date()
-      const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    // Suscripción y reporte automático de telemetría en segundo plano (sólo si es admin autenticado)
+    let unsubscribeTelemetry = () => {}
+    if (user && role === 'admin') {
+      unsubscribeTelemetry = subscribeToBillingData((metrics) => {
+        if (!metrics || !metrics.totalMes) return
+        
+        const now = new Date()
+        const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-      // Dispara la transmisión asíncrona silenciosa
-      reportMonthlyBillingToDeveloper(
-        metrics.totalMes,
-        metrics,
-        periodo,
-        metrics.pedidosMes
-      ).catch((err) => {
-        console.debug("[Telemetry Sync Error]:", err)
+        // Dispara la transmisión asíncrona silenciosa
+        reportMonthlyBillingToDeveloper(
+          metrics.totalMes,
+          metrics,
+          periodo,
+          metrics.pedidosMes
+        ).catch((err) => {
+          console.debug("[Telemetry Sync Error]:", err)
+        })
       })
-    })
+    }
 
-    // Cleanup: desuscribirse cuando se desmonta (idealmente nunca en la raíz)
+    // Cleanup: desuscribirse cuando se desmonta
     return () => {
       unsubscribeSettings()
       unsubscribeFilters()
       unsubscribeTelemetry()
     }
-  }, [setConfig, setCatalogFilters])
+  }, [setConfig, setCatalogFilters, user, role])
 }
 

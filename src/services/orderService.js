@@ -532,3 +532,51 @@ export function subscribeToOrderByToken(token, onUpdate, onError) {
     }
   }, onError)
 }
+
+/**
+ * Sincroniza las ventas físicas que fueron realizadas offline y guardadas en IndexedDB.
+ */
+export async function syncOfflineSales(retryCount = 0) {
+  const { getOfflineSales, removeOfflineSale } = await import('./offlineDB')
+  const pendingSales = await getOfflineSales()
+  
+  if (pendingSales.length === 0) return { success: true, count: 0 }
+  
+  let syncedCount = 0
+  let conflicts = []
+  
+  for (const sale of pendingSales) {
+    try {
+      // Re-crear el pedido en el servidor
+      const orderData = { ...sale.orderData }
+      const adminId = sale.adminId || 'admin'
+      
+      await createPhysicalOrder(orderData, adminId)
+      
+      // Si tiene éxito, remover del IndexedDB local
+      await removeOfflineSale(sale.id)
+      syncedCount++
+    } catch (error) {
+      console.error(`[syncOfflineSales] Error al sincronizar venta offline ${sale.id}:`, error)
+      conflicts.push({ sale, error: error.message })
+    }
+  }
+  
+  if (syncedCount > 0 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('offline-sales-synced', { detail: { count: syncedCount } }))
+  }
+
+  // Si hay fallas de sincronización (por lag en reconexión de Firestore), reintentar automáticamente
+  if (conflicts.length > 0 && retryCount < 4) {
+    console.log(`[syncOfflineSales] Sincronización incompleta, programando reintento #${retryCount + 1} en 5s...`)
+    setTimeout(() => {
+      syncOfflineSales(retryCount + 1).catch(console.error)
+    }, 5000)
+  }
+  
+  return {
+    success: conflicts.length === 0,
+    count: syncedCount,
+    conflicts
+  }
+}

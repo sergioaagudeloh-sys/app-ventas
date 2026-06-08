@@ -725,7 +725,7 @@ export default function AdminOrders() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-4 md:p-8 max-w-6xl mx-auto pb-24 overflow-x-hidden">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-4 md:p-8 max-w-7xl mx-auto pb-24 overflow-x-hidden">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">

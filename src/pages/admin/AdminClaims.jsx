@@ -139,7 +139,7 @@ export default function AdminClaims() {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-4 md:p-8 max-w-6xl mx-auto space-y-6"
+      className="p-4 md:p-8 max-w-7xl mx-auto space-y-6"
     >
       {/* Toast Notification */}
       <AnimatePresence>
