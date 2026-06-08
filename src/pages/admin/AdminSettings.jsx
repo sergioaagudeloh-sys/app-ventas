@@ -1590,9 +1590,9 @@ export default function AdminSettings() {
     },
     {
       id: 'ventas',
-      label: 'Ventas y Transferencias',
-      description: 'WhatsApp y datos bancarios',
-      icon: Smartphone,
+      label: 'Cuentas de Pago',
+      description: 'Datos bancarios para transferencias',
+      icon: CreditCard,
       iconBg: 'bg-green-500/10',
       iconColor: 'text-green-500',
     },
@@ -4933,20 +4933,7 @@ export default function AdminSettings() {
       {activeSection === 'ventas' && (
         <div className="bg-surface rounded-3xl shadow-sm overflow-hidden">
           <div className="p-5 sm:p-6 space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-app mb-2 flex items-center gap-2">
-                WhatsApp para Pedidos
-                <span className="text-xs font-normal text-muted bg-surface-2 px-2 py-0.5 rounded-full border border-app">Sin el "+"</span>
-              </label>
-              <input
-                type="tel"
-                value={formData.whatsappAdmin}
-                onChange={(e) => setFormData({ ...formData, whatsappAdmin: e.target.value })}
-                placeholder="Ej. 573001234567"
-                className="w-full h-12 px-4 rounded-xl bg-surface-2 border border-app text-app focus:outline-none focus:border-primary transition-colors"
-              />
-            </div>
-            <div className="pt-4 border-t border-app space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-app text-sm uppercase tracking-wider">Cuentas Bancarias para Transferencia</h3>
                 <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">El cliente elige</span>
