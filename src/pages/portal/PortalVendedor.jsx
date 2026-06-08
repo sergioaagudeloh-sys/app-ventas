@@ -10,7 +10,7 @@ import {
   Search, ShoppingCart, User, Plus, Minus, Trash2,
   Loader2, CheckCircle2, Printer, X, Package,
   FileText, Store, RefreshCw, CreditCard, Wallet, Coins,
-  ChefHat, AlertCircle, History
+  ChefHat, AlertCircle, History, ChevronRight
 } from 'lucide-react'
 import { useProducts, useCategories } from '../../hooks/useInventory'
 import { useCreatePhysicalOrder } from '../../hooks/useOrders'
@@ -19,6 +19,7 @@ import usePortalStore from '../../store/portalStore'
 import useAppConfigStore from '../../store/appConfigStore'
 import { formatCurrency } from '../../utils/formatters'
 import { PAYMENT_METHODS, PAYMENT_METHOD_LABELS } from '../../constants'
+import { getCssColor } from '../../utils/colors'
 import { useConnectivityStore } from '../../store/connectivityStore'
 import { getOfflineClient, saveOfflineClient, saveOfflineClients } from '../../services/offlineDB'
 
@@ -263,18 +264,59 @@ export default function PortalVendedor() {
           <div className="portal-modal-overlay" onClick={() => setSelectedProductForVariant(null)}>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 26, stiffness: 320 }}
               className="portal-variants-sheet" onClick={e => e.stopPropagation()}>
-              <div className="portal-variants-header">
-                <span className="portal-variants-title">{selectedProductForVariant.nombre}</span>
-                <button onClick={() => setSelectedProductForVariant(null)}><X size={20} /></button>
+              <div className="portal-variants-header mb-4">
+                <div>
+                  <span className="portal-variants-title block">{selectedProductForVariant.nombre}</span>
+                  <span className="text-[10px] text-muted">Selecciona la variante de inventario</span>
+                </div>
+                <button onClick={() => setSelectedProductForVariant(null)} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-muted hover:text-app">
+                  <X size={16} />
+                </button>
               </div>
-              <div className="portal-variants-list">
+              <div className="portal-variants-list max-h-[300px] overflow-y-auto pr-1 space-y-2">
                 {selectedProductForVariant.variantes?.map(v => (
-                  <button key={v.id} disabled={v.stock <= 0}
-                    className={`portal-variant-btn ${v.stock <= 0 ? 'portal-variant-btn--disabled' : ''}`}
-                    onClick={() => { addToCart(selectedProductForVariant, v, 1); setSelectedProductForVariant(null) }}>
-                    <span>{[v.talla, v.color].filter(Boolean).join(' / ') || 'Estándar'}</span>
-                    <span className="portal-variant-stock">{v.stock <= 0 ? 'Agotado' : `${v.stock} und.`}</span>
-                  </button>
+                  <div
+                    key={v.id}
+                    onClick={() => {
+                      if (v.stock > 0) {
+                        addToCart(selectedProductForVariant, v, 1)
+                        setSelectedProductForVariant(null)
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border flex items-center justify-between transition-all cursor-pointer ${
+                      v.stock <= 0
+                        ? 'opacity-40 border-app bg-surface-2 cursor-not-allowed'
+                        : 'border-app hover:border-primary/50 hover:bg-primary-soft bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {v.color && (
+                        <div
+                          className="w-5 h-5 rounded-full border border-black/10 shadow-sm flex-shrink-0"
+                          style={{ backgroundColor: getCssColor(v.color) }}
+                          title={v.color}
+                        />
+                      )}
+                      <div>
+                        <p className="text-xs font-bold text-app">
+                          {[v.talla ? `Talla: ${v.talla}` : '', v.color ? `Color: ${v.color}` : ''].filter(Boolean).join(' • ') || 'Estándar'}
+                        </p>
+                        <p className="text-[10px] text-muted">
+                          Stock: {v.stock} unidades
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-primary">
+                        {formatCurrency(selectedProductForVariant.precioBase)}
+                      </span>
+                      {v.stock > 0 ? (
+                        <ChevronRight size={14} className="text-muted" />
+                      ) : (
+                        <span className="text-[10px] font-bold text-red-500 uppercase">Agotado</span>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </motion.div>
